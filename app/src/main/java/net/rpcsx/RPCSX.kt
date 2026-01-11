@@ -98,10 +98,15 @@ class RPCSX {
     external fun getDirInstallPath(sfoFd: Int) : String?
     external fun getVersion(): String
     external fun setCustomDriver(path: String, libraryName: String, hookDir: String): Boolean
+    
+    // ARMv9 Optimization Functions
+    external fun initializeARMv9Optimizations(cacheDir: String, titleId: String): Boolean
+    external fun shutdownARMv9Optimizations()
 
 
     companion object {
         var initialized = false
+        var armv9OptimizationsEnabled = false
         val instance = RPCSX()
         var rootDirectory = ""
         var nativeLibDirectory = ""
@@ -109,6 +114,38 @@ class RPCSX {
         var activeGame = mutableStateOf<String?>(null)
         var state = mutableStateOf(EmulatorState.Stopped)
         var activeLibrary = mutableStateOf<String?>(null)
+        
+        /**
+         * Ініціалізація ARMv9 оптимізацій для Snapdragon 8s Gen 3
+         */
+        fun initializeOptimizations(cacheDir: String, titleId: String = ""): Boolean {
+            if (armv9OptimizationsEnabled) {
+                android.util.Log.i("RPCSX", "ARMv9 optimizations already enabled")
+                return true
+            }
+            
+            android.util.Log.i("RPCSX", "Enabling ARMv9 optimizations for Snapdragon 8s Gen 3")
+            armv9OptimizationsEnabled = instance.initializeARMv9Optimizations(cacheDir, titleId)
+            
+            if (armv9OptimizationsEnabled) {
+                android.util.Log.i("RPCSX", "ARMv9 optimizations enabled successfully!")
+            } else {
+                android.util.Log.e("RPCSX", "Failed to enable ARMv9 optimizations")
+            }
+            
+            return armv9OptimizationsEnabled
+        }
+        
+        /**
+         * Вимкнення оптимізацій при виході
+         */
+        fun shutdownOptimizations() {
+            if (armv9OptimizationsEnabled) {
+                android.util.Log.i("RPCSX", "Shutting down ARMv9 optimizations")
+                instance.shutdownARMv9Optimizations()
+                armv9OptimizationsEnabled = false
+            }
+        }
 
         fun boot(path: String): BootResult {
             return BootResult.fromInt(instance.boot(path))

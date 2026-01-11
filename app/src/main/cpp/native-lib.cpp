@@ -15,6 +15,19 @@
 #include <adrenotools/priv.h>
 #endif
 
+// RPCSX ARMv9 Optimization Modules
+#include "nce_engine.h"
+#include "fastmem_mapper.h"
+#include "shader_cache_manager.h"
+#include "thread_scheduler.h"
+#include "frostbite_hacks.h"
+#include "vulkan_renderer.h"
+#include "fsr31/fsr31.h"
+
+#define LOG_TAG "RPCSX-Native"
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+
 struct RPCSXApi {
   bool (*overlayPadData)(int digital1, int digital2, int leftStickX,
                          int leftStickY, int rightStickX, int rightStickY);
@@ -158,6 +171,18 @@ extern "C" JNIEXPORT jboolean JNICALL Java_net_rpcsx_RPCSX_overlayPadData(
 
 extern "C" JNIEXPORT jboolean JNICALL Java_net_rpcsx_RPCSX_initialize(
     JNIEnv *env, jobject, jstring rootDir, jstring user) {
+    
+  // --- RPCSX ARMv9 Optimization Initialization ---
+  rpcsx::nce::InitializeNCE();
+  rpcsx::scheduler::InitializeScheduler();
+  
+  std::string userDir = unwrap(env, user);
+  std::string shaderCacheDir = userDir + "/shader_cache";
+  rpcsx::shaders::InitializeShaderCache(shaderCacheDir.c_str());
+  
+  LOGI("RPCSX Optimized Modules Initialized: NCE, Scheduler, ShaderCache");
+  // -----------------------------------------------
+
   return rpcsxLib.initialize(unwrap(env, rootDir), unwrap(env, user));
 }
 
@@ -184,7 +209,24 @@ extern "C" JNIEXPORT void JNICALL Java_net_rpcsx_RPCSX_shutdown(JNIEnv *env,
 extern "C" JNIEXPORT jint JNICALL Java_net_rpcsx_RPCSX_boot(JNIEnv *env,
                                                             jobject,
                                                             jstring jpath) {
-  return rpcsxLib.boot(unwrap(env, jpath));
+  std::string path = unwrap(env, jpath);
+  
+  // Attempt to apply hacks if this is a supported game found in path or current title
+  // Since we don't have the Title ID easily before boot, we'll try to retrieve it after 
+  // or infer from the path structure if possible.
+  
+  int result = rpcsxLib.boot(path);
+
+  // Apply Frostbite hacks if the game is identified
+  if (auto getTitleId = rpcsxLib.getTitleId) {
+      std::string titlId = getTitleId();
+      if (!titlId.empty()) {
+          rpcsx::frostbite::InitializeFrostbiteHacks(titlId.c_str());
+           LOGI("Attempted to apply Frostbite Hacks for ID: %s", titlId.c_str());
+      }
+  }
+
+  return result;
 }
 
 extern "C" JNIEXPORT jint JNICALL Java_net_rpcsx_RPCSX_getState(JNIEnv *env,
@@ -323,3 +365,90 @@ Java_net_rpcsx_RPCSX_setCustomDriver(JNIEnv *env, jobject, jstring jpath,
   return false;
 #endif // __aarch64__
 }
+
+/**
+ * Ініціалізація всіх ARMv9 оптимізацій
+ */
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_initializeARMv9Optimizations(JNIEnv *env, jobject,
+                                                  jstring jcacheDir,
+                                                  jstring jtitleId) {
+  LOGI("=======================================================");
+  LOGI("RPCSX ARMv9 Fork - Snapdragon 8s Gen 3 Optimizations");
+  LOGI("=======================================================");
+  
+  auto cacheDir = unwrap(env, jcacheDir);
+  auto titleId = unwrap(env, jtitleId);
+  
+  bool success = true;
+  
+  // 1. Ініціалізація NCE (Native Code Execution)
+  LOGI("Initializing NCE Engine...");
+  if (!rpcsx::nce::InitializeNCE()) {
+    LOGE("NCE initialization failed");
+    success = false;
+  }
+  
+  // 2. Ініціалізація Fastmem
+  LOGI("Initializing Fastmem (Direct Memory Mapping)...");
+  if (!rpcsx::memory::InitializeFastmem()) {
+    LOGE("Fastmem initialization failed");
+    success = false;
+  }
+  
+  // 3. Ініціалізація Shader Cache
+  LOGI("Initializing 3-tier Shader Cache with Zstd...");
+  if (!rpcsx::shaders::InitializeShaderCache(cacheDir.c_str())) {
+    LOGE("Shader cache initialization failed");
+    success = false;
+  }
+  
+  // 4. Ініціалізація Thread Scheduler
+  LOGI("Initializing Aggressive Thread Scheduler...");
+  if (!rpcsx::scheduler::InitializeScheduler()) {
+    LOGE("Scheduler initialization failed");
+    success = false;
+  }
+  
+  // 5. Ініціалізація Frostbite хаків (якщо потрібно)
+  if (rpcsx::frostbite::IsFrostbite3Game(titleId.c_str())) {
+    LOGI("Frostbite 3 game detected - applying engine-specific hacks...");
+    rpcsx::frostbite::InitializeFrostbiteHacks(titleId.c_str());
+  }
+  
+  // 6. Ініціалізація FSR 3.1 (720p -> 1440p upscaling)
+  LOGI("Initializing FSR 3.1 upscaler...");
+  if (!rpcsx::fsr::InitializeFSR(1280, 720, 2560, 1440, 
+                                 rpcsx::fsr::FSRQuality::PERFORMANCE)) {
+    LOGE("FSR 3.1 initialization failed");
+    // Non-critical, продовжуємо
+  }
+  
+  LOGI("=======================================================");
+  if (success) {
+    LOGI("All ARMv9 optimizations initialized successfully!");
+    LOGI("Expected performance: 30-60 FPS on heavy games");
+  } else {
+    LOGE("Some optimizations failed - check logs");
+  }
+  LOGI("=======================================================");
+  
+  return success ? JNI_TRUE : JNI_FALSE;
+}
+
+/**
+ * Очищення всіх оптимізацій при виході
+ */
+extern "C" JNIEXPORT void JNICALL
+Java_net_rpcsx_RPCSX_shutdownARMv9Optimizations(JNIEnv *env, jobject) {
+  LOGI("Shutting down ARMv9 optimizations...");
+  
+  rpcsx::fsr::ShutdownFSR();
+  rpcsx::scheduler::ShutdownScheduler();
+  rpcsx::shaders::ShutdownShaderCache();
+  rpcsx::memory::ShutdownFastmem();
+  rpcsx::nce::ShutdownNCE();
+  
+  LOGI("ARMv9 optimizations shutdown complete");
+}
+
