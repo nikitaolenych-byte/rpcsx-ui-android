@@ -22,14 +22,28 @@ set(CMAKE_POSITION_INDEPENDENT_CODE on)
 
 # ARMv9 + SVE2 оптимізації для Snapdragon 8s Gen 3
 if (CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
-	# Максимальні оптимізації для ARMv9 з підтримкою SVE2
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=armv9-a+sve2 -O3")
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mtune=cortex-x4 -mcpu=cortex-x4")
+    include(CheckCXXCompilerFlag)
+    
+    # Check for Cortex-X4 support
+    check_cxx_compiler_flag("-mcpu=cortex-x4" HAVE_CORTEX_X4)
+    if(HAVE_CORTEX_X4)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mcpu=cortex-x4")
+    else()
+        # Fallback to generic ARMv9-A if X4 is not recognized
+        check_cxx_compiler_flag("-march=armv9-a+sve2" HAVE_ARMV9_SVE2)
+        if(HAVE_ARMV9_SVE2)
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=armv9-a+sve2")
+        endif()
+    endif()
+
 	# Векторизація та агресивні оптимізації
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ftree-vectorize -ffast-math")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -ftree-vectorize -ffast-math")
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -funroll-loops -finline-functions")
 	# LTO для зменшення розміру та покращення швидкості
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -flto=thin")
+    # Suppress unused argument warnings if any flags are ignored
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-command-line-argument")
+	
 	# Оптимізації пам'яті для LPDDR5X
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fdata-sections -ffunction-sections")
 	
