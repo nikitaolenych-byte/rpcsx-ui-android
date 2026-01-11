@@ -41,6 +41,12 @@ if (CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
       GIT_SHALLOW TRUE
     )
     FetchContent_MakeAvailable(libadrenotools)
+    
+    # Fix target name mismatch if any
+    if(TARGET libadrenotools AND NOT TARGET adrenotools)
+        add_library(adrenotools ALIAS libadrenotools)
+    endif()
+
 else()
 	add_library(adrenotools INTERFACE)
 endif()
