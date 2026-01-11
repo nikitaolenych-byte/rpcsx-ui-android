@@ -1,4 +1,4 @@
-# 🚀 Інструкція зі збірки через GitHub Actions
+# 🚀 Інструкція зі збірки (GitHub Actions + clean build)
 
 ## Автоматична збірка (Рекомендовано)
 
@@ -8,24 +8,8 @@
 
 ```bash
 cd /workspaces/rpcsx-ui-android
-
-# Додаємо всі файли
 git add .
-
-# Commit з описом
-git commit -m "Add ARMv9 optimizations for Snapdragon 8s Gen 3
-
-- NCE Engine with JIT compilation
-- Fastmem with zero-overhead mapping  
-- 3-tier shader cache with Zstd
-- Aggressive thread scheduler
-- Frostbite 3 engine hacks
-- FSR 3.1 upscaling
-- Vulkan 1.3 integration
-
-Performance: 2-3x improvement in heavy games"
-
-# Push до GitHub
+git commit -m "Build: ARMv9/SVE2 native rebuild"
 git push origin master
 ```
 
@@ -85,6 +69,20 @@ GitHub Actions автоматично:
 - JDK 17
 
 ### Команди:
+
+#### 1) Clean build (from source)
+
+Це прибирає всі артефакти збірки (Gradle/NDK/CMake) і будь-які локальні `.so/.a`, щоб наступна збірка точно йшла з вихідного коду:
+
+```bash
+./scripts/clean_from_source.sh
+```
+
+#### 2) Рекомпіляція native через CMake+Ninja + збірка APK
+
+```bash
+./scripts/build_release_ninja.sh
+```
 
 ```bash
 # Встановіть змінні середовища
@@ -184,7 +182,7 @@ rpcsx-armv9-20260111-a1b2c3d/
 2. ✅ Перевірте checksum
 3. ✅ Встановіть на Snapdragon 8s Gen 3 пристрій
 4. ✅ Слідуйте [SETUP_GUIDE.md](SETUP_GUIDE.md)
-5. ✅ Насолоджуйтесь 60 FPS у важких іграх!
+5. ✅ Протестуйте на Snapdragon 8s Gen 3 (фактичний FPS залежить від конкретної гри/налаштувань/стану драйверів).
 
 ---
 
