@@ -23,6 +23,33 @@ android {
             abiFilters += listOf("arm64-v8a")  // Оптимізовано тільки для ARMv9
         }
 
+        externalNativeBuild {
+            cmake {
+                // ARMv9 + SVE2 оптимізації для Snapdragon 8s Gen 3
+                arguments.addAll(
+                    listOf(
+                        "-DCMAKE_BUILD_TYPE=Release",
+                        "-DANDROID_ARM_NEON=ON",
+                        "-DANDROID_STL=c++_shared",
+                    )
+                )
+
+                // Максимальні оптимізації компілятора
+                cppFlags.addAll(
+                    listOf(
+                        "-march=armv9-a+sve2",
+                        "-O3",
+                        "-ffast-math",
+                        "-ftree-vectorize",
+                        "-funroll-loops",
+                        "-flto=thin",
+                        "-fvisibility=hidden",
+                        "-fvisibility-inlines-hidden",
+                    )
+                )
+            }
+        }
+
         buildConfigField("String", "Version", "\"v${versionName}\"")
         buildConfigField("String", "OptimizationTarget", "\"Snapdragon 8s Gen 3 (ARMv9+SVE2)\"")
         buildConfigField("boolean", "EnableARMv9Optimizations", "true")
@@ -93,25 +120,6 @@ android {
         cmake {
             path = file("src/main/cpp/CMakeLists.txt")
             version = "3.31.6"
-            
-            // ARMv9 + SVE2 оптимізації для Snapdragon 8s Gen 3
-            arguments += listOf(
-                "-DCMAKE_BUILD_TYPE=Release",
-                "-DANDROID_ARM_NEON=ON",
-                "-DANDROID_STL=c++_shared",
-            )
-            
-            // Максимальні оптимізації компілятора
-            cppFlags += listOf(
-                "-march=armv9-a+sve2",
-                "-O3",
-                "-ffast-math",
-                "-ftree-vectorize",
-                "-funroll-loops",
-                "-flto=thin",
-                "-fvisibility=hidden",
-                "-fvisibility-inlines-hidden",
-            )
         }
     }
 
