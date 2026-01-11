@@ -33,7 +33,14 @@ if (CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
 	# Оптимізації пам'яті для LPDDR5X
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fdata-sections -ffunction-sections")
 	
-	add_subdirectory(libadrenotools)
+    # Fetch libadrenotools
+    FetchContent_Declare(
+      libadrenotools
+      GIT_REPOSITORY https://github.com/bylaws/libadrenotools.git
+      GIT_TAG main
+      GIT_SHALLOW TRUE
+    )
+    FetchContent_MakeAvailable(libadrenotools)
 else()
 	add_library(adrenotools INTERFACE)
 endif()
@@ -45,12 +52,14 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
     shader_cache_manager.cpp
     thread_scheduler.cpp
     frostbite_hacks.cpp
+    vulkan_renderer.cpp
+    fsr31/fsr31.cpp
 )
 
 # Підключення Mesa Turnip для Adreno 735
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/mesa_turnip/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/fsr31/include
+    # ${CMAKE_CURRENT_SOURCE_DIR}/mesa_turnip/include
+    # ${CMAKE_CURRENT_SOURCE_DIR}/fsr31/include
 )
 
 target_link_libraries(${CMAKE_PROJECT_NAME}
