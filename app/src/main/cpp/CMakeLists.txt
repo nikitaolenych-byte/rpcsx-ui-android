@@ -51,7 +51,7 @@ if (CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
     FetchContent_Declare(
       libadrenotools
       GIT_REPOSITORY https://github.com/bylaws/libadrenotools.git
-      GIT_TAG main
+            GIT_TAG master
       GIT_SHALLOW TRUE
     )
     FetchContent_MakeAvailable(libadrenotools)
