@@ -5,6 +5,7 @@
 
 #include "fastmem_mapper.h"
 #include <android/log.h>
+#include <android/sharedmem.h>
 #include <sys/mman.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -40,24 +41,23 @@ static FastmemContext g_fastmem = {
 bool InitializeFastmem() {
     LOGI("Initializing Fastmem: Direct Memory Mapping for LPDDR5X");
     
-    // Створення anonymous memory descriptor для найшвидшого доступу
-    g_fastmem.memfd = memfd_create("rpcsx_fastmem", MFD_CLOEXEC);
+    // На Android NDK надійніше використовувати ASharedMemory замість memfd_create.
+    // Це також прибирає залежність від glibc-специфічних декларацій.
+    g_fastmem.memfd = ASharedMemory_create("rpcsx_fastmem", g_fastmem.total_size);
     if (g_fastmem.memfd < 0) {
-        LOGE("Failed to create memfd");
-        return false;
-    }
-    
-    // Встановлення розміру
-    if (ftruncate(g_fastmem.memfd, g_fastmem.total_size) < 0) {
-        LOGE("Failed to set memfd size");
+        LOGE("Failed to create shared memory region");
         close(g_fastmem.memfd);
         return false;
     }
     
     // Відображення пам'яті з максимальними правами та оптимізаціями
+    int mmap_flags = MAP_SHARED;
+#ifdef MAP_POPULATE
+    mmap_flags |= MAP_POPULATE;  // Не завжди доступно на Android
+#endif
     g_fastmem.base_address = mmap(nullptr, g_fastmem.total_size,
                                    PROT_READ | PROT_WRITE,
-                                   MAP_SHARED | MAP_POPULATE,  // MAP_POPULATE для попереднього завантаження
+                                   mmap_flags,
                                    g_fastmem.memfd, 0);
     
     if (g_fastmem.base_address == MAP_FAILED) {
@@ -66,12 +66,13 @@ bool InitializeFastmem() {
         return false;
     }
     
-    // Оптимізації для LPDDR5X
-    // 1. Transparent hugepages для зменшення TLB miss
+    // Оптимізації (частина advise флагів може бути недоступна на Android)
+#ifdef MADV_HUGEPAGE
     madvise(g_fastmem.base_address, g_fastmem.total_size, MADV_HUGEPAGE);
-    
-    // 2. Sequential access pattern для prefetcher
+#endif
+#ifdef MADV_SEQUENTIAL
     madvise(g_fastmem.base_address, g_fastmem.total_size, MADV_SEQUENTIAL);
+#endif
     
     // 3. Lock в пам'яті для уникнення swap (якщо є root)
     mlock(g_fastmem.base_address, g_fastmem.total_size);

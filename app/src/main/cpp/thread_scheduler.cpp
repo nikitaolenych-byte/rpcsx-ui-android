@@ -158,11 +158,24 @@ bool SetThreadAffinity(pthread_t thread, ThreadType type) {
             }
             break;
     }
-    
+
+#if defined(__ANDROID__)
+    // Bionic не експортує pthread_setaffinity_np. Для Android застосовуємо affinity
+    // тільки до поточного потоку через sched_setaffinity.
+    if (!pthread_equal(thread, pthread_self())) {
+        LOGE("Android affinity: can only set affinity for current thread");
+        return false;
+    }
+    if (sched_setaffinity(0, sizeof(cpuset), &cpuset) != 0) {
+        LOGE("Failed to set thread affinity via sched_setaffinity");
+        return false;
+    }
+#else
     if (pthread_setaffinity_np(thread, sizeof(cpuset), &cpuset) != 0) {
         LOGE("Failed to set thread affinity");
         return false;
     }
+#endif
     
     return true;
 }
@@ -259,7 +272,16 @@ void OptimizeSPUThreadPool(pthread_t* threads, size_t count) {
     param.sched_priority = 90;
     
     for (size_t i = 0; i < count; i++) {
+#if defined(__ANDROID__)
+        // На Android без доступу до TID ми не можемо стабільно проставити affinity
+        // для довільного pthread_t. Пріоритет/імена виставляємо, а affinity — лише
+        // якщо це поточний потік.
+        if (pthread_equal(threads[i], pthread_self())) {
+            sched_setaffinity(0, sizeof(cpuset), &cpuset);
+        }
+#else
         pthread_setaffinity_np(threads[i], sizeof(cpuset), &cpuset);
+#endif
         pthread_setschedparam(threads[i], SCHED_FIFO, &param);
         
         char name[16];

@@ -76,6 +76,11 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
     fsr31/fsr31.cpp
 )
 
+# Zstd headers are under <zstd.h> in ${zstd_SOURCE_DIR}/lib
+target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
+    ${zstd_SOURCE_DIR}/lib
+)
+
 # Підключення Mesa Turnip для Adreno 735
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # ${CMAKE_CURRENT_SOURCE_DIR}/mesa_turnip/include
