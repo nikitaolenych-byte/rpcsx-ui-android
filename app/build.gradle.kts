@@ -95,14 +95,14 @@ android {
             version = "3.31.6"
             
             // ARMv9 + SVE2 оптимізації для Snapdragon 8s Gen 3
-            arguments(
+            arguments += listOf(
                 "-DCMAKE_BUILD_TYPE=Release",
                 "-DANDROID_ARM_NEON=ON",
-                "-DANDROID_STL=c++_shared"
+                "-DANDROID_STL=c++_shared",
             )
             
             // Максимальні оптимізації компілятора
-            cppFlags(
+            cppFlags += listOf(
                 "-march=armv9-a+sve2",
                 "-O3",
                 "-ffast-math",
@@ -110,11 +110,8 @@ android {
                 "-funroll-loops",
                 "-flto=thin",
                 "-fvisibility=hidden",
-                "-fvisibility-inlines-hidden"
+                "-fvisibility-inlines-hidden",
             )
-            
-            // Налаштування для Snapdragon 8s Gen 3
-            abiFilters("arm64-v8a")  // Тільки 64-біт ARM
         }
     }
 
