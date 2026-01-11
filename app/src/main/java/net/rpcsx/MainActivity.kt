@@ -4,6 +4,7 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Bundle
+import android.os.Environment
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -15,6 +16,7 @@ import net.rpcsx.ui.navigation.AppNavHost
 import net.rpcsx.utils.GeneralSettings
 import net.rpcsx.utils.GitHub
 import net.rpcsx.utils.RpcsxUpdater
+import net.rpcsx.utils.ApkInstaller
 import java.io.File
 import kotlin.concurrent.thread
 
@@ -96,6 +98,9 @@ class MainActivity : ComponentActivity() {
                     RPCSX.instance.setCustomDriver(gpuDriverPath, gpuDriverName, nativeLibraryDir)
                 }
 
+                // Auto-enable NCE/JIT on first launch for ARMv9 optimization
+                autoEnableNceJit()
+
                 lifecycleScope.launch {
                     UserRepository.load()
                 }
@@ -144,5 +149,50 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         unregisterUsbEventListener()
+    }
+
+    /**
+     * Auto-enable NCE/JIT (ppu_decoder_mode = 3) on first launch for ARMv9 optimization.
+     */
+    private fun autoEnableNceJit() {
+        val nceEnabledKey = "nce_jit_auto_enabled"
+        if (GeneralSettings[nceEnabledKey] != true) {
+            try {
+                val ok = RPCSX.instance.settingsSet("CPU@@PPU Decoder", "3")
+                if (ok) {
+                    GeneralSettings[nceEnabledKey] = true
+                    Log.i("RPCSX", "NCE/JIT auto-enabled (ppu_decoder_mode=3)")
+                } else {
+                    Log.w("RPCSX", "Failed to auto-enable NCE/JIT")
+                }
+            } catch (e: Exception) {
+                Log.e("RPCSX", "Error auto-enabling NCE/JIT", e)
+            }
+        }
+    }
+
+    /**
+     * Check for APK in Downloads folder and offer to install.
+     */
+    private fun checkAndInstallApkFromDownloads() {
+        try {
+            val downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            val apkNames = listOf("app-release.apk", "rpcsx-release.apk", "rpcsx-armv9.apk")
+            for (name in apkNames) {
+                val apkFile = File(downloadDir, name)
+                if (apkFile.exists() && apkFile.canRead()) {
+                    AlertDialogQueue.showDialog(
+                        title = getString(R.string.install_custom_rpcsx_lib),
+                        message = "Found $name in Downloads. Install it?",
+                        onConfirm = {
+                            ApkInstaller.installApk(this, apkFile)
+                        }
+                    )
+                    break
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("RPCSX", "Error checking Downloads for APK", e)
+        }
     }
 }

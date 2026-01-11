@@ -205,6 +205,17 @@ fun AdvancedSettingsScreen(
                 .fillMaxSize()
                 .padding(contentPadding),
         ) {
+            if (path.isEmpty()) {
+                item(key = "cpu_settings_entry") {
+                    HomePreference(
+                        title = stringResource(R.string.cpu_settings_title),
+                        icon = { PreferenceIcon(icon = painterResource(R.drawable.memory)) },
+                        description = stringResource(R.string.cpu_settings_description),
+                        onClick = { navigateTo("cpu_ppu_decoder") }
+                    )
+                }
+            }
+
             val filteredKeys =
                 settings.keys().asSequence().filter { it.contains(searchQuery, ignoreCase = true) }
                     .toList()
@@ -450,9 +461,61 @@ fun AdvancedSettingsScreen(
                     RegularPreference(
                         title = stringResource(R.string.install_custom_rpcsx_lib),
                         leadingIcon = null,
-                        onClick = { installRpcsxLauncher.launch("*/*") }
+                        onClick = { 
+                            // Use improved APK installer with fallback methods
+                            installRpcsxLauncher.launch("*/*") 
+                        }
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun PpuDecoderSettingsScreen(
+    navigateBack: () -> Unit
+) {
+    val context = LocalContext.current
+
+    Scaffold(
+        topBar = {
+            LargeTopAppBar(
+                title = { Text(text = stringResource(R.string.ppu_decoder_title)) },
+                navigationIcon = {
+                    IconButton(onClick = navigateBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Default.KeyboardArrowLeft,
+                            contentDescription = null
+                        )
+                    }
+                },
+                scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
+            )
+        }
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            item(key = "ppu_decoder_jit") {
+                HomePreference(
+                    title = stringResource(R.string.ppu_decoder_jit),
+                    icon = { Icon(painterResource(R.drawable.ic_play), null) },
+                    description = stringResource(R.string.ppu_decoder_description),
+                    onClick = {
+                        val ok = RPCSX.instance.settingsSet("CPU@@PPU Decoder", "3")
+                        if (!ok) {
+                            AlertDialogQueue.showDialog(
+                                context.getString(R.string.error),
+                                context.getString(R.string.failed_to_assign_value, "3", "CPU@@PPU Decoder")
+                            )
+                        } else {
+                            Toast.makeText(context, context.getString(R.string.ppu_decoder_jit), Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                )
             }
         }
     }
@@ -577,6 +640,26 @@ fun SettingsScreen(
                                 configExporter.launch("config.yml")
                             }
                         )
+                    }
+                )
+            }
+
+            item(key = "ppu_decoder_mode") {
+                HomePreference(
+                    title = stringResource(R.string.ppu_decoder_title),
+                    icon = { Icon(painterResource(R.drawable.ic_play), contentDescription = null) },
+                    description = stringResource(R.string.ppu_decoder_description),
+                    onClick = {
+                        // Set PPU decoder mode to 3 (JIT / Optimized NCE)
+                        val ok = RPCSX.instance.settingsSet("CPU@@PPU Decoder", "3")
+                        if (!ok) {
+                            AlertDialogQueue.showDialog(
+                                context.getString(R.string.error),
+                                context.getString(R.string.failed_to_assign_value, "3", "CPU@@PPU Decoder")
+                            )
+                        } else {
+                            Toast.makeText(context, context.getString(R.string.ppu_decoder_jit), Toast.LENGTH_SHORT).show()
+                        }
                     }
                 )
             }

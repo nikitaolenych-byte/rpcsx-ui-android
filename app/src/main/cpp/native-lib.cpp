@@ -23,6 +23,7 @@
 #include "frostbite_hacks.h"
 #include "vulkan_renderer.h"
 #include "fsr31/fsr31.h"
+#include "signal_handler.h"
 
 #define LOG_TAG "RPCSX-Native"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -137,6 +138,14 @@ static std::string unwrap(JNIEnv *env, jstring string) {
 static jstring wrap(JNIEnv *env, const std::string &string) {
   return env->NewStringUTF(string.c_str());
 }
+
+static std::string ResolveBuildId(const std::string& javaBuildId) {
+  if (!javaBuildId.empty()) {
+    return javaBuildId;
+  }
+  // Fallback to a native-only build identifier so cache invalidation still works.
+  return std::string("native-") + __DATE__ + "-" + __TIME__;
+}
 static jstring wrap(JNIEnv *env, const char *string) {
   return env->NewStringUTF(string);
 }
@@ -181,6 +190,9 @@ extern "C" JNIEXPORT jboolean JNICALL Java_net_rpcsx_RPCSX_initialize(
   rpcsx::shaders::InitializeShaderCache(shaderCacheDir.c_str());
   
   LOGI("RPCSX Optimized Modules Initialized: NCE, Scheduler, ShaderCache");
+
+  // Install crash handlers early; helps with SIGSEGV/SIGBUS on some kernels/devices.
+  rpcsx::crash::InstallSignalHandlers();
   // -----------------------------------------------
 
   return rpcsxLib.initialize(unwrap(env, rootDir), unwrap(env, user));
@@ -210,12 +222,23 @@ extern "C" JNIEXPORT jint JNICALL Java_net_rpcsx_RPCSX_boot(JNIEnv *env,
                                                             jobject,
                                                             jstring jpath) {
   std::string path = unwrap(env, jpath);
+  rpcsx::crash::CrashGuard guard("rpcsx_boot");
+
+  if (!guard.ok()) {
+    LOGE("Boot aborted due to prior crash state");
+    return -1;
+  }
   
   // Attempt to apply hacks if this is a supported game found in path or current title
   // Since we don't have the Title ID easily before boot, we'll try to retrieve it after 
   // or infer from the path structure if possible.
   
   int result = rpcsxLib.boot(path);
+
+  if (!guard.ok()) {
+      LOGE("Boot crashed (sig=%d addr=%p) in scope=%s", guard.signal(), guard.faultAddress(), guard.scope());
+      return -1;
+  }
 
   // Apply Frostbite hacks if the game is identified
   if (auto getTitleId = rpcsxLib.getTitleId) {
@@ -372,13 +395,15 @@ Java_net_rpcsx_RPCSX_setCustomDriver(JNIEnv *env, jobject, jstring jpath,
 extern "C" JNIEXPORT jboolean JNICALL
 Java_net_rpcsx_RPCSX_initializeARMv9Optimizations(JNIEnv *env, jobject,
                                                   jstring jcacheDir,
-                                                  jstring jtitleId) {
+                                                  jstring jtitleId,
+                                                  jstring jbuildId) {
   LOGI("=======================================================");
   LOGI("RPCSX ARMv9 Fork - Snapdragon 8s Gen 3 Optimizations");
   LOGI("=======================================================");
   
   auto cacheDir = unwrap(env, jcacheDir);
   auto titleId = unwrap(env, jtitleId);
+  auto buildId = ResolveBuildId(unwrap(env, jbuildId));
   
   bool success = true;
   
@@ -398,7 +423,7 @@ Java_net_rpcsx_RPCSX_initializeARMv9Optimizations(JNIEnv *env, jobject,
   
   // 3. Ініціалізація Shader Cache
   LOGI("Initializing 3-tier Shader Cache with Zstd...");
-  if (!rpcsx::shaders::InitializeShaderCache(cacheDir.c_str())) {
+  if (!rpcsx::shaders::InitializeShaderCache(cacheDir.c_str(), buildId.c_str())) {
     LOGE("Shader cache initialization failed");
     success = false;
   }
@@ -423,6 +448,9 @@ Java_net_rpcsx_RPCSX_initializeARMv9Optimizations(JNIEnv *env, jobject,
     LOGE("FSR 3.1 initialization failed");
     // Non-critical, продовжуємо
   }
+
+  // Ensure handlers are installed for the optimisation path as well.
+  rpcsx::crash::InstallSignalHandlers();
   
   LOGI("=======================================================");
   if (success) {
@@ -434,6 +462,16 @@ Java_net_rpcsx_RPCSX_initializeARMv9Optimizations(JNIEnv *env, jobject,
   LOGI("=======================================================");
   
   return success ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* /* reserved */) {
+  JNIEnv* env = nullptr;
+  if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
+    return JNI_ERR;
+  }
+
+  rpcsx::crash::InstallSignalHandlers();
+  return JNI_VERSION_1_6;
 }
 
 /**

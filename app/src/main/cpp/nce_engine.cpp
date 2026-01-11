@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <cstring>
 #include <atomic>
+#include <algorithm>
 
 #if defined(__aarch64__)
 #include <arm_sve.h>
@@ -41,19 +42,26 @@ static NCEContext g_nce_ctx = {
  */
 bool InitializeNCE() {
     LOGI("Initializing NCE Engine for ARMv9 (Cortex-X4)");
+
+    const long page_size_long = sysconf(_SC_PAGESIZE);
+    const size_t page_size = page_size_long > 0 ? static_cast<size_t>(page_size_long) : 4096;
+    g_nce_ctx.cache_size = (g_nce_ctx.cache_size + page_size - 1) & ~(page_size - 1);
     
-    // Виділення виконуваної пам'яті для JIT кешу
+    // На нових Android (ARMv9/16K pages) RWX mmap може бути заборонений.
+    // Виділяємо RW і будемо переводити окремі сторінки в RX лише після генерації коду.
     g_nce_ctx.code_cache = mmap(nullptr, g_nce_ctx.cache_size,
-                                 PROT_READ | PROT_WRITE | PROT_EXEC,
-                                 MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+                                PROT_READ | PROT_WRITE,
+                                MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     
     if (g_nce_ctx.code_cache == MAP_FAILED) {
         LOGE("Failed to allocate NCE code cache");
         return false;
     }
     
-    // Оптимізація пам'яті: transparent hugepages для швидшого доступу
+    // Оптимізація пам'яті: hugepages (якщо доступно)
+#ifdef MADV_HUGEPAGE
     madvise(g_nce_ctx.code_cache, g_nce_ctx.cache_size, MADV_HUGEPAGE);
+#endif
     
     g_nce_ctx.active = true;
     LOGI("NCE Engine initialized: %zu MB code cache allocated", 

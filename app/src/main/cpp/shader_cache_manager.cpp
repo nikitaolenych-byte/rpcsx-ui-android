@@ -11,6 +11,9 @@
 #include <fstream>
 #include <sstream>
 #include <iomanip>
+#include <dirent.h>
+#include <cerrno>
+#include <cstring>
 #include <zstd.h>
 
 #define LOG_TAG "RPCSX-ShaderCache"
@@ -51,6 +54,124 @@ struct ShaderCacheImpl {
 };
 
 static std::unique_ptr<ShaderCacheImpl> g_cache;
+
+static constexpr uint32_t kShaderCacheMetaVersion = 2;
+
+static std::string ReadTextFile(const std::string& path) {
+    std::ifstream in(path);
+    if (!in) return {};
+    std::ostringstream ss;
+    ss << in.rdbuf();
+    return ss.str();
+}
+
+static bool WriteTextFile(const std::string& path, const std::string& contents) {
+    std::ofstream out(path, std::ios::out | std::ios::trunc);
+    if (!out) return false;
+    out << contents;
+    return true;
+}
+
+static std::string Trim(std::string s) {
+    while (!s.empty() && (s.back() == '\n' || s.back() == '\r' || s.back() == ' ' || s.back() == '\t')) s.pop_back();
+    size_t i = 0;
+    while (i < s.size() && (s[i] == ' ' || s[i] == '\t' || s[i] == '\n' || s[i] == '\r')) i++;
+    if (i) s.erase(0, i);
+    return s;
+}
+
+static std::string GetGpuIdentity() {
+    // Best-effort: KGSL exposes useful identifiers on Adreno devices.
+    const char* paths[] = {
+        "/sys/class/kgsl/kgsl-3d0/gpu_model",
+        "/sys/class/kgsl/kgsl-3d0/gpu_chipid",
+        "/sys/class/kgsl/kgsl-3d0/devfreq/cur_freq",
+    };
+
+    for (const char* p : paths) {
+        std::string v = Trim(ReadTextFile(p));
+        if (!v.empty()) {
+            return std::string(p) + ":" + v;
+        }
+    }
+    return "unknown";
+}
+
+static void PurgeFile(const std::string& path) {
+    if (unlink(path.c_str()) == 0) {
+        LOGI("Purged cache file: %s", path.c_str());
+    }
+}
+
+static void PurgeDirectoryContents(const std::string& path) {
+    DIR* d = opendir(path.c_str());
+    if (!d) return;
+
+    LOGI("Purging cache directory: %s", path.c_str());
+
+    while (dirent* ent = readdir(d)) {
+        if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) continue;
+        std::string child = path + "/" + ent->d_name;
+        if (ent->d_type == DT_DIR) {
+            PurgeDirectoryContents(child);
+            rmdir(child.c_str());
+        } else {
+            unlink(child.c_str());
+        }
+    }
+    closedir(d);
+}
+
+static bool EnsureCacheCompatible(const std::string& root_dir,
+                                  const std::string& l2_dir,
+                                  const std::string& l3_file,
+                                  const char* build_id) {
+    const std::string meta_path = root_dir + "/shader_cache_meta.txt";
+    const std::string current_build = build_id ? Trim(build_id) : "unknown";
+    const std::string current_gpu = GetGpuIdentity();
+
+    bool purge = false;
+    const std::string existing = ReadTextFile(meta_path);
+    if (!existing.empty()) {
+        uint32_t version = 0;
+        std::string build;
+        std::string gpu;
+
+        std::istringstream iss(existing);
+        std::string line;
+        while (std::getline(iss, line)) {
+            line = Trim(line);
+            if (line.rfind("version=", 0) == 0) version = static_cast<uint32_t>(std::strtoul(line.c_str() + 8, nullptr, 10));
+            if (line.rfind("build=", 0) == 0) build = line.substr(6);
+            if (line.rfind("gpu=", 0) == 0) gpu = line.substr(4);
+        }
+
+        if (version != kShaderCacheMetaVersion || build != current_build || gpu != current_gpu) {
+            LOGI("Shader cache meta mismatch: v%u/%u build='%s'/'%s' gpu='%s'/'%s'", 
+                 version, kShaderCacheMetaVersion,
+                 build.c_str(), current_build.c_str(),
+                 gpu.c_str(), current_gpu.c_str());
+            purge = true;
+        }
+    } else {
+        purge = true;
+    }
+
+    if (purge) {
+        PurgeFile(l3_file);
+        PurgeDirectoryContents(l2_dir);
+    }
+
+    std::ostringstream meta;
+    meta << "version=" << kShaderCacheMetaVersion << "\n";
+    meta << "build=" << current_build << "\n";
+    meta << "gpu=" << current_gpu << "\n";
+    if (!WriteTextFile(meta_path, meta.str())) {
+        LOGE("Failed to write shader cache meta: %s", meta_path.c_str());
+    }
+
+    return true;
+}
 
 /**
  * Обчислення хешу шейдера (використовуємо швидкий алгоритм)
@@ -128,24 +249,33 @@ std::vector<uint8_t> DecompressShader(const void* compressed_data, size_t compre
  * Ініціалізація трирівневого кешу
  */
 bool InitializeShaderCache(const char* cache_directory) {
+    return InitializeShaderCache(cache_directory, nullptr);
+}
+
+bool InitializeShaderCache(const char* cache_directory, const char* build_id) {
     LOGI("Initializing 3-tier Shader Cache with Zstd compression");
-    
+
     g_cache = std::make_unique<ShaderCacheImpl>();
-    
+
+    const std::string root_dir = std::string(cache_directory);
+    mkdir(root_dir.c_str(), 0755);
+
     // Створюємо директорії для кешу
-    g_cache->l2_cache_dir = std::string(cache_directory) + "/shader_cache_l2";
-    g_cache->l3_cache_file = std::string(cache_directory) + "/shader_cache_l3.zst";
-    
-    // Створюємо L2 директорію
+    g_cache->l2_cache_dir = root_dir + "/shader_cache_l2";
+    g_cache->l3_cache_file = root_dir + "/shader_cache_l3.zst";
+
     mkdir(g_cache->l2_cache_dir.c_str(), 0755);
-    
+
+    // Інвалідація кешу при зміні білда або GPU-ідентифікатора.
+    EnsureCacheCompatible(root_dir, g_cache->l2_cache_dir, g_cache->l3_cache_file, build_id);
+
     // Завантажуємо існуючий кеш з диска
     LoadPersistentCache();
-    
+
     // Запускаємо async компіляцію
     g_cache->async_running = true;
     g_cache->async_thread = std::thread(AsyncCompilationWorker);
-    
+
     LOGI("Shader cache initialized at: %s", cache_directory);
     return true;
 }

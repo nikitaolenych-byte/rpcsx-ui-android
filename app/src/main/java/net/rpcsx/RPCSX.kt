@@ -100,7 +100,7 @@ class RPCSX {
     external fun setCustomDriver(path: String, libraryName: String, hookDir: String): Boolean
     
     // ARMv9 Optimization Functions
-    external fun initializeARMv9Optimizations(cacheDir: String, titleId: String): Boolean
+    external fun initializeARMv9Optimizations(cacheDir: String, titleId: String, buildId: String): Boolean
     external fun shutdownARMv9Optimizations()
 
 
@@ -125,7 +125,8 @@ class RPCSX {
             }
             
             android.util.Log.i("RPCSX", "Enabling ARMv9 optimizations for Snapdragon 8s Gen 3")
-            armv9OptimizationsEnabled = instance.initializeARMv9Optimizations(cacheDir, titleId)
+            val buildId = "${BuildConfig.VERSION_NAME}:${BuildConfig.VERSION_CODE}"
+            armv9OptimizationsEnabled = instance.initializeARMv9Optimizations(cacheDir, titleId, buildId)
             
             if (armv9OptimizationsEnabled) {
                 android.util.Log.i("RPCSX", "ARMv9 optimizations enabled successfully!")

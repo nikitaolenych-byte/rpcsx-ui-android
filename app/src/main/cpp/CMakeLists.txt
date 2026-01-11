@@ -3,6 +3,9 @@ project("rpcsx-android")
 
 include(FetchContent)
 
+set(RPCSX_COMMON_OPT_FLAGS "")
+set(RPCSX_LTO_FLAGS "")
+
 # Fetch Zstd for Shader Cache compression
 FetchContent_Declare(
   zstd
@@ -22,11 +25,6 @@ set(CMAKE_POSITION_INDEPENDENT_CODE on)
 
 # ARMv9 + SVE2 оптимізації для Snapdragon 8s Gen 3
 if (CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
-    include(CheckCCompilerFlag)
-    include(CheckCXXCompilerFlag)
-    
-
-    # Примусові флаги (але з перевіркою підтримки компілятором, щоб не ламати збірку).
     set(RPCSX_COMMON_OPT_FLAGS
         -Ofast
         -O3
@@ -37,35 +35,21 @@ if (CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
         -fdata-sections
         -ffunction-sections
         -Wno-unused-command-line-argument
+        -mcpu=cortex-x4
+        -march=armv9-a+sve2
     )
 
-    # Cortex-X4 / ARMv9+SVE2
-    check_c_compiler_flag("-mcpu=cortex-x4" HAVE_C_MCPU_CORTEX_X4)
-    check_cxx_compiler_flag("-mcpu=cortex-x4" HAVE_CXX_MCPU_CORTEX_X4)
-    check_c_compiler_flag("-march=armv9-a+sve2" HAVE_C_MARCH_ARMV9_SVE2)
-    check_cxx_compiler_flag("-march=armv9-a+sve2" HAVE_CXX_MARCH_ARMV9_SVE2)
-
-    set(RPCSX_ARCH_FLAGS)
-    if (HAVE_C_MCPU_CORTEX_X4 AND HAVE_CXX_MCPU_CORTEX_X4)
-        list(APPEND RPCSX_ARCH_FLAGS -mcpu=cortex-x4)
-    endif()
-    if (HAVE_C_MARCH_ARMV9_SVE2 AND HAVE_CXX_MARCH_ARMV9_SVE2)
-        list(APPEND RPCSX_ARCH_FLAGS -march=armv9-a+sve2)
-    endif()
-
-    # LTO
+    # LTO (force, fallback to thin if needed)
+    include(CheckCCompilerFlag)
+    include(CheckCXXCompilerFlag)
     check_c_compiler_flag("-flto" HAVE_C_FLTO)
     check_cxx_compiler_flag("-flto" HAVE_CXX_FLTO)
     if (HAVE_C_FLTO AND HAVE_CXX_FLTO)
         set(RPCSX_LTO_FLAGS -flto)
     else()
-        check_c_compiler_flag("-flto=thin" HAVE_C_FLTO_THIN)
-        check_cxx_compiler_flag("-flto=thin" HAVE_CXX_FLTO_THIN)
-        if (HAVE_C_FLTO_THIN AND HAVE_CXX_FLTO_THIN)
-            set(RPCSX_LTO_FLAGS -flto=thin)
-        endif()
+        set(RPCSX_LTO_FLAGS -flto=thin)
     endif()
-	
+
     # Fetch libadrenotools
     FetchContent_Declare(
       libadrenotools
@@ -75,17 +59,16 @@ if (CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
     )
     FetchContent_MakeAvailable(libadrenotools)
     
-    # Fix target name mismatch if any
     if(TARGET libadrenotools AND NOT TARGET adrenotools)
         add_library(adrenotools ALIAS libadrenotools)
     endif()
-
 else()
-	add_library(adrenotools INTERFACE)
+    add_library(adrenotools INTERFACE)
 endif()
 
 add_library(${CMAKE_PROJECT_NAME} SHARED 
     native-lib.cpp
+    signal_handler.cpp
     nce_engine.cpp
     fastmem_mapper.cpp
     shader_cache_manager.cpp
@@ -98,7 +81,6 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
 # Apply aggressive optimisation flags to native library (Release + RelWithDebInfo)
 target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE
     $<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>>:${RPCSX_COMMON_OPT_FLAGS}>
-    $<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>>:${RPCSX_ARCH_FLAGS}>
 )
 if (RPCSX_LTO_FLAGS)
     target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE

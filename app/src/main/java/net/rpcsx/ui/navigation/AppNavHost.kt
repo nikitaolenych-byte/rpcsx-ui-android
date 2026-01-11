@@ -97,6 +97,7 @@ import net.rpcsx.ui.drivers.GpuDriversScreen
 import net.rpcsx.ui.games.GamesScreen
 import net.rpcsx.ui.settings.AdvancedSettingsScreen
 import net.rpcsx.ui.settings.ControllerSettings
+import net.rpcsx.ui.settings.PpuDecoderSettingsScreen
 import net.rpcsx.ui.settings.SettingsScreen
 import net.rpcsx.ui.user.UsersScreen
 import net.rpcsx.utils.FileUtil
@@ -246,6 +247,14 @@ fun AppNavHost() {
                 navigateBack = navController::navigateUp,
                 navigateTo = navController::navigate,
                 onRefresh = refreshSettings
+            )
+        }
+
+        composable(
+            route = "cpu_ppu_decoder"
+        ) {
+            PpuDecoderSettingsScreen(
+                navigateBack = navController::navigateUp
             )
         }
 

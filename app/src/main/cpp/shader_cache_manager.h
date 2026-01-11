@@ -36,6 +36,11 @@ struct ShaderCompilationTask {
 bool InitializeShaderCache(const char* cache_directory);
 
 /**
+ * Ініціалізація shader cache з build-id (для інвалідації кешу після оновлень)
+ */
+bool InitializeShaderCache(const char* cache_directory, const char* build_id);
+
+/**
  * Пошук шейдера в кеші
  */
 CompiledShader* FindShader(uint64_t shader_hash);

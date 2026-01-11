@@ -88,6 +88,11 @@
     <string name="active_user">当前用户</string>
     <string name="advanced_settings">高级设置</string>
     <string name="advanced_settings_description">配置模拟器高级设置</string>
+    <string name="cpu_settings_title">CPU</string>
+    <string name="cpu_settings_description">配置 PPU 解码器</string>
+    <string name="ppu_decoder_title">PPU 解码器</string>
+    <string name="ppu_decoder_jit">JIT（优化 NCE）</string>
+    <string name="ppu_decoder_description">将 PPU 解码器切换到 JIT（模式 3），针对 ARMv9 优化</string>
     <string name="ask_if_reset_key">您想要将 ‘%1$s’ 重置回默认值吗？</string>
     <string name="controls">控制</string>
     <string name="controls_description">配置控制器</string>
