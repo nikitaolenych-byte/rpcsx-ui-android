@@ -472,6 +472,7 @@ fun AdvancedSettingsScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PpuDecoderSettingsScreen(
     navigateBack: () -> Unit
