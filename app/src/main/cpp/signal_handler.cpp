@@ -1,4 +1,5 @@
 #include "signal_handler.h"
+#include "nce_engine.h"
 
 #include <android/log.h>
 #include <atomic>
@@ -18,6 +19,7 @@
 #define LOG_TAG "RPCSX-Signal"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
 
 namespace rpcsx::crash {
 
@@ -29,6 +31,7 @@ struct FaultInfo {
 };
 
 static std::atomic<bool> g_installed{false};
+static std::atomic<bool> g_jit_handler_active{false};
 
 static thread_local sigjmp_buf* tl_jmp = nullptr;
 static thread_local int tl_depth = 0;
@@ -40,9 +43,46 @@ static void write_stderr(const char* msg) {
     (void)!::write(STDERR_FILENO, msg, ::strlen(msg));
 }
 
-static void signal_handler(int sig, siginfo_t* info, void* /*ucontext*/) {
+/**
+ * JIT signal handler for SIGILL - attempts to JIT compile and execute x86 code
+ */
+static bool try_jit_execute(void* fault_addr, ucontext_t* uctx) {
+    if (!rpcsx::nce::IsNCEActive()) return false;
+    if (!fault_addr) return false;
+    
+#if defined(__aarch64__)
+    // Get the faulting PC
+    uint64_t pc = uctx->uc_mcontext.pc;
+    
+    LOGD("JIT intercept: SIGILL at PC=0x%llx, addr=0x%llx", 
+         (unsigned long long)pc, (unsigned long long)fault_addr);
+    
+    // Try to JIT compile this code block
+    void* jit_code = rpcsx::nce::TranslatePPUToARM(
+        reinterpret_cast<const uint8_t*>(pc), 256);  // Compile up to 256 bytes
+    
+    if (jit_code) {
+        LOGI("JIT compiled block at 0x%llx -> 0x%llx", 
+             (unsigned long long)pc, (unsigned long long)jit_code);
+        // Update PC to point to JIT'd code
+        uctx->uc_mcontext.pc = reinterpret_cast<uint64_t>(jit_code);
+        return true;
+    }
+#endif
+    return false;
+}
+
+static void signal_handler(int sig, siginfo_t* info, void* ucontext) {
     tl_fault.sig = sig;
     tl_fault.addr = info ? info->si_addr : nullptr;
+    
+    // Try JIT execution for SIGILL (illegal instruction)
+    if (sig == SIGILL && g_jit_handler_active.load() && ucontext) {
+        ucontext_t* uctx = static_cast<ucontext_t*>(ucontext);
+        if (try_jit_execute(info->si_addr, uctx)) {
+            return;  // JIT handled it, resume execution
+        }
+    }
 
     if (tl_jmp && tl_depth > 0) {
         siglongjmp(*tl_jmp, 1);
@@ -110,6 +150,15 @@ bool InstallSignalHandlers() {
         LOGE("Failed to install crash signal handlers");
     }
     return ok;
+}
+
+void EnableJITHandler(bool enable) {
+    g_jit_handler_active.store(enable);
+    LOGI("JIT signal handler %s", enable ? "enabled" : "disabled");
+}
+
+bool IsJITHandlerEnabled() {
+    return g_jit_handler_active.load();
 }
 
 CrashGuard::CrashGuard(const char* scope) : scope_(scope), ok_(true) {

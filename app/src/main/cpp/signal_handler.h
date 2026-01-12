@@ -7,6 +7,11 @@ namespace rpcsx::crash {
 // Safe to call multiple times.
 bool InstallSignalHandlers();
 
+// Enable/disable JIT handler for SIGILL signals
+// When enabled, SIGILL will attempt to JIT compile x86 code to ARM64
+void EnableJITHandler(bool enable);
+bool IsJITHandlerEnabled();
+
 // Lightweight scoped guard that can recover from native crashes inside a guarded
 // region (via sigsetjmp/siglongjmp). Intended to wrap calls into native/JIT/core
 // code so the app can fail gracefully instead of hard-crashing.

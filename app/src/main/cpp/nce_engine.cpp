@@ -202,10 +202,21 @@ bool InitializeNCE() {
  */
 void SetNCEMode(int mode) {
     NCEMode new_mode = static_cast<NCEMode>(mode);
-    g_nce_ctx.mode = new_mode;
+    NCEMode old_mode = g_nce_ctx.mode.exchange(new_mode);
     
     const char* mode_names[] = {"Disabled", "Interpreter", "Recompiler", "NCE/JIT"};
     LOGI("NCE mode set to: %s (%d)", mode_names[mode], mode);
+    
+    // Enable/disable JIT signal handler based on mode
+    if (new_mode == NCEMode::NCE_JIT && old_mode != NCEMode::NCE_JIT) {
+        // Switching TO NCE/JIT mode
+        rpcsx::crash::EnableJITHandler(true);
+        LOGI("JIT signal handler enabled for NCE mode");
+    } else if (new_mode != NCEMode::NCE_JIT && old_mode == NCEMode::NCE_JIT) {
+        // Switching FROM NCE/JIT mode
+        rpcsx::crash::EnableJITHandler(false);
+        LOGI("JIT signal handler disabled");
+    }
 }
 
 int GetNCEMode() {
