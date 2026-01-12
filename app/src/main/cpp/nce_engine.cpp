@@ -12,6 +12,7 @@
 #include <android/log.h>
 #include <sys/mman.h>
 #include <sys/prctl.h>
+#include <sys/resource.h>
 #include <unistd.h>
 #include <cstring>
 #include <atomic>

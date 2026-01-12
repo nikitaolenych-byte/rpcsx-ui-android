@@ -157,12 +157,3 @@ const char* GetRegName(Reg64 reg);
 } // namespace rpcsx::nce::x86
 
 #endif // RPCSX_X86_DECODER_H
-
-/**
- * Get register name
- */
-const char* GetRegName(Reg64 reg);
-
-} // namespace rpcsx::nce::x86
-
-#endif // RPCSX_X86_DECODER_H
