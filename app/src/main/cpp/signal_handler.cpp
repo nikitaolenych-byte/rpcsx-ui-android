@@ -44,7 +44,7 @@ static void write_stderr(const char* msg) {
 }
 
 /**
- * JIT signal handler for SIGILL - attempts to JIT compile and execute x86 code
+ * JIT signal handler for SIGILL - attempts to JIT compile and execute PowerPC (Cell PPU) code
  */
 static bool try_jit_execute(void* fault_addr, ucontext_t* uctx) {
     if (!rpcsx::nce::IsNCEActive()) return false;

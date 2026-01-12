@@ -8,7 +8,7 @@ namespace rpcsx::crash {
 bool InstallSignalHandlers();
 
 // Enable/disable JIT handler for SIGILL signals
-// When enabled, SIGILL will attempt to JIT compile x86 code to ARM64
+// When enabled, SIGILL will attempt to JIT compile PowerPC (Cell PPU) code to ARM64
 void EnableJITHandler(bool enable);
 bool IsJITHandlerEnabled();
 
