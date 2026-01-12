@@ -117,7 +117,7 @@ certutil -hashfile rpcsx-armv9-*.apk SHA256
 Перевірте інформацію про APK:
 
 ```bash
-aapt dump badging rpcsx-armv9-*.apk | grep -E "package|sdkVersion|native-code"
+aapt dump badging rpcsx-armv9-*.apk | grep -E "package|те що.|native-code"
 ```
 
 Повинно показати:

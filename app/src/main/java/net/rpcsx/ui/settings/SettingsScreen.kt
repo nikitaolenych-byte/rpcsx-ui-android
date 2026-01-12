@@ -284,9 +284,9 @@ fun AdvancedSettingsScreen(
                                                    itemPath.contains("PPU Decoder") ||
                                                    key.contains("PPU")
                                 
-                                // Log for debugging
-                                if (isPpuDecoder) {
-                                    Log.i("RPCSX", "PPU Decoder found: key=$key, path=$itemPath, variants=$variants")
+                                // Add NCE option to PPU Decoder if not present
+                                if (isPpuDecoder && !variants.contains("NCE")) {
+                                    variants.add(0, "NCE") // Add at top of list
                                 }
 
                                 SingleSelectionDialog(
