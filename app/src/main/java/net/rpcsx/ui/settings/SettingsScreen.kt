@@ -303,11 +303,16 @@ fun AdvancedSettingsScreen(
                                             // Sync NCE mode when PPU Decoder changes
                                             if (isPpuDecoder) {
                                                 val nceMode = when (value) {
-                                                    "Recompiler (LLVM)" -> 2
+                                                    "NCE" -> 3
+                                                    "LLVM Recompiler (Legacy)" -> 2
+                                                    "Interpreter (Legacy)" -> 1
                                                     "Interpreter" -> 0
-                                                    else -> 1 // Cached interpreter
+                                                    else -> 0
                                                 }
                                                 RPCSX.instance.setNCEMode(nceMode)
+                                                if (value == "NCE") {
+                                                    Toast.makeText(context, "🚀 NCE Activated!", Toast.LENGTH_SHORT).show()
+                                                }
                                             }
                                         }
                                     },
