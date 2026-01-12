@@ -1,6 +1,7 @@
 /**
  * NCE Engine заголовковий файл
  * Native Code Execution для ARMv9/Cortex-X4
+ * x86-64 → ARM64 JIT компілятор для PS4 емуляції
  */
 
 #ifndef RPCSX_NCE_ENGINE_H
@@ -36,8 +37,8 @@ int GetNCEMode();
 bool IsNCEActive();
 
 /**
- * Трансляція PPU коду в ARM64+SVE2
- * @param ppu_code Вхідний PPU код
+ * Трансляція x86-64 коду в ARM64 через JIT
+ * @param ppu_code Вхідний x86-64 код
  * @param code_size Розмір коду
  * @return Вказівник на перекладений ARM код
  */
@@ -65,6 +66,23 @@ void InvalidateCodeCache();
  * Завершення роботи NCE
  */
 void ShutdownNCE();
+
+/**
+ * Отримання статистики JIT компілятора
+ * @param cache_usage Використаний розмір кешу (байт)
+ * @param block_count Кількість скомпільованих блоків
+ * @param exec_count Кількість виконань
+ */
+void GetJITStats(size_t* cache_usage, size_t* block_count, uint64_t* exec_count);
+
+/**
+ * Запуск JIT циклу виконання
+ * @param start_code Початковий код x86-64
+ * @param start_addr Віртуальна адреса
+ * @param max_instructions Максимум інструкцій
+ * @return true якщо успішно
+ */
+bool RunJIT(const uint8_t* start_code, uint64_t start_addr, size_t max_instructions);
 
 } // namespace rpcsx::nce
 

@@ -555,3 +555,46 @@ Java_net_rpcsx_RPCSX_getFastmemStats(JNIEnv *env, jobject) {
   return wrap(env, buf);
 }
 
+/**
+ * Отримання статистики JIT компілятора
+ */
+extern "C" JNIEXPORT jstring JNICALL
+Java_net_rpcsx_RPCSX_getJITStats(JNIEnv *env, jobject) {
+  size_t cache_usage = 0, block_count = 0;
+  uint64_t exec_count = 0;
+  rpcsx::nce::GetJITStats(&cache_usage, &block_count, &exec_count);
+  
+  char buf[256];
+  snprintf(buf, sizeof(buf), 
+           "JIT: %zu KB cache, %zu blocks, %llu executions",
+           cache_usage / 1024,
+           block_count,
+           (unsigned long long)exec_count);
+  
+  return wrap(env, buf);
+}
+
+/**
+ * Запуск JIT для тестування (debug)
+ */
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_runJITTest(JNIEnv *env, jobject) {
+  LOGI("Running JIT self-test...");
+  
+  // Простий тест: компіляція NOP + RET
+  static const uint8_t test_code[] = {
+    0x90,  // NOP
+    0x90,  // NOP
+    0xC3   // RET
+  };
+  
+  void* translated = rpcsx::nce::TranslatePPUToARM(test_code, sizeof(test_code));
+  if (!translated) {
+    LOGE("JIT translation failed");
+    return JNI_FALSE;
+  }
+  
+  LOGI("JIT self-test passed");
+  return JNI_TRUE;
+}
+

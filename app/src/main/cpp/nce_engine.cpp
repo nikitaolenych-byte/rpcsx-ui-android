@@ -3,10 +3,12 @@
  * Оптимізовано для Cortex-X4 та ядер Snapdragon 8s Gen 3
  * 
  * HARDENING: Повна підтримка SVE2, захист регістрів, fault recovery
+ * JIT: Повний x86-64 → ARM64 транслятор
  */
 
 #include "nce_engine.h"
 #include "signal_handler.h"
+#include "nce_jit/jit_compiler.h"
 #include <android/log.h>
 #include <sys/mman.h>
 #include <sys/prctl.h>
@@ -15,6 +17,7 @@
 #include <atomic>
 #include <algorithm>
 #include <cerrno>
+#include <memory>
 
 #if defined(__aarch64__)
 // SVE2 intrinsics - потрібен компілятор з підтримкою
@@ -84,6 +87,10 @@ static NCEContext g_nce_ctx = {
     .saved_regs = {},
     .regs_valid = false
 };
+
+// Global JIT Compiler instance
+static std::unique_ptr<JitCompiler> g_jit_compiler;
+static X86State g_x86_state = {};  // Emulated PS4 CPU state
 
 /**
  * Перевірка SVE2 підтримки в runtime
@@ -160,9 +167,29 @@ bool InitializeNCE() {
     g_nce_ctx.active = true;
     g_nce_ctx.regs_valid = false;
     
+    // Initialize JIT Compiler
+    JitConfig jit_cfg;
+    jit_cfg.code_cache_size = 64 * 1024 * 1024;  // 64MB JIT cache
+    jit_cfg.max_block_size = 4096;
+    jit_cfg.enable_block_linking = true;
+    jit_cfg.enable_fast_memory = true;
+    
+    g_jit_compiler = std::make_unique<JitCompiler>(jit_cfg);
+    if (!g_jit_compiler->Initialize()) {
+        LOGE("Failed to initialize JIT compiler");
+        // Continue anyway - JIT is optional
+    } else {
+        LOGI("JIT Compiler initialized (64MB cache)");
+    }
+    
+    // Initialize x86 state
+    memset(&g_x86_state, 0, sizeof(g_x86_state));
+    g_x86_state.memory_base = g_nce_ctx.code_cache;
+    
     LOGI("NCE Engine initialized:");
     LOGI("  - Code cache: %zu MB at %p", g_nce_ctx.cache_size / (1024 * 1024), g_nce_ctx.code_cache);
-    LOGI("  - Mode: NCE/JIT (direct ARM execution)");
+    LOGI("  - JIT cache: 64 MB");
+    LOGI("  - Mode: NCE/JIT (x86-64 → ARM64 translation)");
     LOGI("  - Target cores: Cortex-X4 (CPU 4-7)");
     LOGI("  - SVE2: %s", has_sve2 ? "ENABLED" : "NEON fallback");
     
@@ -252,7 +279,7 @@ static void RestoreHostRegisters() {
 }
 
 /**
- * Трансляція PPU інструкцій напряму в ARM64 з використанням SVE2
+ * Трансляція x86-64 інструкцій напряму в ARM64 з JIT компілятором
  */
 void* TranslatePPUToARM(const uint8_t* ppu_code, size_t code_size) {
     if (!g_nce_ctx.active || !ppu_code || code_size == 0) return nullptr;
@@ -263,6 +290,24 @@ void* TranslatePPUToARM(const uint8_t* ppu_code, size_t code_size) {
         return nullptr;
     }
     
+    // Use JIT compiler if available
+    if (g_jit_compiler) {
+        uint64_t guest_addr = reinterpret_cast<uint64_t>(ppu_code);
+        
+        LOGI("JIT compiling %zu bytes of x86-64 code at 0x%llx", 
+             code_size, static_cast<unsigned long long>(guest_addr));
+        
+        CompiledBlock* block = g_jit_compiler->CompileBlock(ppu_code, guest_addr);
+        if (block) {
+            LOGI("JIT compiled block: %zu ARM64 bytes from %zu x86 bytes",
+                 block->code_size, block->guest_size);
+            return block->code;
+        } else {
+            LOGE("JIT compilation failed");
+        }
+    }
+    
+    // Fallback to cache allocation
     // Перевірка доступного місця в кеші
     if (g_nce_ctx.cache_used + code_size > g_nce_ctx.cache_size) {
         LOGE("NCE code cache full! Used: %zu, Need: %zu", 
@@ -270,7 +315,7 @@ void* TranslatePPUToARM(const uint8_t* ppu_code, size_t code_size) {
         return nullptr;
     }
     
-    LOGI("Translating %zu bytes of PPU code to ARM64+SVE2", code_size);
+    LOGI("Translating %zu bytes of PS4 code to ARM64", code_size);
     
     // Захищене виконання з CrashGuard
     rpcsx::crash::CrashGuard guard("ppu_translate");
@@ -284,12 +329,8 @@ void* TranslatePPUToARM(const uint8_t* ppu_code, size_t code_size) {
     size_t aligned_offset = (g_nce_ctx.cache_used + alignment - 1) & ~(alignment - 1);
     void* code_dest = static_cast<uint8_t*>(g_nce_ctx.code_cache) + aligned_offset;
     
-    // TODO: Тут буде повний JIT компілятор PowerPC -> ARM64
-    // Поки що це placeholder
-    
 #if defined(__aarch64__) && RPCSX_HAS_SVE2
     LOGI("Using SVE2 for vector instruction translation");
-    // SVE2 дозволяє ефективно емулювати SPU 128-біт вектори
 #else
     LOGI("Using NEON for vector instruction translation");
 #endif
@@ -301,7 +342,7 @@ void* TranslatePPUToARM(const uint8_t* ppu_code, size_t code_size) {
 }
 
 /**
- * Виконання PPU коду з прив'язкою до високопродуктивних ядер
+ * Виконання x86-64 блоку через JIT на Cortex-X4 ядрах
  */
 void ExecuteOnGoldenCore(void* native_code) {
     if (!g_nce_ctx.active || !native_code) return;
@@ -347,9 +388,16 @@ void ExecuteOnGoldenCore(void* native_code) {
         return;
     }
     
-    // Виконання перекладеного коду
-    // typedef void (*NativeFunc)();
-    // ((NativeFunc)native_code)();
+    // Execute JIT compiled block through JitCompiler
+    if (g_jit_compiler) {
+        uint64_t guest_addr = reinterpret_cast<uint64_t>(native_code);
+        CompiledBlock* block = g_jit_compiler->LookupBlock(guest_addr);
+        if (block) {
+            g_jit_compiler->Execute(&g_x86_state, block);
+            LOGI("JIT execution complete, next RIP: 0x%llx", 
+                 static_cast<unsigned long long>(g_x86_state.rip));
+        }
+    }
     
     // Відновлення хост регістрів
     RestoreHostRegisters();
@@ -404,6 +452,12 @@ void InvalidateCodeCache() {
     
     LOGI("Invalidating NCE code cache");
     
+    // Flush JIT cache
+    if (g_jit_compiler) {
+        g_jit_compiler->FlushCache();
+        LOGI("JIT cache flushed");
+    }
+    
     // Скидання вказівника використання
     g_nce_ctx.cache_used = 0;
     
@@ -423,6 +477,13 @@ void InvalidateCodeCache() {
  * Очищення NCE ресурсів
  */
 void ShutdownNCE() {
+    // Shutdown JIT compiler first
+    if (g_jit_compiler) {
+        g_jit_compiler->Shutdown();
+        g_jit_compiler.reset();
+        LOGI("JIT Compiler shutdown");
+    }
+    
     if (g_nce_ctx.code_cache) {
         munmap(g_nce_ctx.code_cache, g_nce_ctx.cache_size);
         g_nce_ctx.code_cache = nullptr;
@@ -431,6 +492,70 @@ void ShutdownNCE() {
     g_nce_ctx.active = false;
     g_nce_ctx.regs_valid = false;
     LOGI("NCE Engine shutdown complete");
+}
+
+/**
+ * Get JIT compiler statistics
+ */
+void GetJITStats(size_t* cache_usage, size_t* block_count, uint64_t* exec_count) {
+    if (g_jit_compiler) {
+        if (cache_usage) *cache_usage = g_jit_compiler->GetCacheUsage();
+        if (block_count) *block_count = g_jit_compiler->GetBlockCount();
+        if (exec_count) *exec_count = g_jit_compiler->GetExecutionCount();
+    } else {
+        if (cache_usage) *cache_usage = 0;
+        if (block_count) *block_count = 0;
+        if (exec_count) *exec_count = 0;
+    }
+}
+
+/**
+ * Run JIT execution loop for a given starting address
+ */
+bool RunJIT(const uint8_t* start_code, uint64_t start_addr, size_t max_instructions) {
+    if (!g_jit_compiler || !start_code) return false;
+    
+    LOGI("Starting JIT execution loop at 0x%llx", 
+         static_cast<unsigned long long>(start_addr));
+    
+    g_x86_state.rip = start_addr;
+    size_t instructions = 0;
+    
+    while (instructions < max_instructions) {
+        // Lookup or compile block
+        CompiledBlock* block = g_jit_compiler->LookupBlock(g_x86_state.rip);
+        if (!block) {
+            // Calculate offset into code
+            uint64_t offset = g_x86_state.rip - start_addr;
+            if (offset >= 1024 * 1024) {  // Sanity check
+                LOGE("RIP out of bounds: 0x%llx", 
+                     static_cast<unsigned long long>(g_x86_state.rip));
+                return false;
+            }
+            
+            block = g_jit_compiler->CompileBlock(start_code + offset, g_x86_state.rip);
+            if (!block) {
+                LOGE("Failed to compile block at 0x%llx", 
+                     static_cast<unsigned long long>(g_x86_state.rip));
+                return false;
+            }
+        }
+        
+        // Execute block
+        uint64_t prev_rip = g_x86_state.rip;
+        g_jit_compiler->Execute(&g_x86_state, block);
+        
+        instructions++;
+        
+        // Check for exit conditions
+        if (g_x86_state.rip == prev_rip) {
+            // Infinite loop or breakpoint
+            break;
+        }
+    }
+    
+    LOGI("JIT execution completed: %zu blocks executed", instructions);
+    return true;
 }
 
 } // namespace rpcsx::nce

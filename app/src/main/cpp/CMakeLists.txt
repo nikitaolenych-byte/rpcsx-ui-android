@@ -76,6 +76,8 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
     frostbite_hacks.cpp
     vulkan_renderer.cpp
     fsr31/fsr31.cpp
+    # NCE JIT x86-64 → ARM64 compiler
+    nce_jit/x86_decoder.cpp
 )
 
 # Apply aggressive optimisation flags to native library (Release + RelWithDebInfo)
@@ -94,6 +96,7 @@ endif()
 # Zstd headers are under <zstd.h> in ${zstd_SOURCE_DIR}/lib
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     ${zstd_SOURCE_DIR}/lib
+    ${CMAKE_CURRENT_SOURCE_DIR}  # For nce_jit includes
 )
 
 # Підключення Mesa Turnip для Adreno 735

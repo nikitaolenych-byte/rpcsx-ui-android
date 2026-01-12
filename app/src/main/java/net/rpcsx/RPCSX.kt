@@ -111,6 +111,10 @@ class RPCSX {
     // Cache management
     external fun purgeAllCaches(cacheDir: String)
     external fun getFastmemStats(): String
+    
+    // JIT statistics
+    external fun getJITStats(): String
+    external fun runJITTest(): Boolean
 
 
     companion object {
