@@ -295,12 +295,15 @@ fun AdvancedSettingsScreen(
                                     icon = null,
                                     title = key + if (itemValue == def) "" else " *",
                                     onValueChange = { value ->
-                                        // Special handling for NCE - don't call settingsSet, just activate NCE mode
+                                        // Special handling for NCE - use Interpreter as base + activate NCE JIT layer
                                         if (isPpuDecoder && value == "NCE") {
+                                            // Set Interpreter as fallback/base decoder
+                                            RPCSX.instance.settingsSet(itemPath, "\"Interpreter\"")
+                                            // Activate our NCE JIT layer on top
                                             RPCSX.instance.setNCEMode(3)
                                             itemObject.put("value", value)
                                             itemValue = value
-                                            Toast.makeText(context, "🚀 NCE Activated!", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(context, "🚀 NCE Activated! (JIT + Interpreter fallback)", Toast.LENGTH_SHORT).show()
                                             return@SingleSelectionDialog
                                         }
                                         
