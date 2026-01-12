@@ -153,7 +153,7 @@ class MainActivity : ComponentActivity() {
 
     /**
      * Auto-enable NCE/JIT on first launch for ARMv9 optimization.
-     * Sets PPU Decoder to Interpreter as base and activates NCE JIT layer on top.
+     * PPU modules MUST be compiled with LLVM, then NCE optimizes execution.
      */
     private fun autoEnableNceJit() {
         val nceEnabledKey = "nce_jit_auto_enabled"
@@ -168,17 +168,19 @@ class MainActivity : ComponentActivity() {
         // First launch - auto-enable NCE/JIT
         if (GeneralSettings[nceEnabledKey] != true) {
             try {
-                // Set Interpreter as base PPU decoder (NCE JIT works on top)
-                val ok = RPCSX.instance.settingsSet("Core@@PPU Decoder", "\"Interpreter\"")
+                // IMPORTANT: Use LLVM Recompiler to compile PPU modules!
+                // Interpreter does NOT compile PPU modules - they just get skipped.
+                // NCE optimizes the already-compiled LLVM code at runtime.
+                val ok = RPCSX.instance.settingsSet("Core@@PPU Decoder", "\"LLVM Recompiler (Legacy)\"")
                 if (ok) {
-                    // Activate NCE JIT layer (mode 3)
+                    // Activate NCE JIT layer (mode 3) for additional ARM64 optimizations
                     RPCSX.instance.setNCEMode(3)
                     GeneralSettings["nce_mode"] = 3
                     GeneralSettings[nceEnabledKey] = true
-                    Log.i("RPCSX", "NCE/JIT auto-enabled (Interpreter + NCE JIT layer)")
+                    Log.i("RPCSX", "NCE/JIT auto-enabled (LLVM + NCE optimization layer)")
                 } else {
-                    Log.w("RPCSX", "Failed to set PPU Decoder, trying fallback...")
-                    // Just enable NCE anyway
+                    Log.w("RPCSX", "Failed to set PPU Decoder to LLVM, trying fallback...")
+                    // Still enable NCE for runtime optimizations
                     RPCSX.instance.setNCEMode(3)
                     GeneralSettings["nce_mode"] = 3
                     GeneralSettings[nceEnabledKey] = true

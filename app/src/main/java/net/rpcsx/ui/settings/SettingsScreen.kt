@@ -295,11 +295,12 @@ fun AdvancedSettingsScreen(
                                     icon = null,
                                     title = key + if (itemValue == def) "" else " *",
                                     onValueChange = { value ->
-                                        // Special handling for NCE - use Interpreter as base + activate NCE JIT layer
+                                        // Special handling for NCE - use LLVM to compile PPU + NCE for optimization
                                         if (isPpuDecoder && value == "NCE") {
-                                            // Set Interpreter as fallback/base decoder
-                                            RPCSX.instance.settingsSet(itemPath, "\"Interpreter\"")
-                                            // Activate our NCE JIT layer on top
+                                            // IMPORTANT: Must use LLVM to compile PPU modules!
+                                            // Interpreter skips PPU compilation entirely.
+                                            RPCSX.instance.settingsSet(itemPath, "\"LLVM Recompiler (Legacy)\"")
+                                            // Activate NCE JIT layer for ARM64 runtime optimizations
                                             RPCSX.instance.setNCEMode(3)
                                             // Save NCE mode to preferences for persistence
                                             net.rpcsx.utils.GeneralSettings["nce_mode"] = 3
