@@ -24,6 +24,8 @@
 #include "vulkan_renderer.h"
 #include "fsr31/fsr31.h"
 #include "signal_handler.h"
+#include "ppu_interceptor.h"
+#include "plt_hook.h"
 
 #define LOG_TAG "RPCSX-Native"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -150,10 +152,27 @@ static jstring wrap(JNIEnv *env, const char *string) {
   return env->NewStringUTF(string);
 }
 
+// Track librpcsx path for PPU interceptor
+static std::string g_librpcsx_path;
+
 extern "C" JNIEXPORT jboolean JNICALL
 Java_net_rpcsx_RPCSX_openLibrary(JNIEnv *env, jobject, jstring path) {
-  if (auto library = RPCSXLibrary::Open(unwrap(env, path).c_str())) {
+  std::string pathStr = unwrap(env, path);
+  
+  if (auto library = RPCSXLibrary::Open(pathStr.c_str())) {
     rpcsxLib = std::move(*library);
+    g_librpcsx_path = pathStr;
+    
+    // Initialize PPU Interceptor for NCE JIT
+    if (rpcsx::nce::IsNCEActive()) {
+      LOGI("NCE active - initializing PPU Interceptor for: %s", pathStr.c_str());
+      if (rpcsx::ppu::InitializeInterceptor(pathStr.c_str())) {
+        LOGI("PPU Interceptor initialized successfully");
+      } else {
+        LOGI("PPU Interceptor not available (hooks will be attempted at runtime)");
+      }
+    }
+    
     return true;
   }
 
@@ -226,6 +245,12 @@ extern "C" JNIEXPORT jboolean JNICALL Java_net_rpcsx_RPCSX_collectGameInfo(
 
 extern "C" JNIEXPORT void JNICALL Java_net_rpcsx_RPCSX_shutdown(JNIEnv *env,
                                                                 jobject) {
+  // Shutdown PPU Interceptor first
+  if (rpcsx::ppu::IsInterceptorActive()) {
+    LOGI("Shutting down PPU Interceptor...");
+    rpcsx::ppu::ShutdownInterceptor();
+  }
+  
   return rpcsxLib.shutdown();
 }
 
