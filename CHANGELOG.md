@@ -2,6 +2,38 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.1-realsteel] - 2026-01-12
+
+### 🤖 Real Steel Optimizations
+
+Додано оптимізації для гри Real Steel (роботи-боксери).
+
+### ✨ Added
+
+- **Real Steel Game Hacks** (`realsteel_hacks.cpp/h`)
+  - 🤖 Robot Physics Optimization - покращена фізика суглобів роботів
+  - ✨ Metal Shader Fix - PBR reflections для металевих поверхонь
+  - 🎬 Animation Blending - швидке змішування анімацій для fighting game
+  - 💥 Ragdoll Optimization - стабільна фізика при нокаутах
+  - 🔥 Particle System Fix - іскри та дим від пошкоджень
+  - 🔊 Audio Sync Fix - синхронізація звуків ударів
+  - 👥 Crowd Rendering Optimization - LOD та instancing для глядачів
+  - 💡 Arena Lighting Fix - освітлення боксерського рингу
+
+### 🎮 Supported Title IDs
+- BLUS30832 (USA)
+- BLES01537 (EUR)
+- BLJM60406 (JPN)
+- NPUB30785, NPEB01125, NPJB00240 (PSN)
+
+### 🔧 Technical Details
+- Physics timestep: 120Hz для плавних боїв
+- Target FPS: 60
+- Input lag reduction для responsive controls
+- NEON/SVE2 оптимізовані matrix operations
+
+---
+
 ## [1.0.0-armv9] - 2026-01-11
 
 ### 🎉 Initial ARMv9 Fork Release

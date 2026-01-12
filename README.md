@@ -24,6 +24,7 @@ This fork adds **high-performance optimizations** specifically for **Snapdragon 
 ✅ **3-Tier Shader Cache** - With Zstd compression  
 ✅ **Aggressive Thread Scheduler** - CPU affinity to Cortex-X4  
 ✅ **Frostbite 3 Hacks** - For Plants vs. Zombies: Garden Warfare  
+✅ **Real Steel Hacks** - For Real Steel robot boxing game 🤖  
 ✅ **FSR 3.1 Upscaling** - 720p → 1440p rendering  
 ✅ **Vulkan 1.3** - Mesa Turnip integration for Adreno 735  
 
@@ -32,6 +33,7 @@ This fork adds **high-performance optimizations** specifically for **Snapdragon 
 | Game                      | Standard RPCSX | ARMv9 Fork | Improvement |
 |---------------------------|----------------|------------|-------------|
 | PvZ: Garden Warfare       | 15-25 FPS      | **45-60 FPS** | **+200%** |
+| Real Steel                | 15-20 FPS      | **50-60 FPS** | **+200%** |
 | The Last of Us            | 10-15 FPS      | **28-30 FPS** | **+100%** |
 | God of War III            | 20-30 FPS      | **40-60 FPS** | **+100%** |
 

@@ -21,6 +21,7 @@
 #include "shader_cache_manager.h"
 #include "thread_scheduler.h"
 #include "frostbite_hacks.h"
+#include "realsteel_hacks.h"
 #include "vulkan_renderer.h"
 #include "fsr31/fsr31.h"
 #include "signal_handler.h"
@@ -276,12 +277,15 @@ extern "C" JNIEXPORT jint JNICALL Java_net_rpcsx_RPCSX_boot(JNIEnv *env,
       return -1;
   }
 
-  // Apply Frostbite hacks if the game is identified
+  // Apply game-specific hacks if the game is identified
   if (auto getTitleId = rpcsxLib.getTitleId) {
       std::string titlId = getTitleId();
       if (!titlId.empty()) {
+          // Frostbite engine games (BF4, PvZ:GW, etc.)
           rpcsx::frostbite::InitializeFrostbiteHacks(titlId.c_str());
-           LOGI("Attempted to apply Frostbite Hacks for ID: %s", titlId.c_str());
+          // Real Steel (robot boxing game)
+          rpcsx::realsteel::InitializeRealSteelHacks(titlId.c_str());
+          LOGI("Attempted to apply game-specific hacks for ID: %s", titlId.c_str());
       }
   }
 
@@ -475,6 +479,12 @@ Java_net_rpcsx_RPCSX_initializeARMv9Optimizations(JNIEnv *env, jobject,
   if (rpcsx::frostbite::IsFrostbite3Game(titleId.c_str())) {
     LOGI("Frostbite 3 game detected - applying engine-specific hacks...");
     rpcsx::frostbite::InitializeFrostbiteHacks(titleId.c_str());
+  }
+  
+  // 5.1. Ініціалізація Real Steel хаків (якщо потрібно)
+  if (rpcsx::realsteel::IsRealSteelGame(titleId.c_str())) {
+    LOGI("Real Steel detected - applying game-specific optimizations...");
+    rpcsx::realsteel::InitializeRealSteelHacks(titleId.c_str());
   }
   
   // 6. Ініціалізація FSR 3.1 (720p -> 1440p upscaling)
