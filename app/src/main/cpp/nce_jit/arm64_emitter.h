@@ -1,6 +1,6 @@
 /**
  * ARM64 Code Emitter для NCE JIT
- * Генерує нативний ARM64 код з x86-64 інструкцій
+ * Генерує нативний ARM64 код з PowerPC інструкцій (PS3 Cell PPU)
  */
 
 #ifndef RPCSX_ARM64_EMITTER_H
@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstring>
+#include "ppc_decoder.h"
 
 namespace rpcsx::nce::arm64 {
 
@@ -87,6 +88,11 @@ private:
 class Emitter {
 public:
     explicit Emitter(CodeBuffer& buf) : buf_(buf) {}
+    
+    // Raw instruction emission (for direct encoding)
+    void Emit(uint32_t instr) {
+        buf_.Emit(instr);
+    }
     
     // ============================================
     // Data Movement
@@ -280,16 +286,472 @@ public:
         SUBS(GpReg::ZR, rn, rm);
     }
     
-    // CMP Xn, #imm12
-    void CMP_IMM(GpReg rn, uint16_t imm12) {
-        // SUBS XZR, Xn, #imm12
-        buf_.Emit(0xF1000000 | ((imm12 & 0xFFF) << 10) | 
-                  (static_cast<uint32_t>(rn) << 5) | 31);
+    // CMP Xn, #imm12 (signed)
+    void CMP_IMM(GpReg rn, int16_t imm) {
+        if (imm >= 0) {
+            buf_.Emit(0xF1000000 | ((imm & 0xFFF) << 10) | 
+                      (static_cast<uint32_t>(rn) << 5) | 31);
+        } else {
+            // Use CMN (add) for negative immediate
+            buf_.Emit(0xB1000000 | (((-imm) & 0xFFF) << 10) | 
+                      (static_cast<uint32_t>(rn) << 5) | 31);
+        }
     }
     
     // TST Xn, Xm (ANDS XZR, Xn, Xm)
     void TST(GpReg rn, GpReg rm) {
         ANDS(GpReg::ZR, rn, rm);
+    }
+    
+    // ============================================
+    // Additional Arithmetic for PowerPC
+    // ============================================
+    
+    // ADC Xd, Xn, Xm (add with carry)
+    void ADC(GpReg rd, GpReg rn, GpReg rm) {
+        buf_.Emit(0x9A000000 | (static_cast<uint32_t>(rm) << 16) | 
+                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // ADCS Xd, Xn, Xm (add with carry, set flags)
+    void ADCS(GpReg rd, GpReg rn, GpReg rm) {
+        buf_.Emit(0xBA000000 | (static_cast<uint32_t>(rm) << 16) | 
+                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // SBC Xd, Xn, Xm (subtract with carry/borrow)
+    void SBC(GpReg rd, GpReg rn, GpReg rm) {
+        buf_.Emit(0xDA000000 | (static_cast<uint32_t>(rm) << 16) | 
+                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // SBCS Xd, Xn, Xm (subtract with carry, set flags)
+    void SBCS(GpReg rd, GpReg rn, GpReg rm) {
+        buf_.Emit(0xFA000000 | (static_cast<uint32_t>(rm) << 16) | 
+                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // MADD Xd, Xn, Xm, Xa (multiply-add: Xd = Xa + Xn*Xm)
+    void MADD(GpReg rd, GpReg rn, GpReg rm, GpReg ra) {
+        buf_.Emit(0x9B000000 | (static_cast<uint32_t>(rm) << 16) | 
+                  (static_cast<uint32_t>(ra) << 10) | 
+                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // MSUB Xd, Xn, Xm, Xa (multiply-subtract: Xd = Xa - Xn*Xm)
+    void MSUB(GpReg rd, GpReg rn, GpReg rm, GpReg ra) {
+        buf_.Emit(0x9B008000 | (static_cast<uint32_t>(rm) << 16) | 
+                  (static_cast<uint32_t>(ra) << 10) | 
+                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // SMULH Xd, Xn, Xm (signed multiply high)
+    void SMULH(GpReg rd, GpReg rn, GpReg rm) {
+        buf_.Emit(0x9B407C00 | (static_cast<uint32_t>(rm) << 16) | 
+                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // UMULH Xd, Xn, Xm (unsigned multiply high)
+    void UMULH(GpReg rd, GpReg rn, GpReg rm) {
+        buf_.Emit(0x9BC07C00 | (static_cast<uint32_t>(rm) << 16) | 
+                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // CLZ Xd, Xn (count leading zeros)
+    void CLZ(GpReg rd, GpReg rn) {
+        buf_.Emit(0xDAC01000 | (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // CLZ Wd, Wn (count leading zeros, 32-bit)
+    void CLZ_W(GpReg rd, GpReg rn) {
+        buf_.Emit(0x5AC01000 | (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // RBIT Xd, Xn (reverse bits)
+    void RBIT(GpReg rd, GpReg rn) {
+        buf_.Emit(0xDAC00000 | (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // ============================================
+    // Additional Logic for PowerPC
+    // ============================================
+    
+    // BIC Xd, Xn, Xm (AND NOT: Xd = Xn & ~Xm)
+    void BIC(GpReg rd, GpReg rn, GpReg rm) {
+        buf_.Emit(0x8A200000 | (static_cast<uint32_t>(rm) << 16) | 
+                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // ORN Xd, Xn, Xm (OR NOT: Xd = Xn | ~Xm)
+    void ORN(GpReg rd, GpReg rn, GpReg rm) {
+        buf_.Emit(0xAA200000 | (static_cast<uint32_t>(rm) << 16) | 
+                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // EON Xd, Xn, Xm (XOR NOT: Xd = Xn ^ ~Xm)
+    void EON(GpReg rd, GpReg rn, GpReg rm) {
+        buf_.Emit(0xCA200000 | (static_cast<uint32_t>(rm) << 16) | 
+                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // AND Xd, Xn, #imm (logical immediate)
+    void AND_IMM(GpReg rd, GpReg rn, uint64_t imm) {
+        // Note: ARM64 bitmask immediates have specific encoding rules
+        // For simplicity, use MOV + AND if immediate is complex
+        uint32_t n, immr, imms;
+        if (EncodeBitmaskImm(imm, n, immr, imms)) {
+            buf_.Emit(0x92000000 | (n << 22) | (immr << 16) | (imms << 10) |
+                      (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+        }
+    }
+    
+    // ORR Xd, Xn, #imm (logical immediate)
+    void ORR_IMM(GpReg rd, GpReg rn, uint64_t imm) {
+        uint32_t n, immr, imms;
+        if (EncodeBitmaskImm(imm, n, immr, imms)) {
+            buf_.Emit(0xB2000000 | (n << 22) | (immr << 16) | (imms << 10) |
+                      (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+        }
+    }
+    
+    // EOR Xd, Xn, #imm (logical immediate)  
+    void EOR_IMM(GpReg rd, GpReg rn, uint64_t imm) {
+        uint32_t n, immr, imms;
+        if (EncodeBitmaskImm(imm, n, immr, imms)) {
+            buf_.Emit(0xD2000000 | (n << 22) | (immr << 16) | (imms << 10) |
+                      (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+        }
+    }
+    
+    // LSL Xd, Xn, #imm (shift left immediate via UBFM)
+    void LSL_IMM(GpReg rd, GpReg rn, uint8_t imm) {
+        // LSL Xd, Xn, #shift = UBFM Xd, Xn, #(-shift MOD 64), #(63-shift)
+        uint8_t immr = (-imm) & 63;
+        uint8_t imms = 63 - imm;
+        buf_.Emit(0xD3400000 | (immr << 16) | (imms << 10) |
+                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // LSR Xd, Xn, #imm (shift right immediate via UBFM)
+    void LSR_IMM(GpReg rd, GpReg rn, uint8_t imm) {
+        // LSR Xd, Xn, #shift = UBFM Xd, Xn, #shift, #63
+        buf_.Emit(0xD340FC00 | (imm << 16) |
+                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // ============================================
+    // Conditional Select (for PowerPC isel equivalent)
+    // ============================================
+    
+    // CSEL Xd, Xn, Xm, cond (conditional select)
+    void CSEL(GpReg rd, GpReg rn, GpReg rm, Cond cond) {
+        buf_.Emit(0x9A800000 | (static_cast<uint32_t>(rm) << 16) | 
+                  (static_cast<uint32_t>(cond) << 12) |
+                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // CSINC Xd, Xn, Xm, cond (conditional select increment)
+    void CSINC(GpReg rd, GpReg rn, GpReg rm, Cond cond) {
+        buf_.Emit(0x9A800400 | (static_cast<uint32_t>(rm) << 16) | 
+                  (static_cast<uint32_t>(cond) << 12) |
+                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // CSINV Xd, Xn, Xm, cond (conditional select invert)
+    void CSINV(GpReg rd, GpReg rn, GpReg rm, Cond cond) {
+        buf_.Emit(0xDA800000 | (static_cast<uint32_t>(rm) << 16) | 
+                  (static_cast<uint32_t>(cond) << 12) |
+                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // CSNEG Xd, Xn, Xm, cond (conditional select negate)
+    void CSNEG(GpReg rd, GpReg rn, GpReg rm, Cond cond) {
+        buf_.Emit(0xDA800400 | (static_cast<uint32_t>(rm) << 16) | 
+                  (static_cast<uint32_t>(cond) << 12) |
+                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // CSET Xd, cond (set to 1 if condition, else 0)
+    void CSET(GpReg rd, Cond cond) {
+        // CSET Xd, cond = CSINC Xd, XZR, XZR, invert(cond)
+        Cond inv_cond = static_cast<Cond>(static_cast<uint8_t>(cond) ^ 1);
+        CSINC(rd, GpReg::ZR, GpReg::ZR, inv_cond);
+    }
+    
+    // ============================================
+    // Bitfield operations (for PowerPC rotate/mask)
+    // ============================================
+    
+    // UBFM Xd, Xn, #immr, #imms (unsigned bitfield move)
+    void UBFM(GpReg rd, GpReg rn, uint8_t immr, uint8_t imms) {
+        buf_.Emit(0xD3400000 | (immr << 16) | (imms << 10) |
+                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // SBFM Xd, Xn, #immr, #imms (signed bitfield move)
+    void SBFM(GpReg rd, GpReg rn, uint8_t immr, uint8_t imms) {
+        buf_.Emit(0x93400000 | (immr << 16) | (imms << 10) |
+                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // BFM Xd, Xn, #immr, #imms (bitfield move - for insert)
+    void BFM(GpReg rd, GpReg rn, uint8_t immr, uint8_t imms) {
+        buf_.Emit(0xB3400000 | (immr << 16) | (imms << 10) |
+                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // EXTR Xd, Xn, Xm, #lsb (extract bits from pair)
+    void EXTR(GpReg rd, GpReg rn, GpReg rm, uint8_t lsb) {
+        buf_.Emit(0x93C00000 | (static_cast<uint32_t>(rm) << 16) | 
+                  (lsb << 10) | (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // ============================================
+    // 32-bit variants (for 32-bit PowerPC ops)
+    // ============================================
+    
+    // ADD Wd, Wn, Wm
+    void ADD_W(GpReg rd, GpReg rn, GpReg rm) {
+        buf_.Emit(0x0B000000 | (static_cast<uint32_t>(rm) << 16) | 
+                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // ADDS Wd, Wn, Wm
+    void ADDS_W(GpReg rd, GpReg rn, GpReg rm) {
+        buf_.Emit(0x2B000000 | (static_cast<uint32_t>(rm) << 16) | 
+                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // SUB Wd, Wn, Wm
+    void SUB_W(GpReg rd, GpReg rn, GpReg rm) {
+        buf_.Emit(0x4B000000 | (static_cast<uint32_t>(rm) << 16) | 
+                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // SUBS Wd, Wn, Wm
+    void SUBS_W(GpReg rd, GpReg rn, GpReg rm) {
+        buf_.Emit(0x6B000000 | (static_cast<uint32_t>(rm) << 16) | 
+                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // MUL Wd, Wn, Wm
+    void MUL_W(GpReg rd, GpReg rn, GpReg rm) {
+        buf_.Emit(0x1B007C00 | (static_cast<uint32_t>(rm) << 16) | 
+                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // SDIV Wd, Wn, Wm
+    void SDIV_W(GpReg rd, GpReg rn, GpReg rm) {
+        buf_.Emit(0x1AC00C00 | (static_cast<uint32_t>(rm) << 16) | 
+                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // UDIV Wd, Wn, Wm
+    void UDIV_W(GpReg rd, GpReg rn, GpReg rm) {
+        buf_.Emit(0x1AC00800 | (static_cast<uint32_t>(rm) << 16) | 
+                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // AND Wd, Wn, Wm
+    void AND_W(GpReg rd, GpReg rn, GpReg rm) {
+        buf_.Emit(0x0A000000 | (static_cast<uint32_t>(rm) << 16) | 
+                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // ORR Wd, Wn, Wm
+    void ORR_W(GpReg rd, GpReg rn, GpReg rm) {
+        buf_.Emit(0x2A000000 | (static_cast<uint32_t>(rm) << 16) | 
+                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // EOR Wd, Wn, Wm
+    void EOR_W(GpReg rd, GpReg rn, GpReg rm) {
+        buf_.Emit(0x4A000000 | (static_cast<uint32_t>(rm) << 16) | 
+                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // LSL Wd, Wn, Wm
+    void LSL_W(GpReg rd, GpReg rn, GpReg rm) {
+        buf_.Emit(0x1AC02000 | (static_cast<uint32_t>(rm) << 16) | 
+                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // LSR Wd, Wn, Wm
+    void LSR_W(GpReg rd, GpReg rn, GpReg rm) {
+        buf_.Emit(0x1AC02400 | (static_cast<uint32_t>(rm) << 16) | 
+                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // ASR Wd, Wn, Wm
+    void ASR_W(GpReg rd, GpReg rn, GpReg rm) {
+        buf_.Emit(0x1AC02800 | (static_cast<uint32_t>(rm) << 16) | 
+                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // ROR Wd, Wn, Wm
+    void ROR_W(GpReg rd, GpReg rn, GpReg rm) {
+        buf_.Emit(0x1AC02C00 | (static_cast<uint32_t>(rm) << 16) | 
+                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // CMP Wn, Wm
+    void CMP_W(GpReg rn, GpReg rm) {
+        SUBS_W(GpReg::ZR, rn, rm);
+    }
+    
+    // Zero-extend W to X
+    void UXTW(GpReg rd, GpReg rn) {
+        // MOV Wd, Wn (32-bit move zero-extends to 64-bit)
+        buf_.Emit(0x2A0003E0 | (static_cast<uint32_t>(rn) << 16) | static_cast<uint32_t>(rd));
+    }
+
+private:
+    CodeBuffer& buf_;
+    
+    // Helper: try to encode bitmask immediate
+    // Returns false if immediate cannot be encoded
+    static bool EncodeBitmaskImm(uint64_t imm, uint32_t& n, uint32_t& immr, uint32_t& imms) {
+        // ARM64 bitmask immediates are complex - simplified version
+        // Only handles common cases
+        if (imm == 0 || imm == ~0ULL) return false;
+        
+        // For now, return false for complex cases
+        // A full implementation would analyze bit patterns
+        n = 1;
+        immr = 0;
+        imms = 0;
+        
+        // Count trailing zeros and ones to determine encoding
+        int tz = __builtin_ctzll(imm);
+        int to = __builtin_ctzll(~(imm >> tz));
+        
+        if (tz + to == 64 || (imm >> (tz + to)) == 0) {
+            // Simple run of 1s
+            immr = (64 - tz) & 63;
+            imms = to - 1;
+            return true;
+        }
+        
+        return false;
+    }
+};
+    // ============================================
+    // Load/Store (additional for PowerPC)
+    // ============================================
+    
+    // LDR Wt, [Xn, #offset] (32-bit)
+    void LDR_W(GpReg rt, GpReg rn, int32_t offset = 0) {
+        uint32_t imm12 = (offset >> 2) & 0xFFF;
+        buf_.Emit(0xB9400000 | (imm12 << 10) | (static_cast<uint32_t>(rn) << 5) | 
+                  static_cast<uint32_t>(rt));
+    }
+    
+    // STR Wt, [Xn, #offset] (32-bit)
+    void STR_W(GpReg rt, GpReg rn, int32_t offset = 0) {
+        uint32_t imm12 = (offset >> 2) & 0xFFF;
+        buf_.Emit(0xB9000000 | (imm12 << 10) | (static_cast<uint32_t>(rn) << 5) | 
+                  static_cast<uint32_t>(rt));
+    }
+    
+    // LDRH Wt, [Xn, #offset] (16-bit unsigned)
+    void LDRH(GpReg rt, GpReg rn, int32_t offset = 0) {
+        uint32_t imm12 = (offset >> 1) & 0xFFF;
+        buf_.Emit(0x79400000 | (imm12 << 10) | (static_cast<uint32_t>(rn) << 5) | 
+                  static_cast<uint32_t>(rt));
+    }
+    
+    // STRH Wt, [Xn, #offset] (16-bit)
+    void STRH(GpReg rt, GpReg rn, int32_t offset = 0) {
+        uint32_t imm12 = (offset >> 1) & 0xFFF;
+        buf_.Emit(0x79000000 | (imm12 << 10) | (static_cast<uint32_t>(rn) << 5) | 
+                  static_cast<uint32_t>(rt));
+    }
+    
+    // LDRB Wt, [Xn, #offset] (8-bit unsigned)
+    void LDRB(GpReg rt, GpReg rn, int32_t offset = 0) {
+        buf_.Emit(0x39400000 | ((offset & 0xFFF) << 10) | (static_cast<uint32_t>(rn) << 5) | 
+                  static_cast<uint32_t>(rt));
+    }
+    
+    // STRB Wt, [Xn, #offset] (8-bit)
+    void STRB(GpReg rt, GpReg rn, int32_t offset = 0) {
+        buf_.Emit(0x39000000 | ((offset & 0xFFF) << 10) | (static_cast<uint32_t>(rn) << 5) | 
+                  static_cast<uint32_t>(rt));
+    }
+    
+    // ============================================
+    // Byte Reversal (for Big-Endian support)
+    // ============================================
+    
+    // REV Xd, Xn (reverse bytes in 64-bit)
+    void REV(GpReg rd, GpReg rn) {
+        buf_.Emit(0xDAC00C00 | (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // REV Wd, Wn (reverse bytes in 32-bit)  
+    void REV_W(GpReg rd, GpReg rn) {
+        buf_.Emit(0x5AC00800 | (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // REV16 Xd, Xn (reverse bytes in each halfword)
+    void REV16(GpReg rd, GpReg rn) {
+        buf_.Emit(0xDAC00400 | (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // ============================================
+    // Sign Extension
+    // ============================================
+    
+    // SXTB Xd, Wn (sign extend byte)
+    void SXTB(GpReg rd, GpReg rn) {
+        buf_.Emit(0x93401C00 | (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // SXTH Xd, Wn (sign extend halfword)
+    void SXTH(GpReg rd, GpReg rn) {
+        buf_.Emit(0x93403C00 | (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // SXTW Xd, Wn (sign extend word)
+    void SXTW(GpReg rd, GpReg rn) {
+        buf_.Emit(0x93407C00 | (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // ============================================
+    // Rotate
+    // ============================================
+    
+    // ROR Xd, Xn, Xm (rotate right variable)
+    void ROR(GpReg rd, GpReg rn, GpReg rm) {
+        buf_.Emit(0x9AC02C00 | (static_cast<uint32_t>(rm) << 16) | 
+                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // ROR Xd, Xn, #imm (rotate right immediate via EXTR)
+    void ROR_IMM(GpReg rd, GpReg rn, uint8_t imm) {
+        // EXTR Xd, Xn, Xn, #imm
+        buf_.Emit(0x93C00000 | (static_cast<uint32_t>(rn) << 16) | 
+                  (imm << 10) | (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
+    }
+    
+    // ============================================
+    // ASR immediate
+    // ============================================
+    
+    // ASR Xd, Xn, #imm (arithmetic shift right immediate)
+    void ASR_IMM(GpReg rd, GpReg rn, uint8_t imm) {
+        // SBFM Xd, Xn, #imm, #63
+        buf_.Emit(0x9340FC00 | (imm << 16) | (static_cast<uint32_t>(rn) << 5) | 
+                  static_cast<uint32_t>(rd));
+    }
+    
+    // ============================================
+    // MOVN (move wide with NOT)
+    // ============================================
+    
+    void MOVN(GpReg rd, uint16_t imm, uint8_t shift = 0) {
+        uint8_t hw = shift / 16;
+        buf_.Emit(0x92800000 | (hw << 21) | (imm << 5) | static_cast<uint32_t>(rd));
     }
     
     // ============================================
@@ -414,6 +876,131 @@ public:
     
 private:
     CodeBuffer& buf_;
+};
+
+/**
+ * PowerPC → ARM64 Register Mapping
+ * 
+ * PS3 PPU має 32 GPR (r0-r31), 32 FPR (f0-f31), 32 VR (v0-v31)
+ * ARM64 має 31 GPR (x0-x30), 32 SIMD (v0-v31)
+ * 
+ * Mapping Strategy:
+ * - PPC r0-r27 → ARM64 x0-x27 (direct mapping)
+ * - PPC r28 → x28 (frame pointer reservation on ARM64)
+ * - PPC r29 → x19 (callee-saved)
+ * - PPC r30 → x20 (callee-saved)  
+ * - PPC r31 → x21 (callee-saved, stack pointer on PPC)
+ * - PPC LR → x30 (LR on ARM64)
+ * - PPC CTR → x22 (callee-saved)
+ * - PPC XER → x23 (callee-saved)
+ * - PPC CR → x24 (callee-saved)
+ * - State pointer → x29 (frame pointer)
+ */
+
+// Map PowerPC GPR to ARM64 register
+inline GpReg MapPPCGPR(ppc::GPR reg) {
+    uint8_t idx = static_cast<uint8_t>(reg);
+    
+    // Direct mapping for r0-r27
+    if (idx <= 27) {
+        return static_cast<GpReg>(idx);
+    }
+    
+    // Special mappings for r28-r31
+    switch (idx) {
+        case 28: return GpReg::X28;
+        case 29: return GpReg::X19;
+        case 30: return GpReg::X20;
+        case 31: return GpReg::X21;
+        default: return GpReg::X0;
+    }
+}
+
+// Map PowerPC FPR to ARM64 SIMD register
+inline VecReg MapPPCFPR(ppc::FPR reg) {
+    return static_cast<VecReg>(static_cast<uint8_t>(reg));
+}
+
+// Map PowerPC VR (AltiVec/VMX) to ARM64 SIMD register
+inline VecReg MapPPCVR(ppc::VR reg) {
+    return static_cast<VecReg>(static_cast<uint8_t>(reg));
+}
+
+// Special registers on ARM64
+constexpr GpReg REG_STATE = GpReg::X29;   // PPU state pointer
+constexpr GpReg REG_LR = GpReg::X30;      // Link Register
+constexpr GpReg REG_CTR = GpReg::X22;     // Count Register
+constexpr GpReg REG_XER = GpReg::X23;     // XER (carry, overflow)
+constexpr GpReg REG_CR = GpReg::X24;      // Condition Register
+constexpr GpReg REG_TMP1 = GpReg::X25;    // Temp register 1
+constexpr GpReg REG_TMP2 = GpReg::X26;    // Temp register 2
+
+/**
+ * PPU State structure layout (offsets)
+ */
+struct PPUStateOffsets {
+    static constexpr int GPR = 0;           // 32 * 8 = 256 bytes
+    static constexpr int FPR = 256;         // 32 * 8 = 256 bytes  
+    static constexpr int VR = 512;          // 32 * 16 = 512 bytes
+    static constexpr int CR = 1024;         // 8 bytes
+    static constexpr int LR = 1032;         // 8 bytes
+    static constexpr int CTR = 1040;        // 8 bytes
+    static constexpr int XER = 1048;        // 8 bytes
+    static constexpr int FPSCR = 1056;      // 8 bytes
+    static constexpr int PC = 1064;         // 8 bytes
+    static constexpr int VRSAVE = 1072;     // 4 bytes
+    static constexpr int SIZE = 1088;       // Total size
+};
+
+/**
+ * PowerPC → ARM64 Code Generator
+ */
+class PPCTranslator {
+public:
+    explicit PPCTranslator(Emitter& emit) : emit_(emit) {}
+    
+    // Translate single PowerPC instruction
+    bool Translate(const ppc::DecodedInstr& instr);
+    
+private:
+    Emitter& emit_;
+    
+    // Load/Store
+    void EmitLoad(const ppc::DecodedInstr& instr);
+    void EmitStore(const ppc::DecodedInstr& instr);
+    void EmitLoadMultiple(const ppc::DecodedInstr& instr);
+    void EmitStoreMultiple(const ppc::DecodedInstr& instr);
+    
+    // Arithmetic
+    void EmitAdd(const ppc::DecodedInstr& instr);
+    void EmitSub(const ppc::DecodedInstr& instr);
+    void EmitMul(const ppc::DecodedInstr& instr);
+    void EmitDiv(const ppc::DecodedInstr& instr);
+    
+    // Logic
+    void EmitLogic(const ppc::DecodedInstr& instr);
+    void EmitShift(const ppc::DecodedInstr& instr);
+    void EmitRotate(const ppc::DecodedInstr& instr);
+    
+    // Compare
+    void EmitCompare(const ppc::DecodedInstr& instr);
+    
+    // Branch  
+    void EmitBranch(const ppc::DecodedInstr& instr);
+    
+    // CR operations
+    void EmitCRLogic(const ppc::DecodedInstr& instr);
+    void EmitCR0Update(GpReg result);
+    
+    // System
+    void EmitSystem(const ppc::DecodedInstr& instr);
+    void EmitSPR(const ppc::DecodedInstr& instr);
+    void EmitTrap(const ppc::DecodedInstr& instr);
+    
+    // Floating Point
+    void EmitFPLoad(const ppc::DecodedInstr& instr);
+    void EmitFPStore(const ppc::DecodedInstr& instr);
+    void EmitFPArith(const ppc::DecodedInstr& instr);
 };
 
 } // namespace rpcsx::nce::arm64

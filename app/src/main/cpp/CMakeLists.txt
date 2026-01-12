@@ -76,8 +76,9 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
     frostbite_hacks.cpp
     vulkan_renderer.cpp
     fsr31/fsr31.cpp
-    # NCE JIT x86-64 → ARM64 compiler
-    nce_jit/x86_decoder.cpp
+    # NCE JIT PowerPC (Cell PPU) → ARM64 compiler
+    nce_jit/ppc_decoder.cpp
+    nce_jit/arm64_emitter.cpp
 )
 
 # Apply aggressive optimisation flags to native library (Release + RelWithDebInfo)

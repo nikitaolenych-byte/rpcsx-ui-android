@@ -1,9 +1,9 @@
 /**
- * NCE (Native Code Execution) Engine для прямого виконання коду PS4 на ARMv9
+ * NCE (Native Code Execution) Engine для прямого виконання коду PS3 на ARMv9
  * Оптимізовано для Cortex-X4 та ядер Snapdragon 8s Gen 3
  * 
  * HARDENING: Повна підтримка SVE2, захист регістрів, fault recovery
- * JIT: Повний x86-64 → ARM64 транслятор
+ * JIT: Повний PowerPC (Cell PPU) → ARM64 транслятор для PS3 емуляції
  */
 
 #include "nce_engine.h"
@@ -91,7 +91,7 @@ static NCEContext g_nce_ctx = {
 
 // Global JIT Compiler instance
 static std::unique_ptr<JitCompiler> g_jit_compiler;
-static X86State g_x86_state = {};  // Emulated PS4 CPU state
+static PPCState g_ppc_state = {};  // Emulated PS3 Cell PPU state
 
 /**
  * Перевірка SVE2 підтримки в runtime
@@ -183,14 +183,14 @@ bool InitializeNCE() {
         LOGI("JIT Compiler initialized (64MB cache)");
     }
     
-    // Initialize x86 state
-    memset(&g_x86_state, 0, sizeof(g_x86_state));
-    g_x86_state.memory_base = g_nce_ctx.code_cache;
+    // Initialize PPC state for PS3 Cell PPU
+    memset(&g_ppc_state, 0, sizeof(g_ppc_state));
+    g_ppc_state.memory_base = g_nce_ctx.code_cache;
     
     LOGI("NCE Engine initialized:");
     LOGI("  - Code cache: %zu MB at %p", g_nce_ctx.cache_size / (1024 * 1024), g_nce_ctx.code_cache);
     LOGI("  - JIT cache: 64 MB");
-    LOGI("  - Mode: NCE/JIT (x86-64 → ARM64 translation)");
+    LOGI("  - Mode: NCE/JIT (PowerPC Cell → ARM64 translation for PS3)");
     LOGI("  - Target cores: Cortex-X4 (CPU 4-7)");
     LOGI("  - SVE2: %s", has_sve2 ? "ENABLED" : "NEON fallback");
     
@@ -291,7 +291,7 @@ static void RestoreHostRegisters() {
 }
 
 /**
- * Трансляція x86-64 інструкцій напряму в ARM64 з JIT компілятором
+ * Трансляція PowerPC (Cell PPU) інструкцій в ARM64 з JIT компілятором
  */
 void* TranslatePPUToARM(const uint8_t* ppu_code, size_t code_size) {
     if (!g_nce_ctx.active || !ppu_code || code_size == 0) return nullptr;
@@ -306,12 +306,12 @@ void* TranslatePPUToARM(const uint8_t* ppu_code, size_t code_size) {
     if (g_jit_compiler) {
         uint64_t guest_addr = reinterpret_cast<uint64_t>(ppu_code);
         
-        LOGI("JIT compiling %zu bytes of x86-64 code at 0x%llx", 
+        LOGI("JIT compiling %zu bytes of PowerPC code at 0x%llx", 
              code_size, static_cast<unsigned long long>(guest_addr));
         
         CompiledBlock* block = g_jit_compiler->CompileBlock(ppu_code, guest_addr);
         if (block) {
-            LOGI("JIT compiled block: %zu ARM64 bytes from %zu x86 bytes",
+            LOGI("JIT compiled block: %zu ARM64 bytes from %zu PowerPC bytes",
                  block->code_size, block->guest_size);
             return block->code;
         } else {
@@ -354,7 +354,7 @@ void* TranslatePPUToARM(const uint8_t* ppu_code, size_t code_size) {
 }
 
 /**
- * Виконання x86-64 блоку через JIT на Cortex-X4 ядрах
+ * Виконання PowerPC блоку через JIT на Cortex-X4 ядрах
  */
 void ExecuteOnGoldenCore(void* native_code) {
     if (!g_nce_ctx.active || !native_code) return;
@@ -405,9 +405,9 @@ void ExecuteOnGoldenCore(void* native_code) {
         uint64_t guest_addr = reinterpret_cast<uint64_t>(native_code);
         CompiledBlock* block = g_jit_compiler->LookupBlock(guest_addr);
         if (block) {
-            g_jit_compiler->Execute(&g_x86_state, block);
-            LOGI("JIT execution complete, next RIP: 0x%llx", 
-                 static_cast<unsigned long long>(g_x86_state.rip));
+            g_jit_compiler->Execute(&g_ppc_state, block);
+            LOGI("JIT execution complete, next PC: 0x%llx", 
+                 static_cast<unsigned long long>(g_ppc_state.pc));
         }
     }
     
@@ -530,37 +530,37 @@ bool RunJIT(const uint8_t* start_code, uint64_t start_addr, size_t max_instructi
     LOGI("Starting JIT execution loop at 0x%llx", 
          static_cast<unsigned long long>(start_addr));
     
-    g_x86_state.rip = start_addr;
+    g_ppc_state.pc = start_addr;
     size_t instructions = 0;
     
     while (instructions < max_instructions) {
         // Lookup or compile block
-        CompiledBlock* block = g_jit_compiler->LookupBlock(g_x86_state.rip);
+        CompiledBlock* block = g_jit_compiler->LookupBlock(g_ppc_state.pc);
         if (!block) {
             // Calculate offset into code
-            uint64_t offset = g_x86_state.rip - start_addr;
+            uint64_t offset = g_ppc_state.pc - start_addr;
             if (offset >= 1024 * 1024) {  // Sanity check
-                LOGE("RIP out of bounds: 0x%llx", 
-                     static_cast<unsigned long long>(g_x86_state.rip));
+                LOGE("PC out of bounds: 0x%llx", 
+                     static_cast<unsigned long long>(g_ppc_state.pc));
                 return false;
             }
             
-            block = g_jit_compiler->CompileBlock(start_code + offset, g_x86_state.rip);
+            block = g_jit_compiler->CompileBlock(start_code + offset, g_ppc_state.pc);
             if (!block) {
                 LOGE("Failed to compile block at 0x%llx", 
-                     static_cast<unsigned long long>(g_x86_state.rip));
+                     static_cast<unsigned long long>(g_ppc_state.pc));
                 return false;
             }
         }
         
         // Execute block
-        uint64_t prev_rip = g_x86_state.rip;
-        g_jit_compiler->Execute(&g_x86_state, block);
+        uint64_t prev_pc = g_ppc_state.pc;
+        g_jit_compiler->Execute(&g_ppc_state, block);
         
         instructions++;
         
         // Check for exit conditions
-        if (g_x86_state.rip == prev_rip) {
+        if (g_ppc_state.pc == prev_pc) {
             // Infinite loop or breakpoint
             break;
         }

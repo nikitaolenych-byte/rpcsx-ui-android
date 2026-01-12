@@ -1,12 +1,12 @@
 /**
- * JIT Compiler - x86-64 → ARM64 Translator
- * Транслює блоки PS4 коду в нативний ARM64
+ * JIT Compiler - PowerPC → ARM64 Translator
+ * Транслює блоки PS3 Cell PPU коду в нативний ARM64
  */
 
 #ifndef RPCSX_JIT_COMPILER_H
 #define RPCSX_JIT_COMPILER_H
 
-#include "x86_decoder.h"
+#include "ppc_decoder.h"
 #include "arm64_emitter.h"
 #include <unordered_map>
 #include <vector>
@@ -15,45 +15,15 @@
 
 namespace rpcsx::nce {
 
-using namespace x86;
+using namespace ppc;
 using namespace arm64;
-
-// x86-64 to ARM64 register mapping
-// PS4 uses System V AMD64 ABI
-// ARM64 uses AAPCS64 ABI
-constexpr GpReg kX86ToArm64[] = {
-    GpReg::X0,   // RAX -> X0 (return value)
-    GpReg::X9,   // RCX -> X9 (4th arg in x86, not in ARM)
-    GpReg::X2,   // RDX -> X2 (3rd arg)
-    GpReg::X19,  // RBX -> X19 (callee-saved)
-    GpReg::SP,   // RSP -> SP
-    GpReg::X29,  // RBP -> X29/FP
-    GpReg::X1,   // RSI -> X1 (2nd arg)
-    GpReg::X7,   // RDI -> X7 (1st arg)
-    GpReg::X3,   // R8  -> X3 (5th arg)
-    GpReg::X4,   // R9  -> X4 (6th arg)
-    GpReg::X10,  // R10 -> X10
-    GpReg::X11,  // R11 -> X11
-    GpReg::X20,  // R12 -> X20 (callee-saved)
-    GpReg::X21,  // R13 -> X21 (callee-saved)
-    GpReg::X22,  // R14 -> X22 (callee-saved)
-    GpReg::X23,  // R15 -> X23 (callee-saved)
-};
-
-// Map x86 XMM to ARM64 NEON
-constexpr VecReg kXmmToNeon[] = {
-    VecReg::V0, VecReg::V1, VecReg::V2, VecReg::V3,
-    VecReg::V4, VecReg::V5, VecReg::V6, VecReg::V7,
-    VecReg::V8, VecReg::V9, VecReg::V10, VecReg::V11,
-    VecReg::V12, VecReg::V13, VecReg::V14, VecReg::V15
-};
 
 // Compiled code block
 struct CompiledBlock {
     void* code;              // Pointer to generated ARM64 code
     size_t code_size;        // Size of generated code
-    uint64_t guest_addr;     // Original x86 address
-    size_t guest_size;       // Original x86 code size
+    uint64_t guest_addr;     // Original PowerPC address
+    size_t guest_size;       // Original PowerPC code size (always 4-byte aligned)
     uint64_t entry_count;    // Execution count
 };
 
@@ -66,37 +36,122 @@ struct JitConfig {
     bool enable_block_linking = true;
     bool enable_fast_memory = true;
     bool enable_profiling = false;
+    bool big_endian_memory = true;               // PS3 is big-endian
 };
 
 /**
- * x86-64 CPU State (emulated)
+ * PowerPC PPU CPU State (PS3 Cell)
+ * 
+ * Cell PPU Architecture:
+ * - 32 GPR (r0-r31) - 64-bit General Purpose Registers
+ * - 32 FPR (f0-f31) - 64-bit Floating Point Registers  
+ * - 32 VR (v0-v31) - 128-bit Vector Registers (AltiVec/VMX)
+ * - CR - Condition Register (8 x 4-bit fields)
+ * - LR - Link Register (branch return address)
+ * - CTR - Count Register (loop counter)
+ * - XER - Fixed-point Exception Register (carry, overflow)
+ * - FPSCR - Floating-Point Status/Control Register
+ * - VSCR - Vector Status/Control Register
  */
-struct X86State {
-    uint64_t gpr[16];        // RAX-R15
-    uint64_t rip;            // Instruction pointer
-    uint64_t rflags;         // Flags register
+struct PPCState {
+    // General Purpose Registers (r0-r31)
+    uint64_t gpr[32];
     
-    // SSE state
-    alignas(16) uint8_t xmm[16][16];  // XMM0-XMM15
-    uint32_t mxcsr;
+    // Floating Point Registers (f0-f31)
+    alignas(8) double fpr[32];
+    
+    // Vector Registers (v0-v31) - AltiVec/VMX
+    alignas(16) uint8_t vr[32][16];
+    
+    // Special Purpose Registers
+    uint64_t pc;             // Program Counter (NIA - Next Instruction Address)
+    uint64_t lr;             // Link Register
+    uint64_t ctr;            // Count Register
+    uint32_t cr;             // Condition Register
+    uint32_t xer;            // Fixed-Point Exception Register
+    uint32_t fpscr;          // Floating-Point Status/Control Register
+    uint32_t vscr;           // Vector Status/Control Register
+    uint32_t vrsave;         // Vector Save Register
     
     // Memory base for fast memory access
     void* memory_base;
+    size_t memory_size;
     
-    // Helper for flags
-    bool GetZF() const { return (rflags >> 6) & 1; }
-    bool GetCF() const { return rflags & 1; }
-    bool GetSF() const { return (rflags >> 7) & 1; }
-    bool GetOF() const { return (rflags >> 11) & 1; }
+    // MSR fields (Machine State Register)
+    bool msr_pr;             // Problem state (0=supervisor, 1=user)
+    bool msr_ee;             // External interrupt enable
+    bool msr_fp;             // FP available
+    bool msr_vec;            // AltiVec available
     
-    void SetZF(bool v) { rflags = v ? (rflags | 0x40) : (rflags & ~0x40ULL); }
-    void SetCF(bool v) { rflags = v ? (rflags | 1) : (rflags & ~1ULL); }
-    void SetSF(bool v) { rflags = v ? (rflags | 0x80) : (rflags & ~0x80ULL); }
-    void SetOF(bool v) { rflags = v ? (rflags | 0x800) : (rflags & ~0x800ULL); }
+    // ============================================
+    // Condition Register Helpers
+    // ============================================
+    
+    // CR is split into 8 fields (CR0-CR7), each 4 bits
+    // Each field: LT(0), GT(1), EQ(2), SO(3)
+    
+    uint8_t GetCRField(int field) const {
+        return (cr >> (28 - field * 4)) & 0xF;
+    }
+    
+    void SetCRField(int field, uint8_t value) {
+        uint32_t mask = 0xF << (28 - field * 4);
+        cr = (cr & ~mask) | ((value & 0xF) << (28 - field * 4));
+    }
+    
+    bool GetCRBit(int bit) const {
+        return (cr >> (31 - bit)) & 1;
+    }
+    
+    void SetCRBit(int bit, bool value) {
+        if (value) {
+            cr |= (1 << (31 - bit));
+        } else {
+            cr &= ~(1 << (31 - bit));
+        }
+    }
+    
+    // Set CR field from comparison result
+    void SetCRFieldFromCompare(int field, int64_t a, int64_t b) {
+        uint8_t flags = 0;
+        if (a < b) flags |= 8;      // LT
+        else if (a > b) flags |= 4; // GT
+        else flags |= 2;            // EQ
+        if (GetXER_SO()) flags |= 1; // SO (copy from XER)
+        SetCRField(field, flags);
+    }
+    
+    // ============================================
+    // XER Helpers
+    // ============================================
+    
+    // XER format: SO(0), OV(1), CA(2), bits 3-24 reserved, 
+    //             byte count(25-31) for string instructions
+    
+    bool GetXER_SO() const { return (xer >> 31) & 1; }
+    bool GetXER_OV() const { return (xer >> 30) & 1; }
+    bool GetXER_CA() const { return (xer >> 29) & 1; }
+    
+    void SetXER_SO(bool v) { xer = v ? (xer | (1 << 31)) : (xer & ~(1u << 31)); }
+    void SetXER_OV(bool v) { 
+        xer = v ? (xer | (1 << 30)) : (xer & ~(1u << 30)); 
+        if (v) SetXER_SO(true); // OV sets SO
+    }
+    void SetXER_CA(bool v) { xer = v ? (xer | (1 << 29)) : (xer & ~(1u << 29)); }
+    
+    // ============================================
+    // Stack Pointer (r1 by convention)
+    // ============================================
+    
+    uint64_t& GetSP() { return gpr[1]; }
+    const uint64_t& GetSP() const { return gpr[1]; }
+    
+    // r13 is Small Data Area pointer on PPC64
+    uint64_t& GetTOC() { return gpr[2]; }
 };
 
 /**
- * JIT Compiler - Main Translation Engine
+ * JIT Compiler - Main Translation Engine for PS3 PPU
  */
 class JitCompiler {
 public:
@@ -109,7 +164,7 @@ public:
     
     // Compile and execute
     CompiledBlock* CompileBlock(const uint8_t* guest_code, uint64_t guest_addr);
-    void Execute(X86State* state, CompiledBlock* block);
+    void Execute(PPCState* state, CompiledBlock* block);
     
     // Cache management
     CompiledBlock* LookupBlock(uint64_t guest_addr);
@@ -124,23 +179,14 @@ public:
     
 private:
     // Translate single instruction
-    bool TranslateInstruction(const DecodedInstr& instr, Emitter& emit, 
+    bool TranslateInstruction(const ppc::DecodedInstr& instr, PPCTranslator& translator,
                               uint64_t guest_addr, uint64_t next_addr);
     
-    // Map registers
-    GpReg MapGpReg(Reg64 x86_reg) const {
-        if (x86_reg == Reg64::NONE || static_cast<int>(x86_reg) >= 16) {
-            return GpReg::X24;  // Temp register
-        }
-        return kX86ToArm64[static_cast<int>(x86_reg)];
-    }
+    // Map PowerPC CR condition to ARM64 condition
+    Cond TranslatePPCCondition(uint8_t bi, bool branch_true);
     
-    // Translate condition codes
-    Cond TranslateCondition(ConditionCode x86_cc);
-    
-    // Emit flag calculations
-    void EmitFlagUpdate(Emitter& emit, OpcodeType op, GpReg result, 
-                        GpReg op1, GpReg op2);
+    // Emit CR update code
+    void EmitCR0Update(Emitter& emit, GpReg result);
     
     JitConfig config_;
     
@@ -235,25 +281,32 @@ inline void JitCompiler::FlushCache() {
     code_cache_used_ = 0;
 }
 
-inline Cond JitCompiler::TranslateCondition(ConditionCode x86_cc) {
-    // x86 condition -> ARM64 condition
-    switch (x86_cc) {
-        case ConditionCode::O:  return Cond::VS;  // Overflow
-        case ConditionCode::NO: return Cond::VC;  // No overflow
-        case ConditionCode::B:  return Cond::CC;  // Below (CF=1)
-        case ConditionCode::AE: return Cond::CS;  // Above or equal (CF=0)
-        case ConditionCode::E:  return Cond::EQ;  // Equal (ZF=1)
-        case ConditionCode::NE: return Cond::NE;  // Not equal (ZF=0)
-        case ConditionCode::BE: return Cond::LS;  // Below or equal
-        case ConditionCode::A:  return Cond::HI;  // Above
-        case ConditionCode::S:  return Cond::MI;  // Sign (negative)
-        case ConditionCode::NS: return Cond::PL;  // Not sign
-        case ConditionCode::L:  return Cond::LT;  // Less (signed)
-        case ConditionCode::GE: return Cond::GE;  // Greater or equal
-        case ConditionCode::LE: return Cond::LE;  // Less or equal
-        case ConditionCode::G:  return Cond::GT;  // Greater
-        default:                return Cond::AL;  // Always
+inline Cond JitCompiler::TranslatePPCCondition(uint8_t bi, bool branch_true) {
+    // bi is the CR bit index (0-31)
+    // Each CR field has 4 bits: LT(0), GT(1), EQ(2), SO(3)
+    int bit_in_field = bi & 3;
+    
+    // Map PPC CR bit to ARM64 condition
+    // After a CMP, ARM64 flags: N=negative, Z=zero, C=carry, V=overflow
+    switch (bit_in_field) {
+        case 0: // LT (Less Than)
+            return branch_true ? Cond::LT : Cond::GE;
+        case 1: // GT (Greater Than)
+            return branch_true ? Cond::GT : Cond::LE;
+        case 2: // EQ (Equal)
+            return branch_true ? Cond::EQ : Cond::NE;
+        case 3: // SO (Summary Overflow)
+            return branch_true ? Cond::VS : Cond::VC;
+        default:
+            return Cond::AL;
     }
+}
+
+inline void JitCompiler::EmitCR0Update(Emitter& emit, GpReg result) {
+    // CR0 update: compare result with 0 and set LT/GT/EQ/SO
+    // This is done automatically by ADDS/SUBS in ARM64
+    // We just need to store the flags to CR
+    // For now, rely on ARM64 flags being set by previous operation
 }
 
 inline CompiledBlock* JitCompiler::CompileBlock(const uint8_t* guest_code, 
@@ -278,51 +331,46 @@ inline CompiledBlock* JitCompiler::CompileBlock(const uint8_t* guest_code,
     
     CodeBuffer buf(code_start, remaining);
     Emitter emit(buf);
+    PPCTranslator translator(emit);
     
-    // Decode and translate instructions
+    // Decode and translate PowerPC instructions
     size_t guest_offset = 0;
     size_t instr_count = 0;
     bool block_end = false;
     
+    // PowerPC instructions are always 4 bytes (32-bit fixed width)
     while (!block_end && guest_offset < config_.max_block_size) {
-        DecodedInstr instr;
-        size_t len = DecodeInstruction(guest_code + guest_offset, 
-                                        config_.max_block_size - guest_offset, 
-                                        &instr);
+        // Decode PowerPC instruction (big-endian!)
+        ppc::DecodedInstr instr = ppc::DecodeInstruction(
+            guest_code + guest_offset, 
+            guest_addr + guest_offset
+        );
         
-        if (len == 0 || instr.type == OpcodeType::UNKNOWN) {
+        if (instr.type == ppc::InstrType::UNKNOWN) {
             // Undecodable instruction - emit trap
             emit.BRK(0xFFFF);
             break;
         }
         
-        uint64_t next_addr = guest_addr + guest_offset + len;
+        uint64_t next_addr = guest_addr + guest_offset + 4;
         
-        if (!TranslateInstruction(instr, emit, guest_addr + guest_offset, next_addr)) {
-            // Translation failed
+        if (!TranslateInstruction(instr, translator, guest_addr + guest_offset, next_addr)) {
+            // Translation failed - emit trap
             emit.BRK(0xFFFE);
             break;
         }
         
-        guest_offset += len;
+        guest_offset += 4;  // PPC instructions are always 4 bytes
         instr_count++;
         
         // Check for block-ending instructions
-        switch (instr.type) {
-            case OpcodeType::RET:
-            case OpcodeType::JMP_REL:
-            case OpcodeType::JMP_ABS:
-            case OpcodeType::CALL_REL:
-            case OpcodeType::CALL_ABS:
-            case OpcodeType::JCC:
-            case OpcodeType::SYSCALL:
-            case OpcodeType::INT3:
-                block_end = true;
-                break;
-            default:
-                break;
+        if (ppc::IsBlockTerminator(instr.type)) {
+            block_end = true;
         }
     }
+    
+    // Emit block epilogue - return to dispatcher
+    emit.RET();
     
     // Create compiled block
     auto block = std::make_unique<CompiledBlock>();
@@ -332,8 +380,8 @@ inline CompiledBlock* JitCompiler::CompileBlock(const uint8_t* guest_code,
     block->guest_size = guest_offset;
     block->entry_count = 0;
     
-    // Update cache usage
-    code_cache_used_ += (buf.GetOffset() + 15) & ~15;  // 16-byte align
+    // Update cache usage (16-byte aligned)
+    code_cache_used_ += (buf.GetOffset() + 15) & ~15;
     
     // Flush instruction cache
     __builtin___clear_cache(static_cast<char*>(code_start),
@@ -347,170 +395,35 @@ inline CompiledBlock* JitCompiler::CompileBlock(const uint8_t* guest_code,
     return result;
 }
 
-inline bool JitCompiler::TranslateInstruction(const DecodedInstr& instr, 
-                                               Emitter& emit,
+inline bool JitCompiler::TranslateInstruction(const ppc::DecodedInstr& instr,
+                                               PPCTranslator& translator,
                                                uint64_t guest_addr,
                                                uint64_t next_addr) {
-    switch (instr.type) {
-        case OpcodeType::NOP:
-            emit.NOP();
-            return true;
-            
-        case OpcodeType::MOV_REG_REG:
-            emit.MOV(MapGpReg(instr.dst_reg), MapGpReg(instr.src_reg));
-            return true;
-            
-        case OpcodeType::MOV_REG_IMM:
-            emit.MOV_IMM64(MapGpReg(instr.dst_reg), instr.immediate);
-            return true;
-            
-        case OpcodeType::PUSH:
-            // SUB SP, SP, #8; STR Xn, [SP]
-            emit.SUB_IMM(GpReg::SP, GpReg::SP, 8);
-            emit.STR(MapGpReg(instr.src_reg), GpReg::SP, 0);
-            return true;
-            
-        case OpcodeType::POP:
-            // LDR Xn, [SP]; ADD SP, SP, #8
-            emit.LDR(MapGpReg(instr.dst_reg), GpReg::SP, 0);
-            emit.ADD_IMM(GpReg::SP, GpReg::SP, 8);
-            return true;
-            
-        case OpcodeType::ADD_REG_REG:
-            emit.ADDS(MapGpReg(instr.dst_reg), MapGpReg(instr.dst_reg), 
-                     MapGpReg(instr.src_reg));
-            return true;
-            
-        case OpcodeType::ADD_REG_IMM:
-            if (instr.immediate >= 0 && instr.immediate < 4096) {
-                emit.ADD_IMM(MapGpReg(instr.dst_reg), MapGpReg(instr.dst_reg), 
-                            static_cast<uint16_t>(instr.immediate));
-            } else {
-                emit.MOV_IMM64(GpReg::X24, instr.immediate);
-                emit.ADDS(MapGpReg(instr.dst_reg), MapGpReg(instr.dst_reg), GpReg::X24);
-            }
-            return true;
-            
-        case OpcodeType::SUB_REG_REG:
-            emit.SUBS(MapGpReg(instr.dst_reg), MapGpReg(instr.dst_reg), 
-                     MapGpReg(instr.src_reg));
-            return true;
-            
-        case OpcodeType::SUB_REG_IMM:
-            if (instr.immediate >= 0 && instr.immediate < 4096) {
-                emit.SUB_IMM(MapGpReg(instr.dst_reg), MapGpReg(instr.dst_reg), 
-                            static_cast<uint16_t>(instr.immediate));
-            } else {
-                emit.MOV_IMM64(GpReg::X24, instr.immediate);
-                emit.SUBS(MapGpReg(instr.dst_reg), MapGpReg(instr.dst_reg), GpReg::X24);
-            }
-            return true;
-            
-        case OpcodeType::AND_REG_REG:
-            emit.ANDS(MapGpReg(instr.dst_reg), MapGpReg(instr.dst_reg), 
-                     MapGpReg(instr.src_reg));
-            return true;
-            
-        case OpcodeType::OR_REG_REG:
-            emit.ORR(MapGpReg(instr.dst_reg), MapGpReg(instr.dst_reg), 
-                    MapGpReg(instr.src_reg));
-            return true;
-            
-        case OpcodeType::XOR_REG_REG:
-            emit.EOR(MapGpReg(instr.dst_reg), MapGpReg(instr.dst_reg), 
-                    MapGpReg(instr.src_reg));
-            return true;
-            
-        case OpcodeType::CMP_REG_REG:
-            emit.CMP(MapGpReg(instr.dst_reg), MapGpReg(instr.src_reg));
-            return true;
-            
-        case OpcodeType::CMP_REG_IMM:
-            if (instr.immediate >= 0 && instr.immediate < 4096) {
-                emit.CMP_IMM(MapGpReg(instr.dst_reg), static_cast<uint16_t>(instr.immediate));
-            } else {
-                emit.MOV_IMM64(GpReg::X24, instr.immediate);
-                emit.CMP(MapGpReg(instr.dst_reg), GpReg::X24);
-            }
-            return true;
-            
-        case OpcodeType::TEST_REG_REG:
-            emit.TST(MapGpReg(instr.dst_reg), MapGpReg(instr.src_reg));
-            return true;
-            
-        case OpcodeType::JMP_REL:
-            // For now, emit return to interpreter with target address
-            emit.MOV_IMM64(GpReg::X0, next_addr + instr.immediate);
-            emit.RET();
-            return true;
-            
-        case OpcodeType::JCC:
-            // Conditional: B.cond to taken, fall through to not taken
-            {
-                Cond arm_cond = TranslateCondition(instr.cond);
-                // Emit: B.cond +8; MOV X0, next_addr; RET; MOV X0, target; RET
-                emit.B_COND(arm_cond, 12);  // Skip to taken
-                emit.MOV_IMM64(GpReg::X0, next_addr);  // Not taken
-                emit.RET();
-                emit.MOV_IMM64(GpReg::X0, next_addr + instr.immediate);  // Taken
-                emit.RET();
-            }
-            return true;
-            
-        case OpcodeType::CALL_REL:
-            // Push return address, jump to target
-            emit.MOV_IMM64(GpReg::X24, next_addr);
-            emit.SUB_IMM(GpReg::SP, GpReg::SP, 8);
-            emit.STR(GpReg::X24, GpReg::SP, 0);
-            emit.MOV_IMM64(GpReg::X0, next_addr + instr.immediate);
-            emit.RET();
-            return true;
-            
-        case OpcodeType::RET:
-            // Pop return address, return to interpreter
-            emit.LDR(GpReg::X0, GpReg::SP, 0);
-            emit.ADD_IMM(GpReg::SP, GpReg::SP, 8);
-            emit.RET();
-            return true;
-            
-        case OpcodeType::SYSCALL:
-            // Return to interpreter for syscall handling
-            emit.MOV_IMM64(GpReg::X0, next_addr);
-            emit.MOVZ(GpReg::X1, 1);  // Flag: syscall
-            emit.RET();
-            return true;
-            
-        case OpcodeType::INT3:
-            emit.BRK(3);
-            return true;
-            
-        // SSE translations
-        case OpcodeType::ADDPS:
-            emit.FADD_4S(VecReg::V0, VecReg::V0, VecReg::V1);  // Simplified
-            return true;
-            
-        case OpcodeType::MULPS:
-            emit.FMUL_4S(VecReg::V0, VecReg::V0, VecReg::V1);  // Simplified
-            return true;
-            
-        default:
-            // Unknown instruction - emit trap
-            return false;
-    }
+    // Use the PPCTranslator to emit ARM64 code for this PowerPC instruction
+    return translator.Translate(instr);
 }
 
-inline void JitCompiler::Execute(X86State* state, CompiledBlock* block) {
+inline void JitCompiler::Execute(PPCState* state, CompiledBlock* block) {
     if (!state || !block || !block->code) return;
     
     block->entry_count++;
     total_executions_++;
     
+    // Setup registers from state before calling JIT code
+    // The generated ARM64 code expects:
+    // - X29 (REG_STATE) to point to PPCState
+    // - X30 (LR) for return
+    // - X22 (REG_CTR) = state->ctr
+    // - X24 (REG_CR) = state->cr
+    
     // Call generated code
-    using JitFunc = uint64_t (*)(X86State*);
+    // Signature: void jit_block(PPCState* state)
+    using JitFunc = void (*)(PPCState*);
     JitFunc func = reinterpret_cast<JitFunc>(block->code);
     
-    // The generated code returns next guest address in X0
-    state->rip = func(state);
+    func(state);
+    
+    // State is updated in-place by the JIT code
 }
 
 } // namespace rpcsx::nce
