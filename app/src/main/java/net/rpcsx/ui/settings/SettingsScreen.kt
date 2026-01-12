@@ -205,17 +205,6 @@ fun AdvancedSettingsScreen(
                 .fillMaxSize()
                 .padding(contentPadding),
         ) {
-            if (path.isEmpty()) {
-                item(key = "cpu_settings_entry") {
-                    HomePreference(
-                        title = stringResource(R.string.cpu_settings_title),
-                        icon = { PreferenceIcon(icon = painterResource(R.drawable.memory)) },
-                        description = stringResource(R.string.cpu_settings_description),
-                        onClick = { navigateTo("cpu_ppu_decoder") }
-                    )
-                }
-            }
-
             val filteredKeys =
                 settings.keys().asSequence().filter { it.contains(searchQuery, ignoreCase = true) }
                     .toList()
@@ -289,12 +278,18 @@ fun AdvancedSettingsScreen(
                                 for (i in 0..<variantsJson.length()) {
                                     variants.add(variantsJson.getString(i))
                                 }
+                                
+                                // Add NCE option for PPU Decoder if not present
+                                val isPpuDecoder = key == "PPU Decoder" || itemPath.contains("PPU Decoder")
+                                if (isPpuDecoder && !variants.contains("NCE")) {
+                                    variants.add("NCE")
+                                }
 
                                 SingleSelectionDialog(
                                     currentValue = if (itemValue in variants) itemValue else variants[0],
                                     values = variants,
                                     icon = null,
-                                    title = key + if (itemValue == def) "" else " *",
+                                    title = key + if (itemValue == def) "" else " *" + if (isPpuDecoder) " ⚡" else "",
                                     onValueChange = { value ->
                                         if (!RPCSX.instance.settingsSet(
                                                 itemPath, "\"" + value + "\""
@@ -307,6 +302,20 @@ fun AdvancedSettingsScreen(
                                         } else {
                                             itemObject.put("value", value)
                                             itemValue = value
+                                            
+                                            // Activate NCE JIT when selected
+                                            if (isPpuDecoder) {
+                                                val nceMode = when (value) {
+                                                    "NCE" -> 3
+                                                    "Recompiler (LLVM)" -> 2
+                                                    "Interpreter" -> 0
+                                                    else -> 1
+                                                }
+                                                RPCSX.instance.setNCEMode(nceMode)
+                                                if (value == "NCE") {
+                                                    Toast.makeText(context, "🚀 NCE/JIT Activated!", Toast.LENGTH_SHORT).show()
+                                                }
+                                            }
                                         }
                                     },
                                     onLongClick = {
@@ -467,121 +476,6 @@ fun AdvancedSettingsScreen(
                         }
                     )
                 }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun PpuDecoderSettingsScreen(
-    navigateBack: () -> Unit
-) {
-    val context = LocalContext.current
-    var selectedMode by remember { mutableStateOf(RPCSX.instance.getNCEMode()) } // Get current mode
-    
-    // PPU Decoder modes
-    val decoderModes = listOf(
-        0 to "Interpreter",
-        1 to "Interpreter (Cached)",
-        2 to "Recompiler (LLVM)",
-        3 to "⚡ NCE (Native Code Execution)"
-    )
-
-    Scaffold(
-        topBar = {
-            LargeTopAppBar(
-                title = { Text(text = "Core - PPU Decoder") },
-                navigationIcon = {
-                    IconButton(onClick = navigateBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Default.KeyboardArrowLeft,
-                            contentDescription = null
-                        )
-                    }
-                },
-                scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
-            )
-        }
-    ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            item(key = "ppu_decoder_header") {
-                Text(
-                    text = "Select PPU Decoder Mode",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(16.dp)
-                )
-            }
-            
-            decoderModes.forEach { (mode, name) ->
-                item(key = "ppu_decoder_mode_$mode") {
-                    val isSelected = selectedMode == mode
-                    val isRecommended = mode == 3
-                    
-                    HomePreference(
-                        title = name + if (isRecommended) " ★" else "",
-                        icon = { 
-                            Icon(
-                                painterResource(
-                                    if (isSelected) R.drawable.ic_play 
-                                    else R.drawable.ic_circle
-                                ), 
-                                null,
-                                tint = if (isSelected) MaterialTheme.colorScheme.primary 
-                                       else MaterialTheme.colorScheme.onSurface
-                            ) 
-                        },
-                        description = when (mode) {
-                            0 -> "Slowest - Pure interpretation for maximum compatibility"
-                            1 -> "Slow - Cached blocks, better than pure interpreter"
-                            2 -> "Medium - LLVM recompiler, good speed/compatibility"
-                            3 -> "⚡ FASTEST - Real x86→ARM64 JIT on Cortex-X4"
-                            else -> ""
-                        },
-                        onClick = {
-                            val ok = RPCSX.instance.settingsSet("CPU@@PPU Decoder", mode.toString())
-                            if (!ok) {
-                                AlertDialogQueue.showDialog(
-                                    context.getString(R.string.error),
-                                    context.getString(R.string.failed_to_assign_value, mode.toString(), "CPU@@PPU Decoder")
-                                )
-                            } else {
-                                selectedMode = mode
-                                // Activate NCE JIT if mode 3 selected
-                                if (mode == 3) {
-                                    RPCSX.instance.setNCEMode(3)
-                                    Toast.makeText(
-                                        context, 
-                                        "🚀 NCE/JIT Activated! PPU→ARM64 translation enabled", 
-                                        Toast.LENGTH_LONG
-                                    ).show()
-                                } else {
-                                    RPCSX.instance.setNCEMode(mode)
-                                    Toast.makeText(
-                                        context, 
-                                        "PPU Decoder set to: $name", 
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                            }
-                        }
-                    )
-                }
-            }
-            
-            item(key = "ppu_decoder_info") {
-                Text(
-                    text = "★ Recommended for Snapdragon 8s Gen 3 (Cortex-X4)\n\n" +
-                           "NCE/JIT mode uses native ARM64 execution for maximum performance. " +
-                           "Requires ARMv9 CPU with SVE2 support.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(16.dp)
-                )
             }
         }
     }
