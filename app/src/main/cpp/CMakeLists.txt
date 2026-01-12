@@ -79,6 +79,8 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
     # NCE JIT PowerPC (Cell PPU) → ARM64 compiler
     nce_jit/ppc_decoder.cpp
     nce_jit/arm64_emitter.cpp
+    # NCE Standalone JIT (ARM64 only)
+    nce_core/nce_standalone.cpp
     # PLT Hooking + PPU Interceptor
     plt_hook.cpp
     ppu_interceptor.cpp
