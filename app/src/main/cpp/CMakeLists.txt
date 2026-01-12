@@ -79,6 +79,8 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
     # NCE JIT PowerPC (Cell PPU) → ARM64 compiler
     nce_jit/ppc_decoder.cpp
     nce_jit/arm64_emitter.cpp
+    # NCE Hook - exports symbols for librpcsx integration
+    nce_hook.cpp
 )
 
 # Apply aggressive optimisation flags to native library (Release + RelWithDebInfo)

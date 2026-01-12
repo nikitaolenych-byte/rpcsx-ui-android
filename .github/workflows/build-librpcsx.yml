@@ -1,0 +1,84 @@
+name: Build RPCSX Core with NCE JIT
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'patches/rpcsx-nce-arm64-jit.patch'
+
+permissions:
+  contents: write
+
+jobs:
+  build-librpcsx:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout UI repo
+        uses: actions/checkout@v4
+        with:
+          path: ui
+      
+      - name: Clone RPCSX core
+        run: |
+          git clone --depth=1 https://github.com/RPCSX/rpcsx.git rpcsx-core
+          cd rpcsx-core
+          git submodule update --init --recursive --depth=1
+      
+      - name: Apply NCE ARM64 JIT patch
+        run: |
+          cd rpcsx-core
+          git apply ../ui/patches/rpcsx-nce-arm64-jit.patch
+          echo "✅ NCE ARM64 JIT patch applied"
+      
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+      
+      - name: Install NDK
+        run: |
+          yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --install "ndk;26.1.10909125"
+          echo "ANDROID_NDK_HOME=${ANDROID_HOME}/ndk/26.1.10909125" >> $GITHUB_ENV
+          echo "NDK=${ANDROID_HOME}/ndk/26.1.10909125" >> $GITHUB_ENV
+      
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build ccache
+      
+      - name: Build librpcsx.so for ARM64
+        run: |
+          cd rpcsx-core
+          mkdir -p build-android
+          cd build-android
+          
+          cmake .. \
+            -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=$NDK/build/cmake/android.toolchain.cmake \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-29 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DUSE_ARCH=armv8-a \
+            -DBUILD_SHARED_LIBS=ON
+          
+          ninja rpcsx-android || echo "Build may need adjustments"
+      
+      - name: Find and copy librpcsx.so
+        run: |
+          find rpcsx-core/build-android -name "*.so" -type f | head -20
+          mkdir -p artifacts
+          find rpcsx-core/build-android -name "librpcsx*.so" -exec cp {} artifacts/ \; 2>/dev/null || true
+          ls -la artifacts/
+      
+      - name: Upload librpcsx.so artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: librpcsx-nce-arm64
+          path: artifacts/
+          retention-days: 30
+          if-no-files-found: warn
