@@ -90,8 +90,8 @@
     <string name="active_user">Active User</string>
     <string name="advanced_settings">Advanced Settings</string>
     <string name="advanced_settings_description">Configure emulator advanced settings</string>
-    <string name="cpu_settings_title">CPU</string>
-    <string name="cpu_settings_description">Configure PPU decoder</string>
+    <string name="cpu_settings_title">Core</string>
+    <string name="cpu_settings_description">PPU Decoder settings (NCE/JIT)</string>
     <string name="ppu_decoder_title">PPU Decoder</string>
     <string name="ppu_decoder_jit">JIT (Optimized NCE)</string>
     <string name="ppu_decoder_description">Switch PPU decoder to JIT (mode 3) for ARMv9</string>
