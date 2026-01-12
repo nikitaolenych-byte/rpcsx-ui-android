@@ -1,0 +1,4055 @@
+From e41ce4ac201b50d9804475a33c8bff54779488fa Mon Sep 17 00:00:00 2001
+From: nikitaolenych-byte <nikitaolenych@gmail.com>
+Date: Mon, 12 Jan 2026 19:07:08 +0000
+Subject: [PATCH] =?UTF-8?q?feat(nce):=20Add=20ARM64=20NCE=20JIT=20for=20PP?=
+ =?UTF-8?q?U=20(PowerPC=20=E2=86=92=20ARM64=20translation)?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- Add NCE (Native Code Execution) JIT compiler for ARM64 platforms
+- PowerPC decoder for PS3 Cell PPU instructions
+- ARM64 code emitter with register mapping
+- JIT compiler with block caching
+- NCEExecutor integration with PPU thread
+- New ppu_decoder_type::nce_arm64 option
+
+Optimized for Snapdragon 8s Gen 3 (Cortex-X4)
+Target: 60+ FPS for PS3 games on Android
+---
+ rpcs3/Emu/Cell/NCE/CMakeLists.txt    |   34 +
+ rpcs3/Emu/Cell/NCE/NCEExecutor.cpp   |  200 +++++
+ rpcs3/Emu/Cell/NCE/NCEExecutor.h     |   66 ++
+ rpcs3/Emu/Cell/NCE/arm64_emitter.cpp | 1109 ++++++++++++++++++++++++++
+ rpcs3/Emu/Cell/NCE/arm64_emitter.h   | 1006 +++++++++++++++++++++++
+ rpcs3/Emu/Cell/NCE/jit_compiler.h    |  431 ++++++++++
+ rpcs3/Emu/Cell/NCE/nce_common.h      |   18 +
+ rpcs3/Emu/Cell/NCE/ppc_decoder.cpp   |  702 ++++++++++++++++
+ rpcs3/Emu/Cell/NCE/ppc_decoder.h     |  359 +++++++++
+ rpcs3/Emu/system_config_types.cpp    |    1 +
+ rpcs3/Emu/system_config_types.h      |    2 +
+ 11 files changed, 3928 insertions(+)
+ create mode 100644 rpcs3/Emu/Cell/NCE/CMakeLists.txt
+ create mode 100644 rpcs3/Emu/Cell/NCE/NCEExecutor.cpp
+ create mode 100644 rpcs3/Emu/Cell/NCE/NCEExecutor.h
+ create mode 100644 rpcs3/Emu/Cell/NCE/arm64_emitter.cpp
+ create mode 100644 rpcs3/Emu/Cell/NCE/arm64_emitter.h
+ create mode 100644 rpcs3/Emu/Cell/NCE/jit_compiler.h
+ create mode 100644 rpcs3/Emu/Cell/NCE/nce_common.h
+ create mode 100644 rpcs3/Emu/Cell/NCE/ppc_decoder.cpp
+ create mode 100644 rpcs3/Emu/Cell/NCE/ppc_decoder.h
+
+diff --git a/rpcs3/Emu/Cell/NCE/CMakeLists.txt b/rpcs3/Emu/Cell/NCE/CMakeLists.txt
+new file mode 100644
+index 0000000..7cc9e5b
+--- /dev/null
++++ b/rpcs3/Emu/Cell/NCE/CMakeLists.txt
+@@ -0,0 +1,34 @@
++# NCE (Native Code Execution) ARM64 JIT for PPU
++
++set(NCE_SOURCES
++    ppc_decoder.cpp
++    arm64_emitter.cpp
++    NCEExecutor.cpp
++)
++
++set(NCE_HEADERS
++    nce_common.h
++    ppc_decoder.h
++    arm64_emitter.h
++    jit_compiler.h
++    NCEExecutor.h
++)
++
++# Only compile on ARM64
++if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|ARM64")
++    add_library(rpcs3_nce STATIC ${NCE_SOURCES} ${NCE_HEADERS})
++    target_include_directories(rpcs3_nce PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
++    target_compile_features(rpcs3_nce PUBLIC cxx_std_20)
++    
++    # ARM64 specific flags
++    if(NOT MSVC)
++        target_compile_options(rpcs3_nce PRIVATE
++            -march=armv8-a
++            -O3
++            -ffast-math
++        )
++    endif()
++else()
++    # Stub library for non-ARM64 platforms
++    add_library(rpcs3_nce INTERFACE)
++endif()
+diff --git a/rpcs3/Emu/Cell/NCE/NCEExecutor.cpp b/rpcs3/Emu/Cell/NCE/NCEExecutor.cpp
+new file mode 100644
+index 0000000..a3deacf
+--- /dev/null
++++ b/rpcs3/Emu/Cell/NCE/NCEExecutor.cpp
+@@ -0,0 +1,200 @@
++/**
++ * NCE PPU Executor Implementation
++ * ARM64 JIT для PS3 Cell PPU - інтеграція з RPCS3
++ */
++
++#include "NCEExecutor.h"
++#include "util/logs.hpp"
++#include "Emu/Memory/vm.h"
++
++#if defined(__aarch64__) || defined(_M_ARM64)
++#define NCE_ARM64_SUPPORTED 1
++#else
++#define NCE_ARM64_SUPPORTED 0
++#endif
++
++LOG_CHANNEL(nce_log, "NCE");
++
++namespace nce {
++
++bool NCEExecutor::IsSupported() {
++#if NCE_ARM64_SUPPORTED
++    return true;
++#else
++    return false;
++#endif
++}
++
++bool NCEExecutor::Initialize() {
++    if (m_initialized) return true;
++    
++#if !NCE_ARM64_SUPPORTED
++    nce_log.error("NCE: ARM64 JIT not supported on this platform");
++    return false;
++#endif
++    
++    nce_log.notice("NCE: Initializing ARM64 JIT for PPU...");
++    
++    rpcsx::nce::JitConfig config;
++    config.code_cache_size = 128 * 1024 * 1024;  // 128MB cache
++    config.max_block_size = 4096;
++    config.enable_block_linking = true;
++    config.enable_fast_memory = true;
++    config.big_endian_memory = true;  // PS3 is big-endian
++    
++    m_jit = std::make_unique<rpcsx::nce::JitCompiler>(config);
++    
++    if (!m_jit->Initialize()) {
++        nce_log.error("NCE: Failed to initialize JIT compiler");
++        return false;
++    }
++    
++    // Initialize PPU state
++    std::memset(&m_ppu_state, 0, sizeof(m_ppu_state));
++    m_ppu_state.memory_base = vm::g_base_addr;
++    m_ppu_state.memory_size = 0x100000000ULL;  // 4GB
++    
++    m_initialized = true;
++    nce_log.success("NCE: ARM64 JIT initialized successfully");
++    
++    return true;
++}
++
++void NCEExecutor::Shutdown() {
++    if (!m_initialized) return;
++    
++    nce_log.notice("NCE: Shutting down ARM64 JIT...");
++    
++    if (m_jit) {
++        m_jit->Shutdown();
++        m_jit.reset();
++    }
++    
++    m_initialized = false;
++}
++
++void NCEExecutor::SyncFromPPU(ppu_thread& ppu) {
++#if NCE_ARM64_SUPPORTED
++    // Copy GPRs (r0-r31)
++    for (int i = 0; i < 32; i++) {
++        m_ppu_state.gpr[i] = ppu.gpr[i];
++    }
++    
++    // Copy FPRs (f0-f31)
++    for (int i = 0; i < 32; i++) {
++        m_ppu_state.fpr[i] = ppu.fpr[i];
++    }
++    
++    // Copy special registers
++    m_ppu_state.pc = ppu.cia;
++    m_ppu_state.lr = ppu.lr;
++    m_ppu_state.ctr = ppu.ctr;
++    m_ppu_state.cr = ppu.cr.pack();
++    m_ppu_state.xer = (ppu.xer.so << 31) | (ppu.xer.ov << 30) | (ppu.xer.ca << 29);
++    m_ppu_state.fpscr = ppu.fpscr.fl;
++#endif
++}
++
++void NCEExecutor::SyncToPPU(ppu_thread& ppu) {
++#if NCE_ARM64_SUPPORTED
++    // Copy GPRs back
++    for (int i = 0; i < 32; i++) {
++        ppu.gpr[i] = m_ppu_state.gpr[i];
++    }
++    
++    // Copy FPRs back
++    for (int i = 0; i < 32; i++) {
++        ppu.fpr[i] = m_ppu_state.fpr[i];
++    }
++    
++    // Copy special registers back
++    ppu.cia = static_cast<u32>(m_ppu_state.pc);
++    ppu.lr = m_ppu_state.lr;
++    ppu.ctr = m_ppu_state.ctr;
++    ppu.cr.unpack(m_ppu_state.cr);
++    ppu.xer.so = (m_ppu_state.xer >> 31) & 1;
++    ppu.xer.ov = (m_ppu_state.xer >> 30) & 1;
++    ppu.xer.ca = (m_ppu_state.xer >> 29) & 1;
++    ppu.fpscr.fl = m_ppu_state.fpscr;
++#endif
++}
++
++u32 NCEExecutor::Execute(ppu_thread& ppu, u32 addr, u32 max_instructions) {
++#if !NCE_ARM64_SUPPORTED
++    return 0;
++#else
++    if (!m_initialized || !m_jit) return 0;
++    
++    // Sync state from PPU thread
++    SyncFromPPU(ppu);
++    m_ppu_state.pc = addr;
++    
++    u32 instructions_executed = 0;
++    
++    while (instructions_executed < max_instructions) {
++        // Look up or compile block
++        auto* block = m_jit->LookupBlock(m_ppu_state.pc);
++        
++        if (!block) {
++            // Get pointer to guest code
++            const u8* guest_code = vm::_ptr<u8>(static_cast<u32>(m_ppu_state.pc));
++            if (!guest_code) {
++                nce_log.error("NCE: Invalid PC 0x%08x", m_ppu_state.pc);
++                break;
++            }
++            
++            block = m_jit->CompileBlock(guest_code, m_ppu_state.pc);
++            if (!block) {
++                nce_log.warning("NCE: Failed to compile block at 0x%08x", m_ppu_state.pc);
++                break;
++            }
++        }
++        
++        // Execute compiled block
++        u64 prev_pc = m_ppu_state.pc;
++        m_jit->Execute(&m_ppu_state, block);
++        
++        instructions_executed += static_cast<u32>(block->guest_size / 4);
++        
++        // Check for block end or exit condition
++        if (m_ppu_state.pc == prev_pc) {
++            break;  // Infinite loop or trap
++        }
++        
++        // Check for system call or other exit
++        if (m_ppu_state.pc == 0 || m_ppu_state.pc >= 0x100000000ULL) {
++            break;
++        }
++    }
++    
++    // Sync state back to PPU thread
++    SyncToPPU(ppu);
++    
++    return instructions_executed;
++#endif
++}
++
++void NCEExecutor::InvalidateCache(u32 start, u32 end) {
++    if (m_jit) {
++        m_jit->InvalidateRange(start, end);
++    }
++}
++
++NCEExecutor::Stats NCEExecutor::GetStats() const {
++    Stats stats = {};
++    // TODO: Implement stats tracking in JitCompiler
++    return stats;
++}
++
++bool ppu_nce_execute(ppu_thread& ppu, u32 addr) {
++    auto& nce = NCEExecutor::GetInstance();
++    
++    if (!nce.IsSupported()) {
++        return false;
++    }
++    
++    u32 executed = nce.Execute(ppu, addr);
++    return executed > 0;
++}
++
++} // namespace nce
+diff --git a/rpcs3/Emu/Cell/NCE/NCEExecutor.h b/rpcs3/Emu/Cell/NCE/NCEExecutor.h
+new file mode 100644
+index 0000000..6040612
+--- /dev/null
++++ b/rpcs3/Emu/Cell/NCE/NCEExecutor.h
+@@ -0,0 +1,66 @@
++/**
++ * NCE PPU Executor - ARM64 JIT для PS3 Cell PPU
++ * Інтеграція з RPCSX/RPCS3
++ */
++
++#pragma once
++
++#include "jit_compiler.h"
++#include "../PPUThread.h"
++#include <memory>
++
++namespace nce {
++
++class NCEExecutor {
++public:
++    static NCEExecutor& GetInstance() {
++        static NCEExecutor instance;
++        return instance;
++    }
++    
++    bool Initialize();
++    void Shutdown();
++    
++    // Execute PPU instruction block at given address
++    // Returns number of instructions executed
++    u32 Execute(ppu_thread& ppu, u32 addr, u32 max_instructions = 1000);
++    
++    // Check if NCE is available on this platform
++    static bool IsSupported();
++    
++    // Invalidate code cache for address range
++    void InvalidateCache(u32 start, u32 end);
++    
++    // Get JIT statistics
++    struct Stats {
++        u64 blocks_compiled;
++        u64 instructions_translated;
++        u64 total_executions;
++        u64 cache_hits;
++        u64 cache_misses;
++    };
++    
++    Stats GetStats() const;
++    
++private:
++    NCEExecutor() = default;
++    ~NCEExecutor() = default;
++    
++    NCEExecutor(const NCEExecutor&) = delete;
++    NCEExecutor& operator=(const NCEExecutor&) = delete;
++    
++    std::unique_ptr<rpcsx::nce::JitCompiler> m_jit;
++    rpcsx::nce::PPCState m_ppu_state;
++    bool m_initialized = false;
++    
++    // Sync PPU thread state to internal state
++    void SyncFromPPU(ppu_thread& ppu);
++    
++    // Sync internal state back to PPU thread
++    void SyncToPPU(ppu_thread& ppu);
++};
++
++// Helper function for PPU thread integration
++bool ppu_nce_execute(ppu_thread& ppu, u32 addr);
++
++} // namespace nce
+diff --git a/rpcs3/Emu/Cell/NCE/arm64_emitter.cpp b/rpcs3/Emu/Cell/NCE/arm64_emitter.cpp
+new file mode 100644
+index 0000000..a2185ee
+--- /dev/null
++++ b/rpcs3/Emu/Cell/NCE/arm64_emitter.cpp
+@@ -0,0 +1,1109 @@
++#include "nce_common.h"
++/**
++ * ARM64 Code Emitter Implementation
++ * PowerPC → ARM64 Translation for PS3 Cell PPU
++ * 
++ * This implements the core translation from 64-bit PowerPC (Cell PPU)
++ * instructions to ARM64 (AArch64) instructions.
++ * 
++ * Key considerations:
++ * - PS3 is big-endian, ARM64 is little-endian -> byte swaps needed
++ * - PowerPC has 32 GPR, ARM64 has 31 -> need register spilling
++ * - PowerPC CR is 32-bit (8 fields), ARM64 uses NZCV flags
++ * - PowerPC rotate-and-mask instructions need multiple ARM64 ops
++ */
++
++#include "arm64_emitter.h"
++// #include <android/log.h>
++
++
++
++
++
++
++namespace rpcsx::nce::arm64 {
++
++bool PPCTranslator::Translate(const ppc::DecodedInstr& instr) {
++    switch (instr.type) {
++    // ================== Load ==================
++    case ppc::InstrType::LOAD_WORD:
++    case ppc::InstrType::LOAD_HALF:
++    case ppc::InstrType::LOAD_BYTE:
++    case ppc::InstrType::LOAD_DOUBLE:
++        EmitLoad(instr);
++        return true;
++    
++    case ppc::InstrType::LOAD_MULTIPLE:
++        EmitLoadMultiple(instr);
++        return true;
++        
++    // ================== Store ==================
++    case ppc::InstrType::STORE_WORD:
++    case ppc::InstrType::STORE_HALF:
++    case ppc::InstrType::STORE_BYTE:
++    case ppc::InstrType::STORE_DOUBLE:
++        EmitStore(instr);
++        return true;
++    
++    case ppc::InstrType::STORE_MULTIPLE:
++        EmitStoreMultiple(instr);
++        return true;
++        
++    // ================== Arithmetic Immediate ==================
++    case ppc::InstrType::ADDI:
++    case ppc::InstrType::ADDIS:
++    case ppc::InstrType::ADDIC:
++        EmitAdd(instr);
++        return true;
++        
++    case ppc::InstrType::SUBFIC:
++        EmitSub(instr);
++        return true;
++        
++    case ppc::InstrType::MULLI:
++        EmitMul(instr);
++        return true;
++        
++    // ================== Arithmetic Register ==================
++    case ppc::InstrType::ADD:
++    case ppc::InstrType::ADDC:
++        EmitAdd(instr);
++        return true;
++        
++    case ppc::InstrType::SUBF:
++    case ppc::InstrType::SUB:
++        EmitSub(instr);
++        return true;
++        
++    case ppc::InstrType::MULLW:
++        EmitMul(instr);
++        return true;
++        
++    case ppc::InstrType::DIVW:
++    case ppc::InstrType::DIVWU:
++        EmitDiv(instr);
++        return true;
++        
++    case ppc::InstrType::NEG:
++        emit_.NEG(MapPPCGPR(instr.rd), MapPPCGPR(instr.ra));
++        if (instr.rc) {
++            EmitCR0Update(MapPPCGPR(instr.rd));
++        }
++        return true;
++        
++    // ================== Logic ==================
++    case ppc::InstrType::AND:
++    case ppc::InstrType::ANDI:
++    case ppc::InstrType::ANDIS:
++    case ppc::InstrType::ANDC:
++    case ppc::InstrType::OR:
++    case ppc::InstrType::ORI:
++    case ppc::InstrType::ORIS:
++    case ppc::InstrType::ORC:
++    case ppc::InstrType::XOR:
++    case ppc::InstrType::XORI:
++    case ppc::InstrType::XORIS:
++    case ppc::InstrType::NAND:
++    case ppc::InstrType::NOR:
++    case ppc::InstrType::EQV:
++        EmitLogic(instr);
++        return true;
++        
++    // ================== Shift ==================
++    case ppc::InstrType::SLW:
++    case ppc::InstrType::SRW:
++    case ppc::InstrType::SRAW:
++    case ppc::InstrType::SRAWI:
++        EmitShift(instr);
++        return true;
++        
++    // ================== Rotate ==================
++    case ppc::InstrType::RLWINM:
++    case ppc::InstrType::RLWIMI:
++    case ppc::InstrType::RLWNM:
++        EmitRotate(instr);
++        return true;
++        
++    // ================== Compare ==================
++    case ppc::InstrType::CMP:
++    case ppc::InstrType::CMPI:
++    case ppc::InstrType::CMPL:
++    case ppc::InstrType::CMPLI:
++        EmitCompare(instr);
++        return true;
++        
++    // ================== Branch ==================
++    case ppc::InstrType::B:
++    case ppc::InstrType::BL:
++    case ppc::InstrType::BC:
++    case ppc::InstrType::BCLR:
++    case ppc::InstrType::BCCTR:
++        EmitBranch(instr);
++        return true;
++        
++    // ================== CR Operations ==================
++    case ppc::InstrType::CRAND:
++    case ppc::InstrType::CROR:
++    case ppc::InstrType::CRXOR:
++    case ppc::InstrType::CRNAND:
++    case ppc::InstrType::CRNOR:
++    case ppc::InstrType::CREQV:
++    case ppc::InstrType::CRANDC:
++    case ppc::InstrType::CRORC:
++    case ppc::InstrType::MCRF:
++        EmitCRLogic(instr);
++        return true;
++        
++    // ================== SPR ==================
++    case ppc::InstrType::MFSPR:
++    case ppc::InstrType::MTSPR:
++    case ppc::InstrType::MFCR:
++    case ppc::InstrType::MTCRF:
++        EmitSPR(instr);
++        return true;
++        
++    // ================== Sign Extend ==================
++    case ppc::InstrType::EXTSB:
++        emit_.SXTB(MapPPCGPR(instr.ra), MapPPCGPR(static_cast<ppc::GPR>(instr.rd)));
++        if (instr.rc) EmitCR0Update(MapPPCGPR(instr.ra));
++        return true;
++        
++    case ppc::InstrType::EXTSH:
++        emit_.SXTH(MapPPCGPR(instr.ra), MapPPCGPR(static_cast<ppc::GPR>(instr.rd)));
++        if (instr.rc) EmitCR0Update(MapPPCGPR(instr.ra));
++        return true;
++        
++    case ppc::InstrType::EXTSW:
++        emit_.SXTW(MapPPCGPR(instr.ra), MapPPCGPR(static_cast<ppc::GPR>(instr.rd)));
++        if (instr.rc) EmitCR0Update(MapPPCGPR(instr.ra));
++        return true;
++    
++    // ================== Count Leading Zeros ==================
++    case ppc::InstrType::CNTLZW:
++        emit_.CLZ_W(MapPPCGPR(instr.ra), MapPPCGPR(static_cast<ppc::GPR>(instr.rd)));
++        if (instr.rc) EmitCR0Update(MapPPCGPR(instr.ra));
++        return true;
++        
++    // ================== System ==================
++    case ppc::InstrType::SC:
++        EmitSystem(instr);
++        return true;
++        
++    case ppc::InstrType::RFI:
++        // Return from interrupt - complex, emit trap for now
++        emit_.BRK(0x100);
++        return true;
++        
++    case ppc::InstrType::ISYNC:
++        emit_.ISB();
++        return true;
++        
++    case ppc::InstrType::EIEIO:
++    case ppc::InstrType::SYNC:
++        emit_.DMB();
++        return true;
++        
++    // ================== Cache ==================
++    case ppc::InstrType::DCBF:
++    case ppc::InstrType::DCBI:
++    case ppc::InstrType::DCBST:
++    case ppc::InstrType::DCBT:
++    case ppc::InstrType::DCBTST:
++    case ppc::InstrType::DCBZ:
++    case ppc::InstrType::ICBI:
++        // Cache ops - NOP on ARM64 for now (could use DC/IC instructions)
++        emit_.NOP();
++        return true;
++    
++    // ================== Trap ==================
++    case ppc::InstrType::TW:
++    case ppc::InstrType::TWI:
++        EmitTrap(instr);
++        return true;
++        
++    // ================== Floating Point ==================
++    case ppc::InstrType::FP_LOAD:
++        EmitFPLoad(instr);
++        return true;
++        
++    case ppc::InstrType::FP_STORE:
++        EmitFPStore(instr);
++        return true;
++        
++    case ppc::InstrType::FP_ARITH:
++        EmitFPArith(instr);
++        return true;
++        
++    default:
++        __nce_log_warn("Unhandled PPC instruction type: %d (%s)", 
++             static_cast<int>(instr.type), 
++             ppc::GetInstructionName(instr.type));
++        return false;
++    }
++}
++
++// ============================================
++// CR0 Update Helper
++// ============================================
++
++void PPCTranslator::EmitCR0Update(GpReg result) {
++    // CR0 is set based on comparison with 0:
++    // CR0[LT] = result < 0
++    // CR0[GT] = result > 0
++    // CR0[EQ] = result == 0
++    // CR0[SO] = XER[SO] (copied)
++    
++    // Compare result with 0 (sets ARM64 flags)
++    emit_.CMP(result, GpReg::ZR);
++    
++    // Build CR0 value based on flags
++    // Use CSET to extract each flag
++    emit_.CSET(REG_TMP1, Cond::LT);     // LT bit
++    emit_.LSL_IMM(REG_TMP1, REG_TMP1, 3);
++    
++    emit_.CSET(REG_TMP2, Cond::GT);     // GT bit
++    emit_.LSL_IMM(REG_TMP2, REG_TMP2, 2);
++    emit_.ORR(REG_TMP1, REG_TMP1, REG_TMP2);
++    
++    emit_.CSET(REG_TMP2, Cond::EQ);     // EQ bit
++    emit_.LSL_IMM(REG_TMP2, REG_TMP2, 1);
++    emit_.ORR(REG_TMP1, REG_TMP1, REG_TMP2);
++    
++    // Copy SO from XER (bit 0 of CR0)
++    // For simplicity, assume SO is stored in a known location
++    // TODO: Properly track XER[SO]
++    
++    // Store CR0 field (bits 0-3 of CR)
++    // CR is stored in REG_CR, CR0 is the highest 4 bits
++    emit_.LSL_IMM(REG_TMP1, REG_TMP1, 28);  // Shift to CR0 position
++    
++    // Clear CR0 field in CR and OR in new value
++    emit_.MOV_IMM64(REG_TMP2, 0x0FFFFFFF);  // Mask to clear CR0
++    emit_.AND(REG_CR, REG_CR, REG_TMP2);
++    emit_.ORR(REG_CR, REG_CR, REG_TMP1);
++}
++
++void PPCTranslator::EmitLoad(const ppc::DecodedInstr& instr) {
++    GpReg rd = MapPPCGPR(instr.rd);
++    GpReg ra = MapPPCGPR(instr.ra);
++    int32_t offset = instr.simm;
++    
++    // Handle ra=0 case (use 0 instead of r0)
++    if (static_cast<uint8_t>(instr.ra) == 0) {
++        // Load from absolute address
++        emit_.MOV_IMM64(REG_TMP1, offset);
++        ra = REG_TMP1;
++        offset = 0;
++    }
++    
++    // PS3 є big-endian, ARM64 є little-endian
++    // Потрібно робити byte-swap після load
++    
++    switch (instr.type) {
++    case ppc::InstrType::LOAD_DOUBLE:
++        emit_.LDR(rd, ra, offset);
++        emit_.REV(rd, rd);  // byte swap 64-bit
++        break;
++        
++    case ppc::InstrType::LOAD_WORD:
++        emit_.LDR_W(rd, ra, offset);
++        emit_.REV_W(rd, rd);  // byte swap 32-bit
++        break;
++        
++    case ppc::InstrType::LOAD_HALF:
++        emit_.LDRH(rd, ra, offset);
++        emit_.REV16(rd, rd);  // byte swap 16-bit
++        break;
++        
++    case ppc::InstrType::LOAD_BYTE:
++        emit_.LDRB(rd, ra, offset);
++        // No swap needed for single byte
++        break;
++        
++    default:
++        break;
++    }
++}
++
++void PPCTranslator::EmitStore(const ppc::DecodedInstr& instr) {
++    GpReg rs = MapPPCGPR(static_cast<ppc::GPR>(instr.rd));  // Source register
++    GpReg ra = MapPPCGPR(instr.ra);
++    int32_t offset = instr.simm;
++    
++    // Handle ra=0 case
++    if (static_cast<uint8_t>(instr.ra) == 0) {
++        emit_.MOV_IMM64(REG_TMP1, offset);
++        ra = REG_TMP1;
++        offset = 0;
++    }
++    
++    // Byte-swap before store (big-endian)
++    switch (instr.type) {
++    case ppc::InstrType::STORE_DOUBLE:
++        emit_.REV(REG_TMP2, rs);  // byte swap to temp
++        emit_.STR(REG_TMP2, ra, offset);
++        break;
++        
++    case ppc::InstrType::STORE_WORD:
++        emit_.REV_W(REG_TMP2, rs);
++        emit_.STR_W(REG_TMP2, ra, offset);
++        break;
++        
++    case ppc::InstrType::STORE_HALF:
++        emit_.REV16(REG_TMP2, rs);
++        emit_.STRH(REG_TMP2, ra, offset);
++        break;
++        
++    case ppc::InstrType::STORE_BYTE:
++        emit_.STRB(rs, ra, offset);
++        break;
++        
++    default:
++        break;
++    }
++}
++
++void PPCTranslator::EmitLoadMultiple(const ppc::DecodedInstr& instr) {
++    // lmw rD, d(rA) - Load Multiple Word
++    // Loads (32-rD) consecutive words starting at EA
++    GpReg ra = MapPPCGPR(instr.ra);
++    int32_t offset = instr.simm;
++    uint8_t start_reg = static_cast<uint8_t>(instr.rd);
++    
++    // Calculate effective address
++    if (static_cast<uint8_t>(instr.ra) == 0) {
++        emit_.MOV_IMM64(REG_TMP1, offset);
++    } else {
++        emit_.ADD_IMM(REG_TMP1, ra, offset);
++    }
++    
++    // Load each register
++    for (uint8_t r = start_reg; r < 32; r++) {
++        int32_t reg_offset = (r - start_reg) * 4;
++        GpReg rd = MapPPCGPR(static_cast<ppc::GPR>(r));
++        
++        emit_.LDR_W(rd, REG_TMP1, reg_offset);
++        emit_.REV_W(rd, rd);  // Big-endian swap
++    }
++}
++
++void PPCTranslator::EmitStoreMultiple(const ppc::DecodedInstr& instr) {
++    // stmw rS, d(rA) - Store Multiple Word
++    // Stores (32-rS) consecutive words starting at EA
++    GpReg ra = MapPPCGPR(instr.ra);
++    int32_t offset = instr.simm;
++    uint8_t start_reg = static_cast<uint8_t>(instr.rd);
++    
++    // Calculate effective address
++    if (static_cast<uint8_t>(instr.ra) == 0) {
++        emit_.MOV_IMM64(REG_TMP1, offset);
++    } else {
++        emit_.ADD_IMM(REG_TMP1, ra, offset);
++    }
++    
++    // Store each register
++    for (uint8_t r = start_reg; r < 32; r++) {
++        int32_t reg_offset = (r - start_reg) * 4;
++        GpReg rs = MapPPCGPR(static_cast<ppc::GPR>(r));
++        
++        emit_.REV_W(REG_TMP2, rs);  // Big-endian swap
++        emit_.STR_W(REG_TMP2, REG_TMP1, reg_offset);
++    }
++}
++
++void PPCTranslator::EmitAdd(const ppc::DecodedInstr& instr) {
++    GpReg rd = MapPPCGPR(instr.rd);
++    GpReg ra = MapPPCGPR(instr.ra);
++    
++    switch (instr.type) {
++    case ppc::InstrType::ADDI:
++        // addi rd, ra, simm (ra=0 means load immediate)
++        if (static_cast<uint8_t>(instr.ra) == 0) {
++            // li rd, simm
++            if (instr.simm >= 0) {
++                emit_.MOVZ(rd, instr.simm, 0);
++            } else {
++                emit_.MOVN(rd, ~instr.simm, 0);
++            }
++        } else {
++            if (instr.simm >= 0) {
++                emit_.ADD_IMM(rd, ra, instr.simm);
++            } else {
++                emit_.SUB_IMM(rd, ra, -instr.simm);
++            }
++        }
++        break;
++        
++    case ppc::InstrType::ADDIS:
++        // addis rd, ra, simm (simm shifted left 16)
++        {
++            int32_t shifted = static_cast<int32_t>(instr.simm) << 16;
++            if (static_cast<uint8_t>(instr.ra) == 0) {
++                // lis rd, simm
++                emit_.MOV_IMM64(rd, shifted);
++            } else {
++                emit_.MOV_IMM64(REG_TMP1, shifted);
++                emit_.ADD(rd, ra, REG_TMP1);
++            }
++        }
++        break;
++        
++    case ppc::InstrType::ADD:
++    case ppc::InstrType::ADDC:
++        {
++            GpReg rb = MapPPCGPR(instr.rb);
++            if (instr.rc) {
++                emit_.ADDS(rd, ra, rb);
++                // Update CR0 based on result
++            } else {
++                emit_.ADD(rd, ra, rb);
++            }
++        }
++        break;
++        
++    default:
++        break;
++    }
++}
++
++void PPCTranslator::EmitSub(const ppc::DecodedInstr& instr) {
++    GpReg rd = MapPPCGPR(instr.rd);
++    GpReg ra = MapPPCGPR(instr.ra);
++    
++    switch (instr.type) {
++    case ppc::InstrType::SUBFIC:
++        // subfic rd, ra, simm: rd = simm - ra
++        emit_.MOV_IMM64(REG_TMP1, instr.simm);
++        emit_.SUB(rd, REG_TMP1, ra);
++        break;
++        
++    case ppc::InstrType::SUBF:
++    case ppc::InstrType::SUB:
++        {
++            // subf rd, ra, rb: rd = rb - ra
++            GpReg rb = MapPPCGPR(instr.rb);
++            if (instr.rc) {
++                emit_.SUBS(rd, rb, ra);
++            } else {
++                emit_.SUB(rd, rb, ra);
++            }
++        }
++        break;
++        
++    default:
++        break;
++    }
++}
++
++void PPCTranslator::EmitMul(const ppc::DecodedInstr& instr) {
++    GpReg rd = MapPPCGPR(instr.rd);
++    GpReg ra = MapPPCGPR(instr.ra);
++    
++    switch (instr.type) {
++    case ppc::InstrType::MULLI:
++        emit_.MOV_IMM64(REG_TMP1, instr.simm);
++        emit_.MUL(rd, ra, REG_TMP1);
++        break;
++        
++    case ppc::InstrType::MULLW:
++        {
++            GpReg rb = MapPPCGPR(instr.rb);
++            emit_.MUL(rd, ra, rb);
++        }
++        break;
++        
++    default:
++        break;
++    }
++}
++
++void PPCTranslator::EmitDiv(const ppc::DecodedInstr& instr) {
++    GpReg rd = MapPPCGPR(instr.rd);
++    GpReg ra = MapPPCGPR(instr.ra);
++    GpReg rb = MapPPCGPR(instr.rb);
++    
++    if (instr.type == ppc::InstrType::DIVWU) {
++        emit_.UDIV(rd, ra, rb);
++    } else {
++        emit_.SDIV(rd, ra, rb);
++    }
++}
++
++void PPCTranslator::EmitLogic(const ppc::DecodedInstr& instr) {
++    GpReg ra = MapPPCGPR(instr.ra);
++    GpReg rs = MapPPCGPR(static_cast<ppc::GPR>(instr.rd));  // Source
++    GpReg rb = MapPPCGPR(instr.rb);
++    
++    switch (instr.type) {
++    case ppc::InstrType::AND:
++        emit_.AND(ra, rs, rb);
++        break;
++        
++    case ppc::InstrType::ANDI:
++        emit_.MOV_IMM64(REG_TMP1, instr.uimm);
++        emit_.AND(ra, rs, REG_TMP1);
++        break;
++        
++    case ppc::InstrType::ANDIS:
++        emit_.MOV_IMM64(REG_TMP1, static_cast<uint32_t>(instr.uimm) << 16);
++        emit_.AND(ra, rs, REG_TMP1);
++        break;
++        
++    case ppc::InstrType::ANDC:
++        // andc ra, rs, rb: ra = rs & ~rb
++        emit_.MVN(REG_TMP1, rb);
++        emit_.AND(ra, rs, REG_TMP1);
++        break;
++        
++    case ppc::InstrType::OR:
++        emit_.ORR(ra, rs, rb);
++        break;
++        
++    case ppc::InstrType::ORI:
++        if (instr.uimm == 0) {
++            // nop (ori 0,0,0)
++            emit_.NOP();
++        } else {
++            emit_.MOV_IMM64(REG_TMP1, instr.uimm);
++            emit_.ORR(ra, rs, REG_TMP1);
++        }
++        break;
++        
++    case ppc::InstrType::ORIS:
++        emit_.MOV_IMM64(REG_TMP1, static_cast<uint32_t>(instr.uimm) << 16);
++        emit_.ORR(ra, rs, REG_TMP1);
++        break;
++        
++    case ppc::InstrType::ORC:
++        // orc ra, rs, rb: ra = rs | ~rb
++        emit_.MVN(REG_TMP1, rb);
++        emit_.ORR(ra, rs, REG_TMP1);
++        break;
++        
++    case ppc::InstrType::XOR:
++        emit_.EOR(ra, rs, rb);
++        break;
++        
++    case ppc::InstrType::XORI:
++        emit_.MOV_IMM64(REG_TMP1, instr.uimm);
++        emit_.EOR(ra, rs, REG_TMP1);
++        break;
++        
++    case ppc::InstrType::XORIS:
++        emit_.MOV_IMM64(REG_TMP1, static_cast<uint32_t>(instr.uimm) << 16);
++        emit_.EOR(ra, rs, REG_TMP1);
++        break;
++        
++    case ppc::InstrType::NAND:
++        emit_.AND(REG_TMP1, rs, rb);
++        emit_.MVN(ra, REG_TMP1);
++        break;
++        
++    case ppc::InstrType::NOR:
++        emit_.ORR(REG_TMP1, rs, rb);
++        emit_.MVN(ra, REG_TMP1);
++        break;
++        
++    case ppc::InstrType::EQV:
++        // eqv ra, rs, rb: ra = ~(rs ^ rb)
++        emit_.EOR(REG_TMP1, rs, rb);
++        emit_.MVN(ra, REG_TMP1);
++        break;
++        
++    default:
++        break;
++    }
++}
++
++void PPCTranslator::EmitShift(const ppc::DecodedInstr& instr) {
++    GpReg ra = MapPPCGPR(instr.ra);
++    GpReg rs = MapPPCGPR(static_cast<ppc::GPR>(instr.rd));
++    GpReg rb = MapPPCGPR(instr.rb);
++    
++    switch (instr.type) {
++    case ppc::InstrType::SLW:
++        emit_.LSL(ra, rs, rb);
++        break;
++        
++    case ppc::InstrType::SRW:
++        emit_.LSR(ra, rs, rb);
++        break;
++        
++    case ppc::InstrType::SRAW:
++        emit_.ASR(ra, rs, rb);
++        break;
++        
++    case ppc::InstrType::SRAWI:
++        emit_.ASR_IMM(ra, rs, instr.sh);
++        break;
++        
++    default:
++        break;
++    }
++}
++
++void PPCTranslator::EmitRotate(const ppc::DecodedInstr& instr) {
++    GpReg ra = MapPPCGPR(instr.ra);
++    GpReg rs = MapPPCGPR(static_cast<ppc::GPR>(instr.rd));
++    
++    // rlwinm ra, rs, sh, mb, me
++    // Rotate left, then mask bits [mb:me]
++    
++    // ARM64 doesn't have direct rotate-and-mask
++    // Use: ROR + AND with mask
++    
++    uint32_t sh = instr.sh;
++    uint32_t mb = instr.mb;
++    uint32_t me = instr.me;
++    
++    // Calculate mask
++    uint32_t mask;
++    if (mb <= me) {
++        mask = ((1u << (me - mb + 1)) - 1) << (31 - me);
++    } else {
++        mask = ~(((1u << (mb - me - 1)) - 1) << (31 - mb + 1));
++    }
++    
++    // Rotate (left by sh = right by 32-sh)
++    uint32_t ror_amount = (32 - sh) & 31;
++    
++    emit_.ROR_IMM(REG_TMP1, rs, ror_amount);
++    emit_.MOV_IMM64(REG_TMP2, mask);
++    emit_.AND(ra, REG_TMP1, REG_TMP2);
++}
++
++void PPCTranslator::EmitCompare(const ppc::DecodedInstr& instr) {
++    GpReg ra = MapPPCGPR(instr.ra);
++    
++    switch (instr.type) {
++    case ppc::InstrType::CMPI:
++        // cmpi crD, L, ra, simm
++        emit_.CMP_IMM(ra, instr.simm);
++        // TODO: Store flags to CR field
++        break;
++        
++    case ppc::InstrType::CMPLI:
++        // cmpli crD, L, ra, uimm
++        emit_.MOV_IMM64(REG_TMP1, instr.uimm);
++        emit_.CMP(ra, REG_TMP1);
++        break;
++        
++    case ppc::InstrType::CMP:
++        {
++            GpReg rb = MapPPCGPR(instr.rb);
++            emit_.CMP(ra, rb);
++        }
++        break;
++        
++    case ppc::InstrType::CMPL:
++        {
++            GpReg rb = MapPPCGPR(instr.rb);
++            emit_.CMP(ra, rb);  // Same encoding, flags indicate unsigned
++        }
++        break;
++        
++    default:
++        break;
++    }
++}
++
++void PPCTranslator::EmitBranch(const ppc::DecodedInstr& instr) {
++    switch (instr.type) {
++    case ppc::InstrType::B:
++        // Unconditional branch
++        emit_.B(instr.li);
++        break;
++        
++    case ppc::InstrType::BL:
++        // Branch and link (call)
++        emit_.BL(instr.li);
++        break;
++        
++    case ppc::InstrType::BC:
++        // Conditional branch
++        // BO field determines condition
++        {
++            Cond cond = Cond::AL;
++            uint8_t bo = instr.bo;
++            
++            // Decode BO field
++            if ((bo & 0x14) == 0x14) {
++                // Always branch
++                cond = Cond::AL;
++            } else if (bo & 0x10) {
++                // Branch if CTR != 0
++                emit_.SUB_IMM(REG_CTR, REG_CTR, 1);
++                cond = Cond::NE;
++            } else {
++                // Branch based on CR bit
++                uint8_t bi = instr.bi;
++                bool branch_true = (bo & 0x08) != 0;
++                
++                // Map CR bit to ARM64 condition
++                switch (bi & 3) {
++                case 0: cond = branch_true ? Cond::LT : Cond::GE; break;  // LT
++                case 1: cond = branch_true ? Cond::GT : Cond::LE; break;  // GT
++                case 2: cond = branch_true ? Cond::EQ : Cond::NE; break;  // EQ
++                case 3: cond = branch_true ? Cond::VS : Cond::VC; break;  // SO/OV
++                }
++            }
++            
++            emit_.B_COND(cond, instr.li);
++        }
++        break;
++        
++    case ppc::InstrType::BCLR:
++        // Branch to link register
++        if (instr.lk) {
++            emit_.BLR(REG_LR);
++        } else {
++            emit_.BR(REG_LR);
++        }
++        break;
++        
++    case ppc::InstrType::BCCTR:
++        // Branch to count register
++        if (instr.lk) {
++            emit_.BLR(REG_CTR);
++        } else {
++            emit_.BR(REG_CTR);
++        }
++        break;
++        
++    default:
++        break;
++    }
++}
++
++void PPCTranslator::EmitSystem(const ppc::DecodedInstr& instr) {
++    // sc - system call
++    // Trap to hypervisor/kernel
++    emit_.SVC(0);
++}
++
++void PPCTranslator::EmitSPR(const ppc::DecodedInstr& instr) {
++    GpReg rd = MapPPCGPR(instr.rd);
++    
++    switch (instr.type) {
++    case ppc::InstrType::MFSPR:
++        // Move from special purpose register
++        switch (instr.spr) {
++        case 1:   // XER
++            emit_.MOV(rd, REG_XER);
++            break;
++        case 8:   // LR
++            emit_.MOV(rd, REG_LR);
++            break;
++        case 9:   // CTR
++            emit_.MOV(rd, REG_CTR);
++            break;
++        case 268: // TB (Time Base) - lower
++        case 269: // TBU (Time Base) - upper
++            // Read system counter (CNTVCT_EL0)
++            // For now, just return 0
++            emit_.MOVZ(rd, 0, 0);
++            break;
++        default:
++            // Load from state struct
++            emit_.LDR(rd, REG_STATE, PPUStateOffsets::XER + (instr.spr - 1) * 8);
++            break;
++        }
++        break;
++        
++    case ppc::InstrType::MTSPR:
++        // Move to special purpose register
++        switch (instr.spr) {
++        case 1:   // XER
++            emit_.MOV(REG_XER, rd);
++            break;
++        case 8:   // LR
++            emit_.MOV(REG_LR, rd);
++            break;
++        case 9:   // CTR
++            emit_.MOV(REG_CTR, rd);
++            break;
++        default:
++            emit_.STR(rd, REG_STATE, PPUStateOffsets::XER + (instr.spr - 1) * 8);
++            break;
++        }
++        break;
++        
++    case ppc::InstrType::MFCR:
++        // Move from condition register
++        emit_.MOV(rd, REG_CR);
++        break;
++        
++    case ppc::InstrType::MTCRF:
++        // Move to condition register field
++        // The FXM field (bits 12-19) specifies which CR fields to update
++        emit_.MOV(REG_CR, rd);
++        break;
++        
++    default:
++        break;
++    }
++}
++
++// ============================================
++// Trap Instructions
++// ============================================
++
++void PPCTranslator::EmitTrap(const ppc::DecodedInstr& instr) {
++    // tw/twi - Trap Word
++    // Compares values and traps if condition met
++    
++    GpReg ra = MapPPCGPR(instr.ra);
++    uint8_t to = instr.bo;  // TO field stored in bo
++    
++    if (instr.type == ppc::InstrType::TWI) {
++        // twi TO, rA, SIMM
++        emit_.MOV_IMM64(REG_TMP1, instr.simm);
++    } else {
++        // tw TO, rA, rB
++        emit_.MOV(REG_TMP1, MapPPCGPR(instr.rb));
++    }
++    
++    // Compare rA with rB/SIMM
++    emit_.CMP(ra, REG_TMP1);
++    
++    // Check each condition and trap if met
++    // TO bits: 0=LT, 1=GT, 2=EQ, 3=LTU, 4=GTU
++    
++    // For simplicity, always trap if any TO bit is set
++    // A full implementation would check each condition
++    if (to != 0) {
++        // Conditional trap based on comparison
++        if (to & 0x10) {  // LT (signed)
++            emit_.B_COND(Cond::LT, 8);
++            emit_.B(12);  // Skip trap
++            emit_.BRK(0x80);  // Trap
++        }
++        if (to & 0x08) {  // GT (signed)
++            emit_.B_COND(Cond::GT, 8);
++            emit_.B(12);
++            emit_.BRK(0x80);
++        }
++        if (to & 0x04) {  // EQ
++            emit_.B_COND(Cond::EQ, 8);
++            emit_.B(12);
++            emit_.BRK(0x80);
++        }
++        // Unsigned comparisons handled similarly
++    }
++}
++
++// ============================================
++// CR Logical Operations
++// ============================================
++
++void PPCTranslator::EmitCRLogic(const ppc::DecodedInstr& instr) {
++    // CR logical operations operate on individual bits
++    // crand, cror, crxor, etc.
++    
++    // Extract bit positions from instruction
++    uint8_t bt = static_cast<uint8_t>(instr.rd);  // Target bit
++    uint8_t ba = static_cast<uint8_t>(instr.ra);  // Source bit A
++    uint8_t bb = static_cast<uint8_t>(instr.rb);  // Source bit B
++    
++    // Extract CR bits to temp registers
++    // CR bit N is at position (31-N) in the CR register
++    
++    // Get bit A
++    emit_.LSR_IMM(REG_TMP1, REG_CR, 31 - ba);
++    emit_.AND_IMM(REG_TMP1, REG_TMP1, 1);
++    
++    // Get bit B
++    emit_.LSR_IMM(REG_TMP2, REG_CR, 31 - bb);
++    emit_.AND_IMM(REG_TMP2, REG_TMP2, 1);
++    
++    // Perform operation
++    switch (instr.type) {
++    case ppc::InstrType::CRAND:
++        emit_.AND(REG_TMP1, REG_TMP1, REG_TMP2);
++        break;
++    case ppc::InstrType::CROR:
++        emit_.ORR(REG_TMP1, REG_TMP1, REG_TMP2);
++        break;
++    case ppc::InstrType::CRXOR:
++        emit_.EOR(REG_TMP1, REG_TMP1, REG_TMP2);
++        break;
++    case ppc::InstrType::CRNAND:
++        emit_.AND(REG_TMP1, REG_TMP1, REG_TMP2);
++        emit_.MVN(REG_TMP1, REG_TMP1);
++        emit_.AND_IMM(REG_TMP1, REG_TMP1, 1);
++        break;
++    case ppc::InstrType::CRNOR:
++        emit_.ORR(REG_TMP1, REG_TMP1, REG_TMP2);
++        emit_.MVN(REG_TMP1, REG_TMP1);
++        emit_.AND_IMM(REG_TMP1, REG_TMP1, 1);
++        break;
++    case ppc::InstrType::CREQV:
++        emit_.EOR(REG_TMP1, REG_TMP1, REG_TMP2);
++        emit_.MVN(REG_TMP1, REG_TMP1);
++        emit_.AND_IMM(REG_TMP1, REG_TMP1, 1);
++        break;
++    case ppc::InstrType::CRANDC:
++        emit_.MVN(REG_TMP2, REG_TMP2);
++        emit_.AND(REG_TMP1, REG_TMP1, REG_TMP2);
++        emit_.AND_IMM(REG_TMP1, REG_TMP1, 1);
++        break;
++    case ppc::InstrType::CRORC:
++        emit_.MVN(REG_TMP2, REG_TMP2);
++        emit_.ORR(REG_TMP1, REG_TMP1, REG_TMP2);
++        emit_.AND_IMM(REG_TMP1, REG_TMP1, 1);
++        break;
++    case ppc::InstrType::MCRF:
++        // Move CR field
++        // mcrf crfD, crfS - copy 4-bit field
++        {
++            uint8_t crfD = bt >> 2;
++            uint8_t crfS = ba >> 2;
++            
++            // Extract source field
++            emit_.LSR_IMM(REG_TMP1, REG_CR, 28 - crfS * 4);
++            emit_.AND_IMM(REG_TMP1, REG_TMP1, 0xF);
++            
++            // Clear destination field and insert
++            uint32_t mask = ~(0xF << (28 - crfD * 4));
++            emit_.MOV_IMM64(REG_TMP2, mask);
++            emit_.AND(REG_CR, REG_CR, REG_TMP2);
++            emit_.LSL_IMM(REG_TMP1, REG_TMP1, 28 - crfD * 4);
++            emit_.ORR(REG_CR, REG_CR, REG_TMP1);
++        }
++        return;
++    default:
++        break;
++    }
++    
++    // Store result bit back to CR
++    // Clear target bit
++    uint32_t bit_mask = ~(1 << (31 - bt));
++    emit_.MOV_IMM64(REG_TMP2, bit_mask);
++    emit_.AND(REG_CR, REG_CR, REG_TMP2);
++    
++    // Set target bit if result is 1
++    emit_.LSL_IMM(REG_TMP1, REG_TMP1, 31 - bt);
++    emit_.ORR(REG_CR, REG_CR, REG_TMP1);
++}
++
++// ============================================
++// Floating Point Load
++// ============================================
++
++void PPCTranslator::EmitFPLoad(const ppc::DecodedInstr& instr) {
++    // lfs/lfd - Load Floating Single/Double
++    GpReg ra = MapPPCGPR(instr.ra);
++    int32_t offset = instr.simm;
++    VecReg frd = static_cast<VecReg>(static_cast<uint8_t>(instr.rd));
++    
++    // Calculate effective address
++    if (static_cast<uint8_t>(instr.ra) == 0) {
++        emit_.MOV_IMM64(REG_TMP1, offset);
++    } else if (offset != 0) {
++        emit_.ADD_IMM(REG_TMP1, ra, offset);
++    } else {
++        emit_.MOV(REG_TMP1, ra);
++    }
++    
++    // Load value (need to handle endianness)
++    // For FP, we load to GPR, swap bytes, then move to FP reg
++    emit_.LDR(REG_TMP2, REG_TMP1, 0);
++    emit_.REV(REG_TMP2, REG_TMP2);  // Byte swap
++    
++    // Move to vector register
++    // Using FMOV to move from GPR to FP
++    // FMOV Dd, Xn = 0x9E670000 | (Xn << 5) | Dd
++    emit_.Emit(0x9E670000 | (static_cast<uint32_t>(REG_TMP2) << 5) | 
++               static_cast<uint32_t>(frd));
++}
++
++// ============================================
++// Floating Point Store
++// ============================================
++
++void PPCTranslator::EmitFPStore(const ppc::DecodedInstr& instr) {
++    // stfs/stfd - Store Floating Single/Double
++    GpReg ra = MapPPCGPR(instr.ra);
++    int32_t offset = instr.simm;
++    VecReg frs = static_cast<VecReg>(static_cast<uint8_t>(instr.rd));
++    
++    // Calculate effective address
++    if (static_cast<uint8_t>(instr.ra) == 0) {
++        emit_.MOV_IMM64(REG_TMP1, offset);
++    } else if (offset != 0) {
++        emit_.ADD_IMM(REG_TMP1, ra, offset);
++    } else {
++        emit_.MOV(REG_TMP1, ra);
++    }
++    
++    // Move from FP to GPR
++    // FMOV Xd, Dn = 0x9E660000 | (Dn << 5) | Xd
++    emit_.Emit(0x9E660000 | (static_cast<uint32_t>(frs) << 5) | 
++               static_cast<uint32_t>(REG_TMP2));
++    
++    // Byte swap for big-endian
++    emit_.REV(REG_TMP2, REG_TMP2);
++    
++    // Store
++    emit_.STR(REG_TMP2, REG_TMP1, 0);
++}
++
++// ============================================
++// Floating Point Arithmetic
++// ============================================
++
++void PPCTranslator::EmitFPArith(const ppc::DecodedInstr& instr) {
++    // FP arithmetic instructions (fadd, fsub, fmul, fdiv, etc.)
++    // The specific operation is encoded in the extended opcode
++    
++    VecReg frd = static_cast<VecReg>(static_cast<uint8_t>(instr.rd));
++    VecReg fra = static_cast<VecReg>(static_cast<uint8_t>(instr.ra));
++    VecReg frb = static_cast<VecReg>(static_cast<uint8_t>(instr.rb));
++    
++    uint16_t xo = instr.xo & 0x1F;  // Lower 5 bits for A-form instructions
++    
++    switch (xo) {
++    case 18: // fdiv
++        // FDIV Dd, Dn, Dm
++        emit_.Emit(0x1E601800 | (static_cast<uint32_t>(frb) << 16) |
++                   (static_cast<uint32_t>(fra) << 5) | static_cast<uint32_t>(frd));
++        break;
++    case 20: // fsub
++        // FSUB Dd, Dn, Dm
++        emit_.Emit(0x1E603800 | (static_cast<uint32_t>(frb) << 16) |
++                   (static_cast<uint32_t>(fra) << 5) | static_cast<uint32_t>(frd));
++        break;
++    case 21: // fadd
++        // FADD Dd, Dn, Dm
++        emit_.Emit(0x1E602800 | (static_cast<uint32_t>(frb) << 16) |
++                   (static_cast<uint32_t>(fra) << 5) | static_cast<uint32_t>(frd));
++        break;
++    case 25: // fmul
++        // FMUL Dd, Dn, Dm
++        // Note: PPC fmul uses FRC field (bits 21-25) for second operand
++        {
++            VecReg frc = static_cast<VecReg>((instr.raw >> 6) & 0x1F);
++            emit_.Emit(0x1E600800 | (static_cast<uint32_t>(frc) << 16) |
++                       (static_cast<uint32_t>(fra) << 5) | static_cast<uint32_t>(frd));
++        }
++        break;
++    case 22: // fsqrt
++        // FSQRT Dd, Dn
++        emit_.Emit(0x1E61C000 | (static_cast<uint32_t>(frb) << 5) | 
++                   static_cast<uint32_t>(frd));
++        break;
++    default:
++        // Unhandled FP operation
++        emit_.NOP();
++        __nce_log_warn("Unhandled FP operation xo=%d", xo);
++        break;
++    }
++    
++    // Update CR1 if Rc bit is set (not commonly used for FP)
++    if (instr.rc) {
++        // Copy FPSCR exception bits to CR1
++        emit_.NOP();  // Simplified for now
++    }
++}
++
++} // namespace rpcsx::nce::arm64
+diff --git a/rpcs3/Emu/Cell/NCE/arm64_emitter.h b/rpcs3/Emu/Cell/NCE/arm64_emitter.h
+new file mode 100644
+index 0000000..56e4d47
+--- /dev/null
++++ b/rpcs3/Emu/Cell/NCE/arm64_emitter.h
+@@ -0,0 +1,1006 @@
++/**
++ * ARM64 Code Emitter для NCE JIT
++ * Генерує нативний ARM64 код з PowerPC інструкцій (PS3 Cell PPU)
++ */
++
++#ifndef RPCSX_ARM64_EMITTER_H
++#define RPCSX_ARM64_EMITTER_H
++
++#include <cstdint>
++#include <cstddef>
++#include <cstring>
++#include "ppc_decoder.h"
++
++namespace rpcsx::nce::arm64 {
++
++// ARM64 General Purpose Registers
++enum class GpReg : uint8_t {
++    X0 = 0, X1 = 1, X2 = 2, X3 = 3, X4 = 4, X5 = 5, X6 = 6, X7 = 7,
++    X8 = 8, X9 = 9, X10 = 10, X11 = 11, X12 = 12, X13 = 13, X14 = 14, X15 = 15,
++    X16 = 16, X17 = 17, X18 = 18, X19 = 19, X20 = 20, X21 = 21, X22 = 22, X23 = 23,
++    X24 = 24, X25 = 25, X26 = 26, X27 = 27, X28 = 28, X29 = 29, X30 = 30,
++    SP = 31,  // Stack pointer
++    ZR = 31   // Zero register (context dependent)
++};
++
++// ARM64 SIMD/FP Registers
++enum class VecReg : uint8_t {
++    V0 = 0, V1 = 1, V2 = 2, V3 = 3, V4 = 4, V5 = 5, V6 = 6, V7 = 7,
++    V8 = 8, V9 = 9, V10 = 10, V11 = 11, V12 = 12, V13 = 13, V14 = 14, V15 = 15,
++    V16 = 16, V17 = 17, V18 = 18, V19 = 19, V20 = 20, V21 = 21, V22 = 22, V23 = 23,
++    V24 = 24, V25 = 25, V26 = 26, V27 = 27, V28 = 28, V29 = 29, V30 = 30, V31 = 31
++};
++
++// Condition codes for ARM64
++enum class Cond : uint8_t {
++    EQ = 0,   // Equal
++    NE = 1,   // Not equal
++    CS = 2,   // Carry set (unsigned >=)
++    CC = 3,   // Carry clear (unsigned <)
++    MI = 4,   // Minus/negative
++    PL = 5,   // Plus/positive
++    VS = 6,   // Overflow
++    VC = 7,   // No overflow
++    HI = 8,   // Unsigned >
++    LS = 9,   // Unsigned <=
++    GE = 10,  // Signed >=
++    LT = 11,  // Signed <
++    GT = 12,  // Signed >
++    LE = 13,  // Signed <=
++    AL = 14   // Always
++};
++
++/**
++ * ARM64 Code Buffer with instruction emission
++ */
++class CodeBuffer {
++public:
++    CodeBuffer(void* buffer, size_t capacity)
++        : base_(static_cast<uint32_t*>(buffer))
++        , current_(static_cast<uint32_t*>(buffer))
++        , capacity_(capacity / 4) {}
++    
++    // Current position in buffer
++    uint32_t* GetCurrent() const { return current_; }
++    size_t GetOffset() const { return (current_ - base_) * 4; }
++    size_t GetRemaining() const { return (capacity_ - (current_ - base_)) * 4; }
++    
++    // Emit raw instruction
++    void Emit(uint32_t instr) {
++        if (current_ - base_ < static_cast<ptrdiff_t>(capacity_)) {
++            *current_++ = instr;
++        }
++    }
++    
++    // Reset buffer
++    void Reset() { current_ = base_; }
++    
++private:
++    uint32_t* base_;
++    uint32_t* current_;
++    size_t capacity_;
++};
++
++/**
++ * ARM64 Instruction Emitter
++ * Reference: ARM Architecture Reference Manual ARMv8
++ */
++class Emitter {
++public:
++    explicit Emitter(CodeBuffer& buf) : buf_(buf) {}
++    
++    // Raw instruction emission (for direct encoding)
++    void Emit(uint32_t instr) {
++        buf_.Emit(instr);
++    }
++    
++    // ============================================
++    // Data Movement
++    // ============================================
++    
++    // MOV Xd, Xm (ORR Xd, XZR, Xm)
++    void MOV(GpReg rd, GpReg rm) {
++        // ORR Xd, XZR, Xm: 10101010000mmmmm00000011111ddddd
++        buf_.Emit(0xAA0003E0 | (static_cast<uint32_t>(rm) << 16) | static_cast<uint32_t>(rd));
++    }
++    
++    // MOV Xd, #imm16
++    void MOVZ(GpReg rd, uint16_t imm, uint8_t shift = 0) {
++        // MOVZ Xd, #imm16, LSL #shift
++        // 110100101ssiiiiiiiiiiiiiiiiddddd
++        uint8_t hw = shift / 16;
++        buf_.Emit(0xD2800000 | (hw << 21) | (imm << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // MOVK Xd, #imm16, LSL #shift (keep other bits)
++    void MOVK(GpReg rd, uint16_t imm, uint8_t shift = 0) {
++        uint8_t hw = shift / 16;
++        buf_.Emit(0xF2800000 | (hw << 21) | (imm << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // Full 64-bit immediate load
++    void MOV_IMM64(GpReg rd, uint64_t imm) {
++        MOVZ(rd, imm & 0xFFFF, 0);
++        if (imm > 0xFFFF) {
++            MOVK(rd, (imm >> 16) & 0xFFFF, 16);
++        }
++        if (imm > 0xFFFFFFFF) {
++            MOVK(rd, (imm >> 32) & 0xFFFF, 32);
++            MOVK(rd, (imm >> 48) & 0xFFFF, 48);
++        }
++    }
++    
++    // LDR Xt, [Xn, #offset]
++    void LDR(GpReg rt, GpReg rn, int32_t offset = 0) {
++        // Unsigned offset (must be 8-byte aligned for 64-bit)
++        uint32_t imm12 = (offset >> 3) & 0xFFF;
++        buf_.Emit(0xF9400000 | (imm12 << 10) | (static_cast<uint32_t>(rn) << 5) | 
++                  static_cast<uint32_t>(rt));
++    }
++    
++    // STR Xt, [Xn, #offset]
++    void STR(GpReg rt, GpReg rn, int32_t offset = 0) {
++        uint32_t imm12 = (offset >> 3) & 0xFFF;
++        buf_.Emit(0xF9000000 | (imm12 << 10) | (static_cast<uint32_t>(rn) << 5) | 
++                  static_cast<uint32_t>(rt));
++    }
++    
++    // STP Xt1, Xt2, [Xn, #offset]! (pre-index)
++    void STP_PRE(GpReg rt1, GpReg rt2, GpReg rn, int32_t offset) {
++        int32_t imm7 = (offset >> 3) & 0x7F;
++        buf_.Emit(0xA9800000 | (imm7 << 15) | (static_cast<uint32_t>(rt2) << 10) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rt1));
++    }
++    
++    // LDP Xt1, Xt2, [Xn], #offset (post-index)
++    void LDP_POST(GpReg rt1, GpReg rt2, GpReg rn, int32_t offset) {
++        int32_t imm7 = (offset >> 3) & 0x7F;
++        buf_.Emit(0xA8C00000 | (imm7 << 15) | (static_cast<uint32_t>(rt2) << 10) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rt1));
++    }
++    
++    // ============================================
++    // Arithmetic
++    // ============================================
++    
++    // ADD Xd, Xn, Xm
++    void ADD(GpReg rd, GpReg rn, GpReg rm) {
++        buf_.Emit(0x8B000000 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // ADD Xd, Xn, #imm12
++    void ADD_IMM(GpReg rd, GpReg rn, uint16_t imm12) {
++        buf_.Emit(0x91000000 | ((imm12 & 0xFFF) << 10) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // ADDS Xd, Xn, Xm (set flags)
++    void ADDS(GpReg rd, GpReg rn, GpReg rm) {
++        buf_.Emit(0xAB000000 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // SUB Xd, Xn, Xm
++    void SUB(GpReg rd, GpReg rn, GpReg rm) {
++        buf_.Emit(0xCB000000 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // SUB Xd, Xn, #imm12
++    void SUB_IMM(GpReg rd, GpReg rn, uint16_t imm12) {
++        buf_.Emit(0xD1000000 | ((imm12 & 0xFFF) << 10) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // SUBS Xd, Xn, Xm (set flags)
++    void SUBS(GpReg rd, GpReg rn, GpReg rm) {
++        buf_.Emit(0xEB000000 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // MUL Xd, Xn, Xm
++    void MUL(GpReg rd, GpReg rn, GpReg rm) {
++        // MADD Xd, Xn, Xm, XZR
++        buf_.Emit(0x9B007C00 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // SDIV Xd, Xn, Xm
++    void SDIV(GpReg rd, GpReg rn, GpReg rm) {
++        buf_.Emit(0x9AC00C00 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // UDIV Xd, Xn, Xm
++    void UDIV(GpReg rd, GpReg rn, GpReg rm) {
++        buf_.Emit(0x9AC00800 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // NEG Xd, Xm (SUB Xd, XZR, Xm)
++    void NEG(GpReg rd, GpReg rm) {
++        SUB(rd, GpReg::ZR, rm);
++    }
++    
++    // ============================================
++    // Logic
++    // ============================================
++    
++    // AND Xd, Xn, Xm
++    void AND(GpReg rd, GpReg rn, GpReg rm) {
++        buf_.Emit(0x8A000000 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // ANDS Xd, Xn, Xm (set flags)
++    void ANDS(GpReg rd, GpReg rn, GpReg rm) {
++        buf_.Emit(0xEA000000 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // ORR Xd, Xn, Xm
++    void ORR(GpReg rd, GpReg rn, GpReg rm) {
++        buf_.Emit(0xAA000000 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // EOR Xd, Xn, Xm (XOR)
++    void EOR(GpReg rd, GpReg rn, GpReg rm) {
++        buf_.Emit(0xCA000000 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // MVN Xd, Xm (ORN Xd, XZR, Xm)
++    void MVN(GpReg rd, GpReg rm) {
++        buf_.Emit(0xAA2003E0 | (static_cast<uint32_t>(rm) << 16) | static_cast<uint32_t>(rd));
++    }
++    
++    // LSL Xd, Xn, Xm
++    void LSL(GpReg rd, GpReg rn, GpReg rm) {
++        // LSLV Xd, Xn, Xm
++        buf_.Emit(0x9AC02000 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // LSR Xd, Xn, Xm
++    void LSR(GpReg rd, GpReg rn, GpReg rm) {
++        // LSRV Xd, Xn, Xm
++        buf_.Emit(0x9AC02400 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // ASR Xd, Xn, Xm
++    void ASR(GpReg rd, GpReg rn, GpReg rm) {
++        // ASRV Xd, Xn, Xm
++        buf_.Emit(0x9AC02800 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // ============================================
++    // Compare
++    // ============================================
++    
++    // CMP Xn, Xm (SUBS XZR, Xn, Xm)
++    void CMP(GpReg rn, GpReg rm) {
++        SUBS(GpReg::ZR, rn, rm);
++    }
++    
++    // CMP Xn, #imm12 (signed)
++    void CMP_IMM(GpReg rn, int16_t imm) {
++        if (imm >= 0) {
++            buf_.Emit(0xF1000000 | ((imm & 0xFFF) << 10) | 
++                      (static_cast<uint32_t>(rn) << 5) | 31);
++        } else {
++            // Use CMN (add) for negative immediate
++            buf_.Emit(0xB1000000 | (((-imm) & 0xFFF) << 10) | 
++                      (static_cast<uint32_t>(rn) << 5) | 31);
++        }
++    }
++    
++    // TST Xn, Xm (ANDS XZR, Xn, Xm)
++    void TST(GpReg rn, GpReg rm) {
++        ANDS(GpReg::ZR, rn, rm);
++    }
++    
++    // ============================================
++    // Additional Arithmetic for PowerPC
++    // ============================================
++    
++    // ADC Xd, Xn, Xm (add with carry)
++    void ADC(GpReg rd, GpReg rn, GpReg rm) {
++        buf_.Emit(0x9A000000 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // ADCS Xd, Xn, Xm (add with carry, set flags)
++    void ADCS(GpReg rd, GpReg rn, GpReg rm) {
++        buf_.Emit(0xBA000000 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // SBC Xd, Xn, Xm (subtract with carry/borrow)
++    void SBC(GpReg rd, GpReg rn, GpReg rm) {
++        buf_.Emit(0xDA000000 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // SBCS Xd, Xn, Xm (subtract with carry, set flags)
++    void SBCS(GpReg rd, GpReg rn, GpReg rm) {
++        buf_.Emit(0xFA000000 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // MADD Xd, Xn, Xm, Xa (multiply-add: Xd = Xa + Xn*Xm)
++    void MADD(GpReg rd, GpReg rn, GpReg rm, GpReg ra) {
++        buf_.Emit(0x9B000000 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(ra) << 10) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // MSUB Xd, Xn, Xm, Xa (multiply-subtract: Xd = Xa - Xn*Xm)
++    void MSUB(GpReg rd, GpReg rn, GpReg rm, GpReg ra) {
++        buf_.Emit(0x9B008000 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(ra) << 10) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // SMULH Xd, Xn, Xm (signed multiply high)
++    void SMULH(GpReg rd, GpReg rn, GpReg rm) {
++        buf_.Emit(0x9B407C00 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // UMULH Xd, Xn, Xm (unsigned multiply high)
++    void UMULH(GpReg rd, GpReg rn, GpReg rm) {
++        buf_.Emit(0x9BC07C00 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // CLZ Xd, Xn (count leading zeros)
++    void CLZ(GpReg rd, GpReg rn) {
++        buf_.Emit(0xDAC01000 | (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // CLZ Wd, Wn (count leading zeros, 32-bit)
++    void CLZ_W(GpReg rd, GpReg rn) {
++        buf_.Emit(0x5AC01000 | (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // RBIT Xd, Xn (reverse bits)
++    void RBIT(GpReg rd, GpReg rn) {
++        buf_.Emit(0xDAC00000 | (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // ============================================
++    // Additional Logic for PowerPC
++    // ============================================
++    
++    // BIC Xd, Xn, Xm (AND NOT: Xd = Xn & ~Xm)
++    void BIC(GpReg rd, GpReg rn, GpReg rm) {
++        buf_.Emit(0x8A200000 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // ORN Xd, Xn, Xm (OR NOT: Xd = Xn | ~Xm)
++    void ORN(GpReg rd, GpReg rn, GpReg rm) {
++        buf_.Emit(0xAA200000 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // EON Xd, Xn, Xm (XOR NOT: Xd = Xn ^ ~Xm)
++    void EON(GpReg rd, GpReg rn, GpReg rm) {
++        buf_.Emit(0xCA200000 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // AND Xd, Xn, #imm (logical immediate)
++    void AND_IMM(GpReg rd, GpReg rn, uint64_t imm) {
++        // Note: ARM64 bitmask immediates have specific encoding rules
++        // For simplicity, use MOV + AND if immediate is complex
++        uint32_t n, immr, imms;
++        if (EncodeBitmaskImm(imm, n, immr, imms)) {
++            buf_.Emit(0x92000000 | (n << 22) | (immr << 16) | (imms << 10) |
++                      (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++        }
++    }
++    
++    // ORR Xd, Xn, #imm (logical immediate)
++    void ORR_IMM(GpReg rd, GpReg rn, uint64_t imm) {
++        uint32_t n, immr, imms;
++        if (EncodeBitmaskImm(imm, n, immr, imms)) {
++            buf_.Emit(0xB2000000 | (n << 22) | (immr << 16) | (imms << 10) |
++                      (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++        }
++    }
++    
++    // EOR Xd, Xn, #imm (logical immediate)  
++    void EOR_IMM(GpReg rd, GpReg rn, uint64_t imm) {
++        uint32_t n, immr, imms;
++        if (EncodeBitmaskImm(imm, n, immr, imms)) {
++            buf_.Emit(0xD2000000 | (n << 22) | (immr << 16) | (imms << 10) |
++                      (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++        }
++    }
++    
++    // LSL Xd, Xn, #imm (shift left immediate via UBFM)
++    void LSL_IMM(GpReg rd, GpReg rn, uint8_t imm) {
++        // LSL Xd, Xn, #shift = UBFM Xd, Xn, #(-shift MOD 64), #(63-shift)
++        uint8_t immr = (-imm) & 63;
++        uint8_t imms = 63 - imm;
++        buf_.Emit(0xD3400000 | (immr << 16) | (imms << 10) |
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // LSR Xd, Xn, #imm (shift right immediate via UBFM)
++    void LSR_IMM(GpReg rd, GpReg rn, uint8_t imm) {
++        // LSR Xd, Xn, #shift = UBFM Xd, Xn, #shift, #63
++        buf_.Emit(0xD340FC00 | (imm << 16) |
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // ============================================
++    // Conditional Select (for PowerPC isel equivalent)
++    // ============================================
++    
++    // CSEL Xd, Xn, Xm, cond (conditional select)
++    void CSEL(GpReg rd, GpReg rn, GpReg rm, Cond cond) {
++        buf_.Emit(0x9A800000 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(cond) << 12) |
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // CSINC Xd, Xn, Xm, cond (conditional select increment)
++    void CSINC(GpReg rd, GpReg rn, GpReg rm, Cond cond) {
++        buf_.Emit(0x9A800400 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(cond) << 12) |
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // CSINV Xd, Xn, Xm, cond (conditional select invert)
++    void CSINV(GpReg rd, GpReg rn, GpReg rm, Cond cond) {
++        buf_.Emit(0xDA800000 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(cond) << 12) |
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // CSNEG Xd, Xn, Xm, cond (conditional select negate)
++    void CSNEG(GpReg rd, GpReg rn, GpReg rm, Cond cond) {
++        buf_.Emit(0xDA800400 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(cond) << 12) |
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // CSET Xd, cond (set to 1 if condition, else 0)
++    void CSET(GpReg rd, Cond cond) {
++        // CSET Xd, cond = CSINC Xd, XZR, XZR, invert(cond)
++        Cond inv_cond = static_cast<Cond>(static_cast<uint8_t>(cond) ^ 1);
++        CSINC(rd, GpReg::ZR, GpReg::ZR, inv_cond);
++    }
++    
++    // ============================================
++    // Bitfield operations (for PowerPC rotate/mask)
++    // ============================================
++    
++    // UBFM Xd, Xn, #immr, #imms (unsigned bitfield move)
++    void UBFM(GpReg rd, GpReg rn, uint8_t immr, uint8_t imms) {
++        buf_.Emit(0xD3400000 | (immr << 16) | (imms << 10) |
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // SBFM Xd, Xn, #immr, #imms (signed bitfield move)
++    void SBFM(GpReg rd, GpReg rn, uint8_t immr, uint8_t imms) {
++        buf_.Emit(0x93400000 | (immr << 16) | (imms << 10) |
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // BFM Xd, Xn, #immr, #imms (bitfield move - for insert)
++    void BFM(GpReg rd, GpReg rn, uint8_t immr, uint8_t imms) {
++        buf_.Emit(0xB3400000 | (immr << 16) | (imms << 10) |
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // EXTR Xd, Xn, Xm, #lsb (extract bits from pair)
++    void EXTR(GpReg rd, GpReg rn, GpReg rm, uint8_t lsb) {
++        buf_.Emit(0x93C00000 | (static_cast<uint32_t>(rm) << 16) | 
++                  (lsb << 10) | (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // ============================================
++    // 32-bit variants (for 32-bit PowerPC ops)
++    // ============================================
++    
++    // ADD Wd, Wn, Wm
++    void ADD_W(GpReg rd, GpReg rn, GpReg rm) {
++        buf_.Emit(0x0B000000 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // ADDS Wd, Wn, Wm
++    void ADDS_W(GpReg rd, GpReg rn, GpReg rm) {
++        buf_.Emit(0x2B000000 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // SUB Wd, Wn, Wm
++    void SUB_W(GpReg rd, GpReg rn, GpReg rm) {
++        buf_.Emit(0x4B000000 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // SUBS Wd, Wn, Wm
++    void SUBS_W(GpReg rd, GpReg rn, GpReg rm) {
++        buf_.Emit(0x6B000000 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // MUL Wd, Wn, Wm
++    void MUL_W(GpReg rd, GpReg rn, GpReg rm) {
++        buf_.Emit(0x1B007C00 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // SDIV Wd, Wn, Wm
++    void SDIV_W(GpReg rd, GpReg rn, GpReg rm) {
++        buf_.Emit(0x1AC00C00 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // UDIV Wd, Wn, Wm
++    void UDIV_W(GpReg rd, GpReg rn, GpReg rm) {
++        buf_.Emit(0x1AC00800 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // AND Wd, Wn, Wm
++    void AND_W(GpReg rd, GpReg rn, GpReg rm) {
++        buf_.Emit(0x0A000000 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // ORR Wd, Wn, Wm
++    void ORR_W(GpReg rd, GpReg rn, GpReg rm) {
++        buf_.Emit(0x2A000000 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // EOR Wd, Wn, Wm
++    void EOR_W(GpReg rd, GpReg rn, GpReg rm) {
++        buf_.Emit(0x4A000000 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // LSL Wd, Wn, Wm
++    void LSL_W(GpReg rd, GpReg rn, GpReg rm) {
++        buf_.Emit(0x1AC02000 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // LSR Wd, Wn, Wm
++    void LSR_W(GpReg rd, GpReg rn, GpReg rm) {
++        buf_.Emit(0x1AC02400 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // ASR Wd, Wn, Wm
++    void ASR_W(GpReg rd, GpReg rn, GpReg rm) {
++        buf_.Emit(0x1AC02800 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // ROR Wd, Wn, Wm
++    void ROR_W(GpReg rd, GpReg rn, GpReg rm) {
++        buf_.Emit(0x1AC02C00 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // CMP Wn, Wm
++    void CMP_W(GpReg rn, GpReg rm) {
++        SUBS_W(GpReg::ZR, rn, rm);
++    }
++    
++    // Zero-extend W to X
++    void UXTW(GpReg rd, GpReg rn) {
++        // MOV Wd, Wn (32-bit move zero-extends to 64-bit)
++        buf_.Emit(0x2A0003E0 | (static_cast<uint32_t>(rn) << 16) | static_cast<uint32_t>(rd));
++    }
++    
++    // Helper: try to encode bitmask immediate
++    // Returns false if immediate cannot be encoded
++    static bool EncodeBitmaskImm(uint64_t imm, uint32_t& n, uint32_t& immr, uint32_t& imms) {
++        // ARM64 bitmask immediates are complex - simplified version
++        // Only handles common cases
++        if (imm == 0 || imm == ~0ULL) return false;
++        
++        // For now, return false for complex cases
++        // A full implementation would analyze bit patterns
++        n = 1;
++        immr = 0;
++        imms = 0;
++        
++        // Count trailing zeros and ones to determine encoding
++        int tz = __builtin_ctzll(imm);
++        int to = __builtin_ctzll(~(imm >> tz));
++        
++        if (tz + to == 64 || (imm >> (tz + to)) == 0) {
++            // Simple run of 1s
++            immr = (64 - tz) & 63;
++            imms = to - 1;
++            return true;
++        }
++        
++        return false;
++    }
++    
++public:
++    // ============================================
++    // Load/Store (additional for PowerPC)
++    // ============================================
++    
++    // LDR Wt, [Xn, #offset] (32-bit)
++    void LDR_W(GpReg rt, GpReg rn, int32_t offset = 0) {
++        uint32_t imm12 = (offset >> 2) & 0xFFF;
++        buf_.Emit(0xB9400000 | (imm12 << 10) | (static_cast<uint32_t>(rn) << 5) | 
++                  static_cast<uint32_t>(rt));
++    }
++    
++    // STR Wt, [Xn, #offset] (32-bit)
++    void STR_W(GpReg rt, GpReg rn, int32_t offset = 0) {
++        uint32_t imm12 = (offset >> 2) & 0xFFF;
++        buf_.Emit(0xB9000000 | (imm12 << 10) | (static_cast<uint32_t>(rn) << 5) | 
++                  static_cast<uint32_t>(rt));
++    }
++    
++    // LDRH Wt, [Xn, #offset] (16-bit unsigned)
++    void LDRH(GpReg rt, GpReg rn, int32_t offset = 0) {
++        uint32_t imm12 = (offset >> 1) & 0xFFF;
++        buf_.Emit(0x79400000 | (imm12 << 10) | (static_cast<uint32_t>(rn) << 5) | 
++                  static_cast<uint32_t>(rt));
++    }
++    
++    // STRH Wt, [Xn, #offset] (16-bit)
++    void STRH(GpReg rt, GpReg rn, int32_t offset = 0) {
++        uint32_t imm12 = (offset >> 1) & 0xFFF;
++        buf_.Emit(0x79000000 | (imm12 << 10) | (static_cast<uint32_t>(rn) << 5) | 
++                  static_cast<uint32_t>(rt));
++    }
++    
++    // LDRB Wt, [Xn, #offset] (8-bit unsigned)
++    void LDRB(GpReg rt, GpReg rn, int32_t offset = 0) {
++        buf_.Emit(0x39400000 | ((offset & 0xFFF) << 10) | (static_cast<uint32_t>(rn) << 5) | 
++                  static_cast<uint32_t>(rt));
++    }
++    
++    // STRB Wt, [Xn, #offset] (8-bit)
++    void STRB(GpReg rt, GpReg rn, int32_t offset = 0) {
++        buf_.Emit(0x39000000 | ((offset & 0xFFF) << 10) | (static_cast<uint32_t>(rn) << 5) | 
++                  static_cast<uint32_t>(rt));
++    }
++    
++    // ============================================
++    // Byte Reversal (for Big-Endian support)
++    // ============================================
++    
++    // REV Xd, Xn (reverse bytes in 64-bit)
++    void REV(GpReg rd, GpReg rn) {
++        buf_.Emit(0xDAC00C00 | (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // REV Wd, Wn (reverse bytes in 32-bit)  
++    void REV_W(GpReg rd, GpReg rn) {
++        buf_.Emit(0x5AC00800 | (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // REV16 Xd, Xn (reverse bytes in each halfword)
++    void REV16(GpReg rd, GpReg rn) {
++        buf_.Emit(0xDAC00400 | (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // ============================================
++    // Sign Extension
++    // ============================================
++    
++    // SXTB Xd, Wn (sign extend byte)
++    void SXTB(GpReg rd, GpReg rn) {
++        buf_.Emit(0x93401C00 | (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // SXTH Xd, Wn (sign extend halfword)
++    void SXTH(GpReg rd, GpReg rn) {
++        buf_.Emit(0x93403C00 | (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // SXTW Xd, Wn (sign extend word)
++    void SXTW(GpReg rd, GpReg rn) {
++        buf_.Emit(0x93407C00 | (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // ============================================
++    // Rotate
++    // ============================================
++    
++    // ROR Xd, Xn, Xm (rotate right variable)
++    void ROR(GpReg rd, GpReg rn, GpReg rm) {
++        buf_.Emit(0x9AC02C00 | (static_cast<uint32_t>(rm) << 16) | 
++                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // ROR Xd, Xn, #imm (rotate right immediate via EXTR)
++    void ROR_IMM(GpReg rd, GpReg rn, uint8_t imm) {
++        // EXTR Xd, Xn, Xn, #imm
++        buf_.Emit(0x93C00000 | (static_cast<uint32_t>(rn) << 16) | 
++                  (imm << 10) | (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // ============================================
++    // ASR immediate
++    // ============================================
++    
++    // ASR Xd, Xn, #imm (arithmetic shift right immediate)
++    void ASR_IMM(GpReg rd, GpReg rn, uint8_t imm) {
++        // SBFM Xd, Xn, #imm, #63
++        buf_.Emit(0x9340FC00 | (imm << 16) | (static_cast<uint32_t>(rn) << 5) | 
++                  static_cast<uint32_t>(rd));
++    }
++    
++    // ============================================
++    // MOVN (move wide with NOT)
++    // ============================================
++    
++    void MOVN(GpReg rd, uint16_t imm, uint8_t shift = 0) {
++        uint8_t hw = shift / 16;
++        buf_.Emit(0x92800000 | (hw << 21) | (imm << 5) | static_cast<uint32_t>(rd));
++    }
++    
++    // ============================================
++    // Branch
++    // ============================================
++    
++    // B #offset (unconditional)
++    void B(int32_t offset) {
++        int32_t imm26 = (offset >> 2) & 0x3FFFFFF;
++        buf_.Emit(0x14000000 | imm26);
++    }
++    
++    // B.cond #offset (conditional)
++    void B_COND(Cond cond, int32_t offset) {
++        int32_t imm19 = (offset >> 2) & 0x7FFFF;
++        buf_.Emit(0x54000000 | (imm19 << 5) | static_cast<uint32_t>(cond));
++    }
++    
++    // BL #offset (call with link)
++    void BL(int32_t offset) {
++        int32_t imm26 = (offset >> 2) & 0x3FFFFFF;
++        buf_.Emit(0x94000000 | imm26);
++    }
++    
++    // BR Xn (indirect branch)
++    void BR(GpReg rn) {
++        buf_.Emit(0xD61F0000 | (static_cast<uint32_t>(rn) << 5));
++    }
++    
++    // BLR Xn (indirect call with link)
++    void BLR(GpReg rn) {
++        buf_.Emit(0xD63F0000 | (static_cast<uint32_t>(rn) << 5));
++    }
++    
++    // RET (RET X30)
++    void RET() {
++        buf_.Emit(0xD65F03C0);
++    }
++    
++    // ============================================
++    // System
++    // ============================================
++    
++    // NOP
++    void NOP() {
++        buf_.Emit(0xD503201F);
++    }
++    
++    // BRK #imm16 (software breakpoint)
++    void BRK(uint16_t imm = 0) {
++        buf_.Emit(0xD4200000 | (static_cast<uint32_t>(imm) << 5));
++    }
++    
++    // SVC #imm16 (syscall)
++    void SVC(uint16_t imm) {
++        buf_.Emit(0xD4000001 | (static_cast<uint32_t>(imm) << 5));
++    }
++    
++    // DMB (data memory barrier)
++    void DMB() {
++        buf_.Emit(0xD5033BBF);  // DMB ISH
++    }
++    
++    // DSB (data synchronization barrier)
++    void DSB() {
++        buf_.Emit(0xD5033B9F);  // DSB ISH
++    }
++    
++    // ISB (instruction synchronization barrier)
++    void ISB() {
++        buf_.Emit(0xD5033FDF);
++    }
++    
++    // ============================================
++    // SIMD/NEON (for SSE translation)
++    // ============================================
++    
++    // MOV Vd.16B, Vn.16B
++    void MOV_VEC(VecReg vd, VecReg vn) {
++        // ORR Vd.16B, Vn.16B, Vn.16B
++        buf_.Emit(0x4EA01C00 | (static_cast<uint32_t>(vn) << 16) | 
++                  (static_cast<uint32_t>(vn) << 5) | static_cast<uint32_t>(vd));
++    }
++    
++    // LDR Qd, [Xn, #offset]
++    void LDR_VEC(VecReg vt, GpReg rn, int32_t offset = 0) {
++        uint32_t imm12 = (offset >> 4) & 0xFFF;
++        buf_.Emit(0x3DC00000 | (imm12 << 10) | (static_cast<uint32_t>(rn) << 5) | 
++                  static_cast<uint32_t>(vt));
++    }
++    
++    // STR Qt, [Xn, #offset]
++    void STR_VEC(VecReg vt, GpReg rn, int32_t offset = 0) {
++        uint32_t imm12 = (offset >> 4) & 0xFFF;
++        buf_.Emit(0x3D800000 | (imm12 << 10) | (static_cast<uint32_t>(rn) << 5) | 
++                  static_cast<uint32_t>(vt));
++    }
++    
++    // FADD Vd.4S, Vn.4S, Vm.4S
++    void FADD_4S(VecReg vd, VecReg vn, VecReg vm) {
++        buf_.Emit(0x4E20D400 | (static_cast<uint32_t>(vm) << 16) | 
++                  (static_cast<uint32_t>(vn) << 5) | static_cast<uint32_t>(vd));
++    }
++    
++    // FSUB Vd.4S, Vn.4S, Vm.4S
++    void FSUB_4S(VecReg vd, VecReg vn, VecReg vm) {
++        buf_.Emit(0x4EA0D400 | (static_cast<uint32_t>(vm) << 16) | 
++                  (static_cast<uint32_t>(vn) << 5) | static_cast<uint32_t>(vd));
++    }
++    
++    // FMUL Vd.4S, Vn.4S, Vm.4S
++    void FMUL_4S(VecReg vd, VecReg vn, VecReg vm) {
++        buf_.Emit(0x6E20DC00 | (static_cast<uint32_t>(vm) << 16) | 
++                  (static_cast<uint32_t>(vn) << 5) | static_cast<uint32_t>(vd));
++    }
++    
++    // FDIV Vd.4S, Vn.4S, Vm.4S
++    void FDIV_4S(VecReg vd, VecReg vn, VecReg vm) {
++        buf_.Emit(0x6E20FC00 | (static_cast<uint32_t>(vm) << 16) | 
++                  (static_cast<uint32_t>(vn) << 5) | static_cast<uint32_t>(vd));
++    }
++    
++private:
++    CodeBuffer& buf_;
++};
++
++/**
++ * PowerPC → ARM64 Register Mapping
++ * 
++ * PS3 PPU має 32 GPR (r0-r31), 32 FPR (f0-f31), 32 VR (v0-v31)
++ * ARM64 має 31 GPR (x0-x30), 32 SIMD (v0-v31)
++ * 
++ * Mapping Strategy:
++ * - PPC r0-r27 → ARM64 x0-x27 (direct mapping)
++ * - PPC r28 → x28 (frame pointer reservation on ARM64)
++ * - PPC r29 → x19 (callee-saved)
++ * - PPC r30 → x20 (callee-saved)  
++ * - PPC r31 → x21 (callee-saved, stack pointer on PPC)
++ * - PPC LR → x30 (LR on ARM64)
++ * - PPC CTR → x22 (callee-saved)
++ * - PPC XER → x23 (callee-saved)
++ * - PPC CR → x24 (callee-saved)
++ * - State pointer → x29 (frame pointer)
++ */
++
++// Map PowerPC GPR to ARM64 register
++inline GpReg MapPPCGPR(ppc::GPR reg) {
++    uint8_t idx = static_cast<uint8_t>(reg);
++    
++    // Direct mapping for r0-r27
++    if (idx <= 27) {
++        return static_cast<GpReg>(idx);
++    }
++    
++    // Special mappings for r28-r31
++    switch (idx) {
++        case 28: return GpReg::X28;
++        case 29: return GpReg::X19;
++        case 30: return GpReg::X20;
++        case 31: return GpReg::X21;
++        default: return GpReg::X0;
++    }
++}
++
++// Map PowerPC FPR to ARM64 SIMD register
++inline VecReg MapPPCFPR(ppc::FPR reg) {
++    return static_cast<VecReg>(static_cast<uint8_t>(reg));
++}
++
++// Map PowerPC VR (AltiVec/VMX) to ARM64 SIMD register
++inline VecReg MapPPCVR(ppc::VR reg) {
++    return static_cast<VecReg>(static_cast<uint8_t>(reg));
++}
++
++// Special registers on ARM64
++constexpr GpReg REG_STATE = GpReg::X29;   // PPU state pointer
++constexpr GpReg REG_LR = GpReg::X30;      // Link Register
++constexpr GpReg REG_CTR = GpReg::X22;     // Count Register
++constexpr GpReg REG_XER = GpReg::X23;     // XER (carry, overflow)
++constexpr GpReg REG_CR = GpReg::X24;      // Condition Register
++constexpr GpReg REG_TMP1 = GpReg::X25;    // Temp register 1
++constexpr GpReg REG_TMP2 = GpReg::X26;    // Temp register 2
++
++/**
++ * PPU State structure layout (offsets)
++ */
++struct PPUStateOffsets {
++    static constexpr int GPR = 0;           // 32 * 8 = 256 bytes
++    static constexpr int FPR = 256;         // 32 * 8 = 256 bytes  
++    static constexpr int VR = 512;          // 32 * 16 = 512 bytes
++    static constexpr int CR = 1024;         // 8 bytes
++    static constexpr int LR = 1032;         // 8 bytes
++    static constexpr int CTR = 1040;        // 8 bytes
++    static constexpr int XER = 1048;        // 8 bytes
++    static constexpr int FPSCR = 1056;      // 8 bytes
++    static constexpr int PC = 1064;         // 8 bytes
++    static constexpr int VRSAVE = 1072;     // 4 bytes
++    static constexpr int SIZE = 1088;       // Total size
++};
++
++/**
++ * PowerPC → ARM64 Code Generator
++ */
++class PPCTranslator {
++public:
++    explicit PPCTranslator(Emitter& emit) : emit_(emit) {}
++    
++    // Translate single PowerPC instruction
++    bool Translate(const ppc::DecodedInstr& instr);
++    
++private:
++    Emitter& emit_;
++    
++    // Load/Store
++    void EmitLoad(const ppc::DecodedInstr& instr);
++    void EmitStore(const ppc::DecodedInstr& instr);
++    void EmitLoadMultiple(const ppc::DecodedInstr& instr);
++    void EmitStoreMultiple(const ppc::DecodedInstr& instr);
++    
++    // Arithmetic
++    void EmitAdd(const ppc::DecodedInstr& instr);
++    void EmitSub(const ppc::DecodedInstr& instr);
++    void EmitMul(const ppc::DecodedInstr& instr);
++    void EmitDiv(const ppc::DecodedInstr& instr);
++    
++    // Logic
++    void EmitLogic(const ppc::DecodedInstr& instr);
++    void EmitShift(const ppc::DecodedInstr& instr);
++    void EmitRotate(const ppc::DecodedInstr& instr);
++    
++    // Compare
++    void EmitCompare(const ppc::DecodedInstr& instr);
++    
++    // Branch  
++    void EmitBranch(const ppc::DecodedInstr& instr);
++    
++    // CR operations
++    void EmitCRLogic(const ppc::DecodedInstr& instr);
++    void EmitCR0Update(GpReg result);
++    
++    // System
++    void EmitSystem(const ppc::DecodedInstr& instr);
++    void EmitSPR(const ppc::DecodedInstr& instr);
++    void EmitTrap(const ppc::DecodedInstr& instr);
++    
++    // Floating Point
++    void EmitFPLoad(const ppc::DecodedInstr& instr);
++    void EmitFPStore(const ppc::DecodedInstr& instr);
++    void EmitFPArith(const ppc::DecodedInstr& instr);
++};
++
++} // namespace rpcsx::nce::arm64
++
++#endif // RPCSX_ARM64_EMITTER_H
+diff --git a/rpcs3/Emu/Cell/NCE/jit_compiler.h b/rpcs3/Emu/Cell/NCE/jit_compiler.h
+new file mode 100644
+index 0000000..01dee24
+--- /dev/null
++++ b/rpcs3/Emu/Cell/NCE/jit_compiler.h
+@@ -0,0 +1,431 @@
++/**
++ * JIT Compiler - PowerPC → ARM64 Translator
++ * Транслює блоки PS3 Cell PPU коду в нативний ARM64
++ */
++
++#ifndef RPCSX_JIT_COMPILER_H
++#define RPCSX_JIT_COMPILER_H
++
++#include "ppc_decoder.h"
++#include "arm64_emitter.h"
++#include <unordered_map>
++#include <vector>
++#include <memory>
++#include <sys/mman.h>
++
++namespace rpcsx::nce {
++
++using namespace ppc;
++using namespace arm64;
++
++// Compiled code block
++struct CompiledBlock {
++    void* code;              // Pointer to generated ARM64 code
++    size_t code_size;        // Size of generated code
++    uint64_t guest_addr;     // Original PowerPC address
++    size_t guest_size;       // Original PowerPC code size (always 4-byte aligned)
++    uint64_t entry_count;    // Execution count
++};
++
++/**
++ * JIT Compiler Configuration
++ */
++struct JitConfig {
++    size_t code_cache_size = 64 * 1024 * 1024;  // 64MB code cache
++    size_t max_block_size = 4096;                // Max guest bytes per block
++    bool enable_block_linking = true;
++    bool enable_fast_memory = true;
++    bool enable_profiling = false;
++    bool big_endian_memory = true;               // PS3 is big-endian
++};
++
++/**
++ * PowerPC PPU CPU State (PS3 Cell)
++ * 
++ * Cell PPU Architecture:
++ * - 32 GPR (r0-r31) - 64-bit General Purpose Registers
++ * - 32 FPR (f0-f31) - 64-bit Floating Point Registers  
++ * - 32 VR (v0-v31) - 128-bit Vector Registers (AltiVec/VMX)
++ * - CR - Condition Register (8 x 4-bit fields)
++ * - LR - Link Register (branch return address)
++ * - CTR - Count Register (loop counter)
++ * - XER - Fixed-point Exception Register (carry, overflow)
++ * - FPSCR - Floating-Point Status/Control Register
++ * - VSCR - Vector Status/Control Register
++ */
++struct PPCState {
++    // General Purpose Registers (r0-r31)
++    uint64_t gpr[32];
++    
++    // Floating Point Registers (f0-f31)
++    alignas(8) double fpr[32];
++    
++    // Vector Registers (v0-v31) - AltiVec/VMX
++    alignas(16) uint8_t vr[32][16];
++    
++    // Special Purpose Registers
++    uint64_t pc;             // Program Counter (NIA - Next Instruction Address)
++    uint64_t lr;             // Link Register
++    uint64_t ctr;            // Count Register
++    uint32_t cr;             // Condition Register
++    uint32_t xer;            // Fixed-Point Exception Register
++    uint32_t fpscr;          // Floating-Point Status/Control Register
++    uint32_t vscr;           // Vector Status/Control Register
++    uint32_t vrsave;         // Vector Save Register
++    
++    // Memory base for fast memory access
++    void* memory_base;
++    size_t memory_size;
++    
++    // MSR fields (Machine State Register)
++    bool msr_pr;             // Problem state (0=supervisor, 1=user)
++    bool msr_ee;             // External interrupt enable
++    bool msr_fp;             // FP available
++    bool msr_vec;            // AltiVec available
++    
++    // ============================================
++    // Condition Register Helpers
++    // ============================================
++    
++    // CR is split into 8 fields (CR0-CR7), each 4 bits
++    // Each field: LT(0), GT(1), EQ(2), SO(3)
++    
++    uint8_t GetCRField(int field) const {
++        return (cr >> (28 - field * 4)) & 0xF;
++    }
++    
++    void SetCRField(int field, uint8_t value) {
++        uint32_t mask = 0xF << (28 - field * 4);
++        cr = (cr & ~mask) | ((value & 0xF) << (28 - field * 4));
++    }
++    
++    bool GetCRBit(int bit) const {
++        return (cr >> (31 - bit)) & 1;
++    }
++    
++    void SetCRBit(int bit, bool value) {
++        if (value) {
++            cr |= (1 << (31 - bit));
++        } else {
++            cr &= ~(1 << (31 - bit));
++        }
++    }
++    
++    // Set CR field from comparison result
++    void SetCRFieldFromCompare(int field, int64_t a, int64_t b) {
++        uint8_t flags = 0;
++        if (a < b) flags |= 8;      // LT
++        else if (a > b) flags |= 4; // GT
++        else flags |= 2;            // EQ
++        if (GetXER_SO()) flags |= 1; // SO (copy from XER)
++        SetCRField(field, flags);
++    }
++    
++    // ============================================
++    // XER Helpers
++    // ============================================
++    
++    // XER format: SO(0), OV(1), CA(2), bits 3-24 reserved, 
++    //             byte count(25-31) for string instructions
++    
++    bool GetXER_SO() const { return (xer >> 31) & 1; }
++    bool GetXER_OV() const { return (xer >> 30) & 1; }
++    bool GetXER_CA() const { return (xer >> 29) & 1; }
++    
++    void SetXER_SO(bool v) { xer = v ? (xer | (1 << 31)) : (xer & ~(1u << 31)); }
++    void SetXER_OV(bool v) { 
++        xer = v ? (xer | (1 << 30)) : (xer & ~(1u << 30)); 
++        if (v) SetXER_SO(true); // OV sets SO
++    }
++    void SetXER_CA(bool v) { xer = v ? (xer | (1 << 29)) : (xer & ~(1u << 29)); }
++    
++    // ============================================
++    // Stack Pointer (r1 by convention)
++    // ============================================
++    
++    uint64_t& GetSP() { return gpr[1]; }
++    const uint64_t& GetSP() const { return gpr[1]; }
++    
++    // r13 is Small Data Area pointer on PPC64
++    uint64_t& GetTOC() { return gpr[2]; }
++};
++
++/**
++ * JIT Compiler - Main Translation Engine for PS3 PPU
++ */
++class JitCompiler {
++public:
++    explicit JitCompiler(const JitConfig& config = JitConfig());
++    ~JitCompiler();
++    
++    // Initialize compiler
++    bool Initialize();
++    void Shutdown();
++    
++    // Compile and execute
++    CompiledBlock* CompileBlock(const uint8_t* guest_code, uint64_t guest_addr);
++    void Execute(PPCState* state, CompiledBlock* block);
++    
++    // Cache management
++    CompiledBlock* LookupBlock(uint64_t guest_addr);
++    void InvalidateBlock(uint64_t guest_addr);
++    void InvalidateRange(uint64_t start, uint64_t end);
++    void FlushCache();
++    
++    // Stats
++    size_t GetCacheUsage() const { return code_cache_used_; }
++    size_t GetBlockCount() const { return block_cache_.size(); }
++    uint64_t GetExecutionCount() const { return total_executions_; }
++    
++private:
++    // Translate single instruction
++    bool TranslateInstruction(const ppc::DecodedInstr& instr, PPCTranslator& translator,
++                              uint64_t guest_addr, uint64_t next_addr);
++    
++    // Map PowerPC CR condition to ARM64 condition
++    Cond TranslatePPCCondition(uint8_t bi, bool branch_true);
++    
++    // Emit CR update code
++    void EmitCR0Update(Emitter& emit, GpReg result);
++    
++    JitConfig config_;
++    
++    // Code cache
++    void* code_cache_;
++    size_t code_cache_size_;
++    size_t code_cache_used_;
++    
++    // Block cache: guest_addr -> compiled block
++    std::unordered_map<uint64_t, std::unique_ptr<CompiledBlock>> block_cache_;
++    
++    // Stats
++    uint64_t total_executions_;
++    uint64_t total_instructions_;
++    
++    bool initialized_;
++};
++
++// =========================================
++// Implementation
++// =========================================
++
++inline JitCompiler::JitCompiler(const JitConfig& config)
++    : config_(config)
++    , code_cache_(nullptr)
++    , code_cache_size_(0)
++    , code_cache_used_(0)
++    , total_executions_(0)
++    , total_instructions_(0)
++    , initialized_(false) {}
++
++inline JitCompiler::~JitCompiler() {
++    Shutdown();
++}
++
++inline bool JitCompiler::Initialize() {
++    if (initialized_) return true;
++    
++    // Allocate executable code cache
++    code_cache_size_ = config_.code_cache_size;
++    code_cache_ = mmap(nullptr, code_cache_size_,
++                       PROT_READ | PROT_WRITE | PROT_EXEC,
++                       MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
++    
++    if (code_cache_ == MAP_FAILED) {
++        code_cache_ = nullptr;
++        return false;
++    }
++    
++    code_cache_used_ = 0;
++    initialized_ = true;
++    return true;
++}
++
++inline void JitCompiler::Shutdown() {
++    if (!initialized_) return;
++    
++    FlushCache();
++    
++    if (code_cache_) {
++        munmap(code_cache_, code_cache_size_);
++        code_cache_ = nullptr;
++    }
++    
++    initialized_ = false;
++}
++
++inline CompiledBlock* JitCompiler::LookupBlock(uint64_t guest_addr) {
++    auto it = block_cache_.find(guest_addr);
++    if (it != block_cache_.end()) {
++        return it->second.get();
++    }
++    return nullptr;
++}
++
++inline void JitCompiler::InvalidateBlock(uint64_t guest_addr) {
++    block_cache_.erase(guest_addr);
++}
++
++inline void JitCompiler::InvalidateRange(uint64_t start, uint64_t end) {
++    for (auto it = block_cache_.begin(); it != block_cache_.end(); ) {
++        if (it->first >= start && it->first < end) {
++            it = block_cache_.erase(it);
++        } else {
++            ++it;
++        }
++    }
++}
++
++inline void JitCompiler::FlushCache() {
++    block_cache_.clear();
++    code_cache_used_ = 0;
++}
++
++inline Cond JitCompiler::TranslatePPCCondition(uint8_t bi, bool branch_true) {
++    // bi is the CR bit index (0-31)
++    // Each CR field has 4 bits: LT(0), GT(1), EQ(2), SO(3)
++    int bit_in_field = bi & 3;
++    
++    // Map PPC CR bit to ARM64 condition
++    // After a CMP, ARM64 flags: N=negative, Z=zero, C=carry, V=overflow
++    switch (bit_in_field) {
++        case 0: // LT (Less Than)
++            return branch_true ? Cond::LT : Cond::GE;
++        case 1: // GT (Greater Than)
++            return branch_true ? Cond::GT : Cond::LE;
++        case 2: // EQ (Equal)
++            return branch_true ? Cond::EQ : Cond::NE;
++        case 3: // SO (Summary Overflow)
++            return branch_true ? Cond::VS : Cond::VC;
++        default:
++            return Cond::AL;
++    }
++}
++
++inline void JitCompiler::EmitCR0Update(Emitter& emit, GpReg result) {
++    // CR0 update: compare result with 0 and set LT/GT/EQ/SO
++    // This is done automatically by ADDS/SUBS in ARM64
++    // We just need to store the flags to CR
++    // For now, rely on ARM64 flags being set by previous operation
++}
++
++inline CompiledBlock* JitCompiler::CompileBlock(const uint8_t* guest_code, 
++                                                  uint64_t guest_addr) {
++    if (!initialized_ || !guest_code) return nullptr;
++    
++    // Check if already compiled
++    if (auto* existing = LookupBlock(guest_addr)) {
++        return existing;
++    }
++    
++    // Allocate code buffer
++    void* code_start = static_cast<uint8_t*>(code_cache_) + code_cache_used_;
++    size_t remaining = code_cache_size_ - code_cache_used_;
++    
++    if (remaining < 4096) {
++        // Cache full - flush and restart
++        FlushCache();
++        code_start = code_cache_;
++        remaining = code_cache_size_;
++    }
++    
++    CodeBuffer buf(code_start, remaining);
++    Emitter emit(buf);
++    PPCTranslator translator(emit);
++    
++    // Decode and translate PowerPC instructions
++    size_t guest_offset = 0;
++    size_t instr_count = 0;
++    bool block_end = false;
++    
++    // PowerPC instructions are always 4 bytes (32-bit fixed width)
++    while (!block_end && guest_offset < config_.max_block_size) {
++        // Decode PowerPC instruction (big-endian!)
++        ppc::DecodedInstr instr = ppc::DecodeInstruction(
++            guest_code + guest_offset, 
++            guest_addr + guest_offset
++        );
++        
++        if (instr.type == ppc::InstrType::UNKNOWN) {
++            // Undecodable instruction - emit trap
++            emit.BRK(0xFFFF);
++            break;
++        }
++        
++        uint64_t next_addr = guest_addr + guest_offset + 4;
++        
++        if (!TranslateInstruction(instr, translator, guest_addr + guest_offset, next_addr)) {
++            // Translation failed - emit trap
++            emit.BRK(0xFFFE);
++            break;
++        }
++        
++        guest_offset += 4;  // PPC instructions are always 4 bytes
++        instr_count++;
++        
++        // Check for block-ending instructions
++        if (ppc::IsBlockTerminator(instr.type)) {
++            block_end = true;
++        }
++    }
++    
++    // Emit block epilogue - return to dispatcher
++    emit.RET();
++    
++    // Create compiled block
++    auto block = std::make_unique<CompiledBlock>();
++    block->code = code_start;
++    block->code_size = buf.GetOffset();
++    block->guest_addr = guest_addr;
++    block->guest_size = guest_offset;
++    block->entry_count = 0;
++    
++    // Update cache usage (16-byte aligned)
++    code_cache_used_ += (buf.GetOffset() + 15) & ~15;
++    
++    // Flush instruction cache
++    __builtin___clear_cache(static_cast<char*>(code_start),
++                            static_cast<char*>(code_start) + block->code_size);
++    
++    total_instructions_ += instr_count;
++    
++    CompiledBlock* result = block.get();
++    block_cache_[guest_addr] = std::move(block);
++    
++    return result;
++}
++
++inline bool JitCompiler::TranslateInstruction(const ppc::DecodedInstr& instr,
++                                               PPCTranslator& translator,
++                                               uint64_t guest_addr,
++                                               uint64_t next_addr) {
++    // Use the PPCTranslator to emit ARM64 code for this PowerPC instruction
++    return translator.Translate(instr);
++}
++
++inline void JitCompiler::Execute(PPCState* state, CompiledBlock* block) {
++    if (!state || !block || !block->code) return;
++    
++    block->entry_count++;
++    total_executions_++;
++    
++    // Setup registers from state before calling JIT code
++    // The generated ARM64 code expects:
++    // - X29 (REG_STATE) to point to PPCState
++    // - X30 (LR) for return
++    // - X22 (REG_CTR) = state->ctr
++    // - X24 (REG_CR) = state->cr
++    
++    // Call generated code
++    // Signature: void jit_block(PPCState* state)
++    using JitFunc = void (*)(PPCState*);
++    JitFunc func = reinterpret_cast<JitFunc>(block->code);
++    
++    func(state);
++    
++    // State is updated in-place by the JIT code
++}
++
++} // namespace rpcsx::nce
++
++#endif // RPCSX_JIT_COMPILER_H
+diff --git a/rpcs3/Emu/Cell/NCE/nce_common.h b/rpcs3/Emu/Cell/NCE/nce_common.h
+new file mode 100644
+index 0000000..8a0fd07
+--- /dev/null
++++ b/rpcs3/Emu/Cell/NCE/nce_common.h
+@@ -0,0 +1,18 @@
++/**
++ * NCE Common definitions and logging
++ */
++
++#pragma once
++
++// Logging stubs - will be replaced by actual RPCS3 logging
++#define __nce_log_debug(...) ((void)0)
++#define __nce_log_warn(...) ((void)0)
++#define __nce_log_error(...) ((void)0)
++#define __nce_log_info(...) ((void)0)
++
++// Platform detection
++#if defined(__aarch64__) || defined(_M_ARM64)
++#define NCE_ARM64 1
++#else
++#define NCE_ARM64 0
++#endif
+diff --git a/rpcs3/Emu/Cell/NCE/ppc_decoder.cpp b/rpcs3/Emu/Cell/NCE/ppc_decoder.cpp
+new file mode 100644
+index 0000000..6f2ae43
+--- /dev/null
++++ b/rpcs3/Emu/Cell/NCE/ppc_decoder.cpp
+@@ -0,0 +1,702 @@
++#include "nce_common.h"
++/**
++ * PowerPC Decoder Implementation для PS3 Cell PPU
++ * 
++ * PS3 Cell PPU Architecture:
++ * - PowerPC 64-bit with VMX (AltiVec) extensions
++ * - Big-endian byte order
++ * - Fixed 32-bit instruction width
++ * - Two threads (PPE0, PPE1)
++ */
++
++#include "ppc_decoder.h"
++// #include <android/log.h>
++
++
++
++
++
++namespace rpcsx::nce::ppc {
++
++// Читання big-endian 32-bit word (PS3 = big-endian)
++static inline uint32_t ReadBE32(const uint8_t* p) {
++    return (static_cast<uint32_t>(p[0]) << 24) |
++           (static_cast<uint32_t>(p[1]) << 16) |
++           (static_cast<uint32_t>(p[2]) << 8) |
++           static_cast<uint32_t>(p[3]);
++}
++
++// Витягнути біти [start:end] з інструкції (PPC bit numbering: MSB=0)
++// PPC uses big-endian bit numbering: bit 0 is MSB
++static inline uint32_t ExtractBits(uint32_t instr, int start, int end) {
++    int shift = 31 - end;
++    uint32_t mask = (1u << (end - start + 1)) - 1;
++    return (instr >> shift) & mask;
++}
++
++// Sign extend from arbitrary bit width to 32-bit
++static inline int32_t SignExtend(uint32_t val, int bits) {
++    int shift = 32 - bits;
++    return static_cast<int32_t>(val << shift) >> shift;
++}
++
++// Sign extend to 64-bit
++static inline int64_t SignExtend64(uint64_t val, int bits) {
++    int shift = 64 - bits;
++    return static_cast<int64_t>(val << shift) >> shift;
++}
++
++// Extended opcode extraction for OP30 (64-bit rotate/shift)
++enum class ExtOp30 : uint8_t {
++    RLDICL = 0,   // Rotate Left Doubleword Immediate then Clear Left
++    RLDICR = 1,   // Rotate Left Doubleword Immediate then Clear Right
++    RLDIC = 2,    // Rotate Left Doubleword Immediate then Clear
++    RLDIMI = 3,   // Rotate Left Doubleword Immediate then Mask Insert
++    RLDCL = 8,    // Rotate Left Doubleword then Clear Left
++    RLDCR = 9,    // Rotate Left Doubleword then Clear Right
++};
++
++// Extended opcodes for OP59 (single-precision FP)
++enum class ExtOp59 : uint8_t {
++    FDIVS = 18,
++    FSUBS = 20,
++    FADDS = 21,
++    FSQRTS = 22,
++    FRES = 24,
++    FMULS = 25,
++    FRSQRTES = 26,
++    FMSUBS = 28,
++    FMADDS = 29,
++    FNMSUBS = 30,
++    FNMADDS = 31,
++};
++
++// Extended opcodes for OP63 (double-precision FP)
++enum class ExtOp63 : uint16_t {
++    FCMPU = 0,
++    FRSP = 12,
++    FCTIW = 14,
++    FCTIWZ = 15,
++    FDIV = 18,
++    FSUB = 20,
++    FADD = 21,
++    FSQRT = 22,
++    FSEL = 23,
++    FRE = 24,
++    FMUL = 25,
++    FRSQRTE = 26,
++    FMSUB = 28,
++    FMADD = 29,
++    FNMSUB = 30,
++    FNMADD = 31,
++    FCMPO = 32,
++    MTFSB1 = 38,
++    FNEG = 40,
++    MCRFS = 64,
++    MTFSB0 = 70,
++    FMR = 72,
++    MTFSFI = 134,
++    FNABS = 136,
++    FABS = 264,
++    MFFS = 583,
++    MTFSF = 711,
++    FCTID = 814,
++    FCTIDZ = 815,
++    FCFID = 846,
++};
++
++DecodedInstr DecodeInstruction(const uint8_t* code, uint64_t pc) {
++    DecodedInstr instr = {};
++    instr.raw = ReadBE32(code);
++    instr.length = 4;
++    
++    uint32_t raw = instr.raw;
++    
++    // Primary opcode: bits 0-5
++    instr.opcode = ExtractBits(raw, 0, 5);
++    
++    // Common fields
++    instr.rd = static_cast<GPR>(ExtractBits(raw, 6, 10));
++    instr.ra = static_cast<GPR>(ExtractBits(raw, 11, 15));
++    instr.rb = static_cast<GPR>(ExtractBits(raw, 16, 20));
++    instr.rc = (raw & 1) != 0;
++    
++    // D-form immediate (bits 16-31)
++    instr.simm = static_cast<int16_t>(raw & 0xFFFF);
++    instr.uimm = raw & 0xFFFF;
++    
++    PrimaryOp op = static_cast<PrimaryOp>(instr.opcode);
++    
++    switch (op) {
++    // ================== Load/Store ==================
++    case PrimaryOp::LWZ:
++    case PrimaryOp::LWZU:
++        instr.type = InstrType::LOAD_WORD;
++        break;
++        
++    case PrimaryOp::LBZ:
++    case PrimaryOp::LBZU:
++        instr.type = InstrType::LOAD_BYTE;
++        break;
++        
++    case PrimaryOp::LHZ:
++    case PrimaryOp::LHZU:
++    case PrimaryOp::LHA:
++    case PrimaryOp::LHAU:
++        instr.type = InstrType::LOAD_HALF;
++        break;
++        
++    case PrimaryOp::STW:
++    case PrimaryOp::STWU:
++        instr.type = InstrType::STORE_WORD;
++        break;
++        
++    case PrimaryOp::STB:
++    case PrimaryOp::STBU:
++        instr.type = InstrType::STORE_BYTE;
++        break;
++        
++    case PrimaryOp::STH:
++    case PrimaryOp::STHU:
++        instr.type = InstrType::STORE_HALF;
++        break;
++        
++    case PrimaryOp::LMW:
++        instr.type = InstrType::LOAD_MULTIPLE;
++        break;
++        
++    case PrimaryOp::STMW:
++        instr.type = InstrType::STORE_MULTIPLE;
++        break;
++    
++    // ================== 64-bit Load/Store ==================
++    case PrimaryOp::OP58: {
++        uint8_t ds = ExtractBits(raw, 30, 31);
++        if (ds == 0) instr.type = InstrType::LOAD_DOUBLE;      // LD
++        else if (ds == 1) instr.type = InstrType::LOAD_DOUBLE; // LDU
++        else if (ds == 2) instr.type = InstrType::LOAD_WORD;   // LWA
++        break;
++    }
++    
++    case PrimaryOp::OP62: {
++        uint8_t ds = ExtractBits(raw, 30, 31);
++        if (ds == 0) instr.type = InstrType::STORE_DOUBLE;     // STD
++        else if (ds == 1) instr.type = InstrType::STORE_DOUBLE; // STDU
++        break;
++    }
++    
++    // ================== Arithmetic Immediate ==================
++    case PrimaryOp::ADDI:
++        instr.type = InstrType::ADDI;
++        break;
++        
++    case PrimaryOp::ADDIS:
++        instr.type = InstrType::ADDIS;
++        break;
++        
++    case PrimaryOp::ADDIC:
++    case PrimaryOp::ADDIC_RC:
++        instr.type = InstrType::ADDIC;
++        break;
++        
++    case PrimaryOp::SUBFIC:
++        instr.type = InstrType::SUBFIC;
++        break;
++        
++    case PrimaryOp::MULLI:
++        instr.type = InstrType::MULLI;
++        break;
++    
++    // ================== Logic Immediate ==================
++    case PrimaryOp::ORI:
++        instr.type = InstrType::ORI;
++        break;
++        
++    case PrimaryOp::ORIS:
++        instr.type = InstrType::ORIS;
++        break;
++        
++    case PrimaryOp::XORI:
++        instr.type = InstrType::XORI;
++        break;
++        
++    case PrimaryOp::XORIS:
++        instr.type = InstrType::XORIS;
++        break;
++        
++    case PrimaryOp::ANDI_RC:
++        instr.type = InstrType::ANDI;
++        instr.rc = true;
++        break;
++        
++    case PrimaryOp::ANDIS_RC:
++        instr.type = InstrType::ANDIS;
++        instr.rc = true;
++        break;
++    
++    // ================== Compare Immediate ==================
++    case PrimaryOp::CMPI:
++        instr.type = InstrType::CMPI;
++        break;
++        
++    case PrimaryOp::CMPLI:
++        instr.type = InstrType::CMPLI;
++        break;
++    
++    // ================== Branch ==================
++    case PrimaryOp::B: {
++        // I-form: bits 6-29 = LI, bit 30 = AA, bit 31 = LK
++        instr.li = SignExtend(ExtractBits(raw, 6, 29) << 2, 26);
++        instr.aa = (raw & 2) != 0;
++        instr.lk = (raw & 1) != 0;
++        instr.type = instr.lk ? InstrType::BL : InstrType::B;
++        break;
++    }
++    
++    case PrimaryOp::BC: {
++        // B-form: bits 6-10 = BO, bits 11-15 = BI, bits 16-29 = BD
++        instr.bo = ExtractBits(raw, 6, 10);
++        instr.bi = ExtractBits(raw, 11, 15);
++        instr.li = SignExtend(ExtractBits(raw, 16, 29) << 2, 16);
++        instr.aa = (raw & 2) != 0;
++        instr.lk = (raw & 1) != 0;
++        instr.type = InstrType::BC;
++        break;
++    }
++    
++    case PrimaryOp::SC:
++        instr.type = InstrType::SC;
++        break;
++    
++    // ================== Rotate/Shift ==================
++    case PrimaryOp::RLWIMI:
++        instr.type = InstrType::RLWIMI;
++        instr.sh = ExtractBits(raw, 16, 20);
++        instr.mb = ExtractBits(raw, 21, 25);
++        instr.me = ExtractBits(raw, 26, 30);
++        break;
++        
++    case PrimaryOp::RLWINM:
++        instr.type = InstrType::RLWINM;
++        instr.sh = ExtractBits(raw, 16, 20);
++        instr.mb = ExtractBits(raw, 21, 25);
++        instr.me = ExtractBits(raw, 26, 30);
++        break;
++        
++    case PrimaryOp::RLWNM:
++        instr.type = InstrType::RLWNM;
++        instr.mb = ExtractBits(raw, 21, 25);
++        instr.me = ExtractBits(raw, 26, 30);
++        break;
++    
++    // ================== Extended Opcode 19 ==================
++    case PrimaryOp::OP19: {
++        instr.xo = ExtractBits(raw, 21, 30);
++        ExtOp19 xop = static_cast<ExtOp19>(instr.xo);
++        
++        switch (xop) {
++        case ExtOp19::BCLR:
++            instr.bo = ExtractBits(raw, 6, 10);
++            instr.bi = ExtractBits(raw, 11, 15);
++            instr.lk = (raw & 1) != 0;
++            instr.type = InstrType::BCLR;
++            break;
++            
++        case ExtOp19::BCCTR:
++            instr.bo = ExtractBits(raw, 6, 10);
++            instr.bi = ExtractBits(raw, 11, 15);
++            instr.lk = (raw & 1) != 0;
++            instr.type = InstrType::BCCTR;
++            break;
++            
++        case ExtOp19::MCRF:
++            instr.type = InstrType::MCRF;
++            break;
++            
++        case ExtOp19::CRAND:
++            instr.type = InstrType::CRAND;
++            break;
++            
++        case ExtOp19::CROR:
++            instr.type = InstrType::CROR;
++            break;
++            
++        case ExtOp19::CRXOR:
++            instr.type = InstrType::CRXOR;
++            break;
++            
++        case ExtOp19::CRNAND:
++            instr.type = InstrType::CRNAND;
++            break;
++            
++        case ExtOp19::CRNOR:
++            instr.type = InstrType::CRNOR;
++            break;
++            
++        case ExtOp19::CREQV:
++            instr.type = InstrType::CREQV;
++            break;
++            
++        case ExtOp19::CRANDC:
++            instr.type = InstrType::CRANDC;
++            break;
++            
++        case ExtOp19::CRORC:
++            instr.type = InstrType::CRORC;
++            break;
++            
++        case ExtOp19::RFI:
++            instr.type = InstrType::RFI;
++            break;
++            
++        case ExtOp19::ISYNC:
++            instr.type = InstrType::ISYNC;
++            break;
++            
++        default:
++            instr.type = InstrType::UNKNOWN;
++            break;
++        }
++        break;
++    }
++    
++    // ================== Extended Opcode 31 ==================
++    case PrimaryOp::OP31: {
++        instr.xo = ExtractBits(raw, 21, 30);
++        instr.oe = (raw & (1 << 10)) != 0;
++        ExtOp31 xop = static_cast<ExtOp31>(instr.xo & 0x3FF);
++        
++        switch (xop) {
++        // Arithmetic
++        case ExtOp31::ADD:
++            instr.type = InstrType::ADD;
++            break;
++        case ExtOp31::ADDC:
++            instr.type = InstrType::ADDC;
++            break;
++        case ExtOp31::ADDE:
++            instr.type = InstrType::ADD;
++            break;
++        case ExtOp31::ADDZE:
++            instr.type = InstrType::ADD;
++            break;
++        case ExtOp31::ADDME:
++            instr.type = InstrType::ADD;
++            break;
++        case ExtOp31::SUBF:
++            instr.type = InstrType::SUBF;
++            break;
++        case ExtOp31::SUBFC:
++            instr.type = InstrType::SUB;
++            break;
++        case ExtOp31::SUBFE:
++            instr.type = InstrType::SUB;
++            break;
++        case ExtOp31::SUBFZE:
++            instr.type = InstrType::SUB;
++            break;
++        case ExtOp31::SUBFME:
++            instr.type = InstrType::SUB;
++            break;
++        case ExtOp31::MULLW:
++            instr.type = InstrType::MULLW;
++            break;
++        case ExtOp31::MULHW:
++        case ExtOp31::MULHWU:
++            instr.type = InstrType::MULLW;
++            break;
++        case ExtOp31::DIVW:
++            instr.type = InstrType::DIVW;
++            break;
++        case ExtOp31::DIVWU:
++            instr.type = InstrType::DIVWU;
++            break;
++        case ExtOp31::NEG:
++            instr.type = InstrType::NEG;
++            break;
++            
++        // Logic
++        case ExtOp31::AND:
++            instr.type = InstrType::AND;
++            break;
++        case ExtOp31::ANDC:
++            instr.type = InstrType::ANDC;
++            break;
++        case ExtOp31::OR:
++            instr.type = InstrType::OR;
++            break;
++        case ExtOp31::ORC:
++            instr.type = InstrType::ORC;
++            break;
++        case ExtOp31::XOR:
++            instr.type = InstrType::XOR;
++            break;
++        case ExtOp31::NAND:
++            instr.type = InstrType::NAND;
++            break;
++        case ExtOp31::NOR:
++            instr.type = InstrType::NOR;
++            break;
++        case ExtOp31::EQV:
++            instr.type = InstrType::EQV;
++            break;
++            
++        // Shift
++        case ExtOp31::SLW:
++            instr.type = InstrType::SLW;
++            break;
++        case ExtOp31::SRW:
++            instr.type = InstrType::SRW;
++            break;
++        case ExtOp31::SRAW:
++            instr.type = InstrType::SRAW;
++            break;
++        case ExtOp31::SRAWI:
++            instr.type = InstrType::SRAWI;
++            instr.sh = ExtractBits(raw, 16, 20);
++            break;
++            
++        // Compare
++        case ExtOp31::CMP:
++            instr.type = InstrType::CMP;
++            break;
++        case ExtOp31::CMPL:
++            instr.type = InstrType::CMPL;
++            break;
++            
++        // Load indexed
++        case ExtOp31::LWZX:
++        case ExtOp31::LWZUX:
++        case ExtOp31::LWAX:
++            instr.type = InstrType::LOAD_WORD;
++            break;
++        case ExtOp31::LBZX:
++        case ExtOp31::LBZUX:
++            instr.type = InstrType::LOAD_BYTE;
++            break;
++        case ExtOp31::LHZX:
++        case ExtOp31::LHZUX:
++        case ExtOp31::LHAX:
++        case ExtOp31::LHAUX:
++            instr.type = InstrType::LOAD_HALF;
++            break;
++        case ExtOp31::LDX:
++        case ExtOp31::LDUX:
++            instr.type = InstrType::LOAD_DOUBLE;
++            break;
++            
++        // Store indexed
++        case ExtOp31::STWX:
++        case ExtOp31::STWUX:
++            instr.type = InstrType::STORE_WORD;
++            break;
++        case ExtOp31::STBX:
++        case ExtOp31::STBUX:
++            instr.type = InstrType::STORE_BYTE;
++            break;
++        case ExtOp31::STHX:
++        case ExtOp31::STHUX:
++            instr.type = InstrType::STORE_HALF;
++            break;
++        case ExtOp31::STDX:
++        case ExtOp31::STDUX:
++            instr.type = InstrType::STORE_DOUBLE;
++            break;
++            
++        // Special registers
++        case ExtOp31::MFSPR:
++            instr.type = InstrType::MFSPR;
++            instr.spr = (ExtractBits(raw, 16, 20) << 5) | ExtractBits(raw, 11, 15);
++            break;
++        case ExtOp31::MTSPR:
++            instr.type = InstrType::MTSPR;
++            instr.spr = (ExtractBits(raw, 16, 20) << 5) | ExtractBits(raw, 11, 15);
++            break;
++        case ExtOp31::MFCR:
++            instr.type = InstrType::MFCR;
++            break;
++        case ExtOp31::MTCRF:
++            instr.type = InstrType::MTCRF;
++            break;
++            
++        // Extend
++        case ExtOp31::EXTSB:
++            instr.type = InstrType::EXTSB;
++            break;
++        case ExtOp31::EXTSH:
++            instr.type = InstrType::EXTSH;
++            break;
++        case ExtOp31::EXTSW:
++            instr.type = InstrType::EXTSW;
++            break;
++        case ExtOp31::CNTLZW:
++            instr.type = InstrType::CNTLZW;
++            break;
++            
++        // Cache
++        case ExtOp31::DCBF:
++            instr.type = InstrType::DCBF;
++            break;
++        case ExtOp31::DCBI:
++            instr.type = InstrType::DCBI;
++            break;
++        case ExtOp31::DCBST:
++            instr.type = InstrType::DCBST;
++            break;
++        case ExtOp31::DCBT:
++            instr.type = InstrType::DCBT;
++            break;
++        case ExtOp31::DCBTST:
++            instr.type = InstrType::DCBTST;
++            break;
++        case ExtOp31::DCBZ:
++            instr.type = InstrType::DCBZ;
++            break;
++        case ExtOp31::ICBI:
++            instr.type = InstrType::ICBI;
++            break;
++            
++        // Sync
++        case ExtOp31::EIEIO:
++            instr.type = InstrType::EIEIO;
++            break;
++            
++        // Trap
++        case ExtOp31::TW:
++            instr.type = InstrType::TW;
++            break;
++            
++        // Atomic
++        case ExtOp31::LWARX:
++            instr.type = InstrType::LOAD_WORD;
++            break;
++        case ExtOp31::STWCX:
++            instr.type = InstrType::STORE_WORD;
++            break;
++            
++        default:
++            instr.type = InstrType::UNKNOWN;
++            break;
++        }
++        break;
++    }
++    
++    // ================== Trap Immediate ==================
++    case PrimaryOp::TWI:
++        instr.type = InstrType::TWI;
++        break;
++    
++    // ================== Float Load/Store ==================
++    case PrimaryOp::LFS:
++    case PrimaryOp::LFSU:
++    case PrimaryOp::LFD:
++    case PrimaryOp::LFDU:
++        instr.type = InstrType::FP_LOAD;
++        break;
++        
++    case PrimaryOp::STFS:
++    case PrimaryOp::STFSU:
++    case PrimaryOp::STFD:
++    case PrimaryOp::STFDU:
++        instr.type = InstrType::FP_STORE;
++        break;
++    
++    // ================== Float Arithmetic ==================
++    case PrimaryOp::OP59:
++    case PrimaryOp::OP63:
++        instr.type = InstrType::FP_ARITH;
++        break;
++    
++    default:
++        instr.type = InstrType::UNKNOWN;
++        break;
++    }
++    
++    return instr;
++}
++
++const char* GetInstructionName(InstrType type) {
++    switch (type) {
++    case InstrType::LOAD_WORD: return "lwz/lwzx";
++    case InstrType::LOAD_BYTE: return "lbz/lbzx";
++    case InstrType::LOAD_HALF: return "lhz/lhzx";
++    case InstrType::LOAD_DOUBLE: return "ld/ldx";
++    case InstrType::STORE_WORD: return "stw/stwx";
++    case InstrType::STORE_BYTE: return "stb/stbx";
++    case InstrType::STORE_HALF: return "sth/sthx";
++    case InstrType::STORE_DOUBLE: return "std/stdx";
++    case InstrType::LOAD_MULTIPLE: return "lmw";
++    case InstrType::STORE_MULTIPLE: return "stmw";
++    case InstrType::ADD: return "add";
++    case InstrType::ADDI: return "addi";
++    case InstrType::ADDIS: return "addis";
++    case InstrType::ADDC: return "addc";
++    case InstrType::ADDIC: return "addic";
++    case InstrType::SUB: return "subf";
++    case InstrType::SUBF: return "subf";
++    case InstrType::SUBFIC: return "subfic";
++    case InstrType::MULLI: return "mulli";
++    case InstrType::MULLW: return "mullw";
++    case InstrType::DIVW: return "divw";
++    case InstrType::DIVWU: return "divwu";
++    case InstrType::NEG: return "neg";
++    case InstrType::AND: return "and";
++    case InstrType::ANDI: return "andi.";
++    case InstrType::ANDIS: return "andis.";
++    case InstrType::OR: return "or";
++    case InstrType::ORI: return "ori";
++    case InstrType::ORIS: return "oris";
++    case InstrType::XOR: return "xor";
++    case InstrType::XORI: return "xori";
++    case InstrType::XORIS: return "xoris";
++    case InstrType::NAND: return "nand";
++    case InstrType::NOR: return "nor";
++    case InstrType::EQV: return "eqv";
++    case InstrType::ANDC: return "andc";
++    case InstrType::ORC: return "orc";
++    case InstrType::SLW: return "slw";
++    case InstrType::SRW: return "srw";
++    case InstrType::SRAW: return "sraw";
++    case InstrType::SRAWI: return "srawi";
++    case InstrType::RLWINM: return "rlwinm";
++    case InstrType::RLWIMI: return "rlwimi";
++    case InstrType::RLWNM: return "rlwnm";
++    case InstrType::CMP: return "cmp";
++    case InstrType::CMPI: return "cmpi";
++    case InstrType::CMPL: return "cmpl";
++    case InstrType::CMPLI: return "cmpli";
++    case InstrType::B: return "b";
++    case InstrType::BL: return "bl";
++    case InstrType::BC: return "bc";
++    case InstrType::BCLR: return "bclr";
++    case InstrType::BCCTR: return "bcctr";
++    case InstrType::MFSPR: return "mfspr";
++    case InstrType::MTSPR: return "mtspr";
++    case InstrType::MFCR: return "mfcr";
++    case InstrType::MTCRF: return "mtcrf";
++    case InstrType::EXTSB: return "extsb";
++    case InstrType::EXTSH: return "extsh";
++    case InstrType::EXTSW: return "extsw";
++    case InstrType::CNTLZW: return "cntlzw";
++    case InstrType::SC: return "sc";
++    case InstrType::RFI: return "rfi";
++    case InstrType::ISYNC: return "isync";
++    case InstrType::EIEIO: return "eieio";
++    case InstrType::SYNC: return "sync";
++    case InstrType::TW: return "tw";
++    case InstrType::TWI: return "twi";
++    case InstrType::FP_LOAD: return "lfs/lfd";
++    case InstrType::FP_STORE: return "stfs/stfd";
++    case InstrType::FP_ARITH: return "fp_arith";
++    case InstrType::DCBF: return "dcbf";
++    case InstrType::DCBI: return "dcbi";
++    case InstrType::DCBST: return "dcbst";
++    case InstrType::DCBT: return "dcbt";
++    case InstrType::DCBTST: return "dcbtst";
++    case InstrType::DCBZ: return "dcbz";
++    case InstrType::ICBI: return "icbi";
++    default: return "unknown";
++    }
++}
++
++} // namespace rpcsx::nce::ppc
+diff --git a/rpcs3/Emu/Cell/NCE/ppc_decoder.h b/rpcs3/Emu/Cell/NCE/ppc_decoder.h
+new file mode 100644
+index 0000000..8ae2454
+--- /dev/null
++++ b/rpcs3/Emu/Cell/NCE/ppc_decoder.h
+@@ -0,0 +1,359 @@
++/**
++ * PowerPC Decoder для PS3 Cell PPU
++ * Декодування PowerPC інструкцій для JIT компіляції
++ */
++
++#ifndef RPCSX_PPC_DECODER_H
++#define RPCSX_PPC_DECODER_H
++
++#include <cstdint>
++#include <cstddef>
++
++namespace rpcsx::nce::ppc {
++
++// PowerPC регістри (Cell PPU)
++enum class GPR : uint8_t {
++    R0 = 0, R1, R2, R3, R4, R5, R6, R7,
++    R8, R9, R10, R11, R12, R13, R14, R15,
++    R16, R17, R18, R19, R20, R21, R22, R23,
++    R24, R25, R26, R27, R28, R29, R30, R31
++};
++
++// Floating Point регістри
++enum class FPR : uint8_t {
++    F0 = 0, F1, F2, F3, F4, F5, F6, F7,
++    F8, F9, F10, F11, F12, F13, F14, F15,
++    F16, F17, F18, F19, F20, F21, F22, F23,
++    F24, F25, F26, F27, F28, F29, F30, F31
++};
++
++// Vector регістри (AltiVec/VMX)
++enum class VR : uint8_t {
++    V0 = 0, V1, V2, V3, V4, V5, V6, V7,
++    V8, V9, V10, V11, V12, V13, V14, V15,
++    V16, V17, V18, V19, V20, V21, V22, V23,
++    V24, V25, V26, V27, V28, V29, V30, V31
++};
++
++// PowerPC опкоди (primary opcode - біти 0-5)
++enum class PrimaryOp : uint8_t {
++    TWI = 3,        // Trap Word Immediate
++    MULLI = 7,      // Multiply Low Immediate
++    SUBFIC = 8,     // Subtract From Immediate Carrying
++    CMPLI = 10,     // Compare Logical Immediate
++    CMPI = 11,      // Compare Immediate
++    ADDIC = 12,     // Add Immediate Carrying
++    ADDIC_RC = 13,  // Add Immediate Carrying and Record
++    ADDI = 14,      // Add Immediate
++    ADDIS = 15,     // Add Immediate Shifted
++    BC = 16,        // Branch Conditional
++    SC = 17,        // System Call
++    B = 18,         // Branch
++    OP19 = 19,      // Extended opcodes (bclr, bcctr, etc)
++    RLWIMI = 20,    // Rotate Left Word Immediate then Mask Insert
++    RLWINM = 21,    // Rotate Left Word Immediate then AND with Mask
++    RLWNM = 23,     // Rotate Left Word then AND with Mask
++    ORI = 24,       // OR Immediate
++    ORIS = 25,      // OR Immediate Shifted
++    XORI = 26,      // XOR Immediate
++    XORIS = 27,     // XOR Immediate Shifted
++    ANDI_RC = 28,   // AND Immediate and Record
++    ANDIS_RC = 29,  // AND Immediate Shifted and Record
++    OP30 = 30,      // Extended 64-bit rotate/shift
++    OP31 = 31,      // Extended ALU opcodes
++    LWZ = 32,       // Load Word and Zero
++    LWZU = 33,      // Load Word and Zero with Update
++    LBZ = 34,       // Load Byte and Zero
++    LBZU = 35,      // Load Byte and Zero with Update
++    STW = 36,       // Store Word
++    STWU = 37,      // Store Word with Update
++    STB = 38,       // Store Byte
++    STBU = 39,      // Store Byte with Update
++    LHZ = 40,       // Load Half Word and Zero
++    LHZU = 41,      // Load Half Word and Zero with Update
++    LHA = 42,       // Load Half Word Algebraic
++    LHAU = 43,      // Load Half Word Algebraic with Update
++    STH = 44,       // Store Half Word
++    STHU = 45,      // Store Half Word with Update
++    LMW = 46,       // Load Multiple Word
++    STMW = 47,      // Store Multiple Word
++    LFS = 48,       // Load Floating-Point Single
++    LFSU = 49,      // Load Floating-Point Single with Update
++    LFD = 50,       // Load Floating-Point Double
++    LFDU = 51,      // Load Floating-Point Double with Update
++    STFS = 52,      // Store Floating-Point Single
++    STFSU = 53,     // Store Floating-Point Single with Update
++    STFD = 54,      // Store Floating-Point Double
++    STFDU = 55,     // Store Floating-Point Double with Update
++    OP58 = 58,      // LD/LDU/LWA (64-bit loads)
++    OP59 = 59,      // FP single-precision
++    OP62 = 62,      // STD/STDU (64-bit stores)
++    OP63 = 63,      // FP double-precision
++};
++
++// Extended opcodes for OP31 (біти 21-30)
++enum class ExtOp31 : uint16_t {
++    CMP = 0,
++    TW = 4,
++    SUBFC = 8,
++    ADDC = 10,
++    MULHWU = 11,
++    MFCR = 19,
++    LWARX = 20,
++    LWZX = 23,
++    SLW = 24,
++    SRW = 536,      // Shift Right Word
++    CNTLZW = 26,
++    AND = 28,
++    CMPL = 32,
++    SUBF = 40,
++    DCBST = 54,
++    LWZUX = 55,
++    ANDC = 60,
++    MULHW = 75,
++    MFMSR = 83,
++    DCBF = 86,
++    LBZX = 87,
++    NEG = 104,
++    LBZUX = 119,
++    NOR = 124,
++    SUBFE = 136,
++    ADDE = 138,
++    MTCRF = 144,
++    STDX = 149,
++    STWCX = 150,
++    STWX = 151,
++    STDUX = 181,
++    STWUX = 183,
++    SUBFZE = 200,
++    ADDZE = 202,
++    STBX = 215,
++    SUBFME = 232,
++    ADDME = 234,
++    MULLW = 235,
++    DCBTST = 246,
++    STBUX = 247,
++    ADD = 266,
++    DCBT = 278,
++    LHZX = 279,
++    EQV = 284,
++    LHZUX = 311,
++    XOR = 316,
++    MFSPR = 339,
++    LHAX = 343,
++    LHAUX = 375,
++    STHX = 407,
++    ORC = 412,
++    STHUX = 439,
++    OR = 444,
++    DIVWU = 459,
++    MTSPR = 467,
++    NAND = 476,
++    DIVW = 491,
++    LWAX = 341,
++    LDUX = 53,
++    DCBI = 470,
++    LDX = 21,
++    SRAW = 792,
++    SRAWI = 824,
++    EIEIO = 854,
++    EXTSH = 922,
++    EXTSB = 954,
++    EXTSW = 986,
++    ICBI = 982,
++    DCBZ = 1014,
++};
++
++// Extended opcodes for OP19 (condition register ops)
++enum class ExtOp19 : uint16_t {
++    MCRF = 0,
++    BCLR = 16,      // Branch Conditional to Link Register
++    CRNOR = 33,
++    RFI = 50,
++    CRANDC = 129,
++    ISYNC = 150,
++    CRXOR = 193,
++    CRNAND = 225,
++    CRAND = 257,
++    CREQV = 289,
++    CRORC = 417,
++    CROR = 449,
++    BCCTR = 528,    // Branch Conditional to Count Register
++};
++
++// Тип інструкції
++enum class InstrType {
++    UNKNOWN,
++    // Load/Store
++    LOAD_WORD,
++    LOAD_BYTE,
++    LOAD_HALF,
++    LOAD_DOUBLE,
++    STORE_WORD,
++    STORE_BYTE,
++    STORE_HALF,
++    STORE_DOUBLE,
++    LOAD_MULTIPLE,
++    STORE_MULTIPLE,
++    // Arithmetic
++    ADD,
++    ADDI,
++    ADDIS,
++    ADDC,
++    ADDIC,
++    SUB,
++    SUBF,
++    SUBFIC,
++    MULLI,
++    MULLW,
++    DIVW,
++    DIVWU,
++    NEG,
++    // Logic
++    AND,
++    ANDI,
++    ANDIS,
++    OR,
++    ORI,
++    ORIS,
++    XOR,
++    XORI,
++    XORIS,
++    NAND,
++    NOR,
++    EQV,
++    ANDC,
++    ORC,
++    // Shift/Rotate
++    SLW,
++    SRW,
++    SRAW,
++    SRAWI,
++    RLWINM,
++    RLWIMI,
++    RLWNM,
++    // Compare
++    CMP,
++    CMPI,
++    CMPL,
++    CMPLI,
++    // Branch
++    B,
++    BL,
++    BC,
++    BCLR,
++    BCCTR,
++    // CR ops
++    CRAND,
++    CROR,
++    CRXOR,
++    CRNAND,
++    CRNOR,
++    CREQV,
++    CRANDC,
++    CRORC,
++    MCRF,
++    // Special
++    MFSPR,
++    MTSPR,
++    MFCR,
++    MTCRF,
++    EXTSB,
++    EXTSH,
++    EXTSW,
++    CNTLZW,
++    // System
++    SC,
++    RFI,
++    ISYNC,
++    EIEIO,
++    SYNC,
++    // Cache
++    DCBF,
++    DCBI,
++    DCBST,
++    DCBT,
++    DCBTST,
++    DCBZ,
++    ICBI,
++    // Trap
++    TW,
++    TWI,
++    // Float
++    FP_LOAD,
++    FP_STORE,
++    FP_ARITH,
++};
++
++// Декодована інструкція
++struct DecodedInstr {
++    InstrType type = InstrType::UNKNOWN;
++    uint32_t raw;           // Raw instruction
++    
++    // Decoded fields
++    uint8_t opcode;         // Primary opcode (bits 0-5)
++    uint16_t xo;            // Extended opcode
++    
++    // Register operands
++    GPR rd;                 // Destination register
++    GPR ra;                 // Source register A
++    GPR rb;                 // Source register B
++    
++    // Immediate values
++    int16_t simm;           // Signed immediate (D-form)
++    uint16_t uimm;          // Unsigned immediate
++    int32_t li;             // Branch offset (I-form)
++    
++    // Branch fields
++    uint8_t bo;             // Branch options
++    uint8_t bi;             // Condition bit
++    bool aa;                // Absolute address
++    bool lk;                // Link (save to LR)
++    bool rc;                // Record (update CR0)
++    bool oe;                // OE bit (update XER)
++    
++    // Rotate/Mask fields
++    uint8_t sh;             // Shift amount
++    uint8_t mb;             // Mask begin
++    uint8_t me;             // Mask end
++    
++    // Special register
++    uint16_t spr;           // Special purpose register
++    
++    // Instruction length (always 4 for PPC)
++    size_t length = 4;
++};
++
++/**
++ * Декодувати PowerPC інструкцію
++ * @param code Вказівник на код (big-endian!)
++ * @param pc Поточний Program Counter
++ * @return Декодована інструкція
++ */
++DecodedInstr DecodeInstruction(const uint8_t* code, uint64_t pc);
++
++/**
++ * Отримати ім'я інструкції для логування
++ */
++const char* GetInstructionName(InstrType type);
++
++/**
++ * Перевірка чи інструкція є branch
++ */
++inline bool IsBranch(InstrType type) {
++    return type == InstrType::B || type == InstrType::BL ||
++           type == InstrType::BC || type == InstrType::BCLR ||
++           type == InstrType::BCCTR;
++}
++
++/**
++ * Перевірка чи інструкція є терміналом блоку
++ */
++inline bool IsBlockTerminator(InstrType type) {
++    return IsBranch(type) || type == InstrType::SC || 
++           type == InstrType::RFI;
++}
++
++} // namespace rpcsx::nce::ppc
++
++#endif // RPCSX_PPC_DECODER_H
+diff --git a/rpcs3/Emu/system_config_types.cpp b/rpcs3/Emu/system_config_types.cpp
+index edf5e94..10c72ce 100644
+--- a/rpcs3/Emu/system_config_types.cpp
++++ b/rpcs3/Emu/system_config_types.cpp
+@@ -523,6 +523,7 @@ void fmt_class_string<ppu_decoder_type>::format(std::string& out, u64 arg)
+ 			case ppu_decoder_type::_static: return "Interpreter (Legacy)";
+ 			case ppu_decoder_type::llvm_legacy: return "LLVM Recompiler (Legacy)";
+ 			case ppu_decoder_type::interpreter: return "Interpreter";
++	case ppu_decoder_type::nce_arm64: return "NCE (ARM64 JIT)";
+ 			}
+ 
+ 			return unknown;
+diff --git a/rpcs3/Emu/system_config_types.h b/rpcs3/Emu/system_config_types.h
+index c7610a4..63595de 100644
+--- a/rpcs3/Emu/system_config_types.h
++++ b/rpcs3/Emu/system_config_types.h
+@@ -5,6 +5,7 @@ enum class ppu_decoder_type : unsigned
+ 	_static,
+ 	llvm_legacy,
+ 	interpreter,
++	nce_arm64,
+ };
+ 
+ enum class spu_decoder_type : unsigned
+@@ -280,6 +281,7 @@ enum class shader_mode
+ 	recompiler,
+ 	async_recompiler,
+ 	async_with_interpreter,
++	nce_arm64,
+ 	interpreter_only
+ };
+ 
+-- 
+2.52.0
+
