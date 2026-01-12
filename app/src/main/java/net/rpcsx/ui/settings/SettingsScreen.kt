@@ -478,20 +478,20 @@ fun PpuDecoderSettingsScreen(
     navigateBack: () -> Unit
 ) {
     val context = LocalContext.current
-    var selectedMode by remember { mutableStateOf(3) } // Default to NCE/JIT
+    var selectedMode by remember { mutableStateOf(RPCSX.instance.getNCEMode()) } // Get current mode
     
     // PPU Decoder modes
     val decoderModes = listOf(
-        0 to "Interpreter (Slowest)",
+        0 to "Interpreter",
         1 to "Interpreter (Cached)",
         2 to "Recompiler (LLVM)",
-        3 to "JIT/NCE (Fastest - ARMv9)"
+        3 to "⚡ NCE (Native Code Execution)"
     )
 
     Scaffold(
         topBar = {
             LargeTopAppBar(
-                title = { Text(text = stringResource(R.string.ppu_decoder_title)) },
+                title = { Text(text = "Core - PPU Decoder") },
                 navigationIcon = {
                     IconButton(onClick = navigateBack) {
                         Icon(
@@ -536,10 +536,10 @@ fun PpuDecoderSettingsScreen(
                             ) 
                         },
                         description = when (mode) {
-                            0 -> "Pure interpretation, very slow but maximum compatibility"
-                            1 -> "Cached interpreter, better than pure but still slow"
-                            2 -> "LLVM recompiler, good balance of speed and compatibility"
-                            3 -> "Native Code Execution - Direct ARM64 JIT for Cortex-X4"
+                            0 -> "Slowest - Pure interpretation for maximum compatibility"
+                            1 -> "Slow - Cached blocks, better than pure interpreter"
+                            2 -> "Medium - LLVM recompiler, good speed/compatibility"
+                            3 -> "⚡ FASTEST - Real x86→ARM64 JIT on Cortex-X4"
                             else -> ""
                         },
                         onClick = {
@@ -551,11 +551,22 @@ fun PpuDecoderSettingsScreen(
                                 )
                             } else {
                                 selectedMode = mode
-                                Toast.makeText(
-                                    context, 
-                                    "PPU Decoder set to: $name", 
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                                // Activate NCE JIT if mode 3 selected
+                                if (mode == 3) {
+                                    RPCSX.instance.setNCEMode(3)
+                                    Toast.makeText(
+                                        context, 
+                                        "🚀 NCE/JIT Activated! PPU→ARM64 translation enabled", 
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                } else {
+                                    RPCSX.instance.setNCEMode(mode)
+                                    Toast.makeText(
+                                        context, 
+                                        "PPU Decoder set to: $name", 
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
                             }
                         }
                     )
@@ -695,46 +706,6 @@ fun SettingsScreen(
                                 configExporter.launch("config.yml")
                             }
                         )
-                    }
-                )
-            }
-
-            item(key = "nce_enable") {
-                var nceEnabled by remember { mutableStateOf(RPCSX.instance.isNCEActive()) }
-                
-                HomePreference(
-                    title = "⚡ NCE (Native Code Execution)",
-                    icon = { 
-                        Icon(
-                            painterResource(R.drawable.ic_play), 
-                            contentDescription = null,
-                            tint = if (nceEnabled) MaterialTheme.colorScheme.primary 
-                                   else MaterialTheme.colorScheme.onSurface
-                        ) 
-                    },
-                    description = if (nceEnabled) 
-                        "✅ ENABLED - PPU→ARM64 JIT active (Cortex-X4)" 
-                        else "Tap to enable real NCE JIT for maximum FPS",
-                    onClick = {
-                        // Enable NCE mode (3 = JIT)
-                        RPCSX.instance.setNCEMode(3)
-                        val ok = RPCSX.instance.settingsSet("CPU@@PPU Decoder", "3")
-                        nceEnabled = true
-                        
-                        if (ok) {
-                            Toast.makeText(
-                                context, 
-                                "🚀 NCE JIT Enabled! PPU code now runs natively on ARM64", 
-                                Toast.LENGTH_LONG
-                            ).show()
-                        } else {
-                            // Still set NCE mode even if settings fail
-                            Toast.makeText(
-                                context, 
-                                "⚡ NCE activated (runtime only)", 
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
                     }
                 )
             }
