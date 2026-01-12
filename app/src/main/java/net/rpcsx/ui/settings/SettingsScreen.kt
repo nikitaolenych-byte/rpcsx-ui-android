@@ -295,6 +295,15 @@ fun AdvancedSettingsScreen(
                                     icon = null,
                                     title = key + if (itemValue == def) "" else " *",
                                     onValueChange = { value ->
+                                        // Special handling for NCE - don't call settingsSet, just activate NCE mode
+                                        if (isPpuDecoder && value == "NCE") {
+                                            RPCSX.instance.setNCEMode(3)
+                                            itemObject.put("value", value)
+                                            itemValue = value
+                                            Toast.makeText(context, "🚀 NCE Activated!", Toast.LENGTH_SHORT).show()
+                                            return@SingleSelectionDialog
+                                        }
+                                        
                                         if (!RPCSX.instance.settingsSet(
                                                 itemPath, "\"" + value + "\""
                                             )
@@ -310,16 +319,12 @@ fun AdvancedSettingsScreen(
                                             // Sync NCE mode when PPU Decoder changes
                                             if (isPpuDecoder) {
                                                 val nceMode = when (value) {
-                                                    "NCE" -> 3
                                                     "LLVM Recompiler (Legacy)" -> 2
                                                     "Interpreter (Legacy)" -> 1
                                                     "Interpreter" -> 0
                                                     else -> 0
                                                 }
                                                 RPCSX.instance.setNCEMode(nceMode)
-                                                if (value == "NCE") {
-                                                    Toast.makeText(context, "🚀 NCE Activated!", Toast.LENGTH_SHORT).show()
-                                                }
                                             }
                                         }
                                     },
