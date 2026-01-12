@@ -169,7 +169,7 @@ class MainActivity : ComponentActivity() {
         if (GeneralSettings[nceEnabledKey] != true) {
             try {
                 // Set Interpreter as base PPU decoder (NCE JIT works on top)
-                val ok = RPCSX.instance.settingsSet("CPU@@PPU Decoder", "\"Interpreter\"")
+                val ok = RPCSX.instance.settingsSet("Core@@PPU Decoder", "\"Interpreter\"")
                 if (ok) {
                     // Activate NCE JIT layer (mode 3)
                     RPCSX.instance.setNCEMode(3)
