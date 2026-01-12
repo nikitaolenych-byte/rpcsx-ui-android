@@ -181,7 +181,7 @@ bool InitializeFastmem() {
 #endif
 #ifdef MADV_WILLNEED
     // Підказка ядру про майбутнє використання (перших 256MB)
-    madvise(g_fastmem.base_address, std::min(g_fastmem.total_size, 256ULL * 1024 * 1024), MADV_WILLNEED);
+    madvise(g_fastmem.base_address, std::min(g_fastmem.total_size, static_cast<size_t>(256ULL * 1024 * 1024)), MADV_WILLNEED);
 #endif
     
     // Lock частини пам'яті (64MB max, може не працювати без root)
@@ -200,9 +200,6 @@ bool InitializeFastmem() {
     LOGI("  - Base: %p", g_fastmem.base_address);
     LOGI("  - Alignment: %zu KB", g_fastmem.alignment / 1024);
     LOGI("  - Locked: %zu MB", g_fastmem.locked_size / (1024*1024));
-    
-    return true;
-}
     
     return true;
 }
