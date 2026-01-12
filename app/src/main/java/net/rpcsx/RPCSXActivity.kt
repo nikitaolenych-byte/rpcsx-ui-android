@@ -17,6 +17,7 @@ import androidx.core.view.updateLayoutParams
 import net.rpcsx.databinding.ActivityRpcs3Binding
 import net.rpcsx.dialogs.AlertDialogQueue
 import net.rpcsx.overlay.State
+import net.rpcsx.utils.GeneralSettings
 import net.rpcsx.utils.InputBindingPrefs
 import kotlin.concurrent.thread
 import kotlin.math.abs
@@ -45,6 +46,9 @@ class RPCSXActivity : Activity() {
 
         val gamePath = intent.getStringExtra("path")!!
         RPCSX.lastPlayedGame = gamePath
+        
+        // Restore NCE mode from saved preferences before boot
+        restoreNCEMode()
 
         bootThread = thread {
             if (RPCSX.getState() != EmulatorState.Stopped) {
@@ -90,6 +94,30 @@ class RPCSXActivity : Activity() {
         bootThread?.join()
     }
 
+    /**
+     * Restore NCE mode from saved preferences before game boot.
+     * This prevents NCE from being reset to interpreter when launching games.
+     */
+    private fun restoreNCEMode() {
+        val savedMode = GeneralSettings["nce_mode"] as? Int
+        if (savedMode != null && savedMode >= 0) {
+            RPCSX.instance.setNCEMode(savedMode)
+            Log.i("RPCSX", "Restored NCE mode before boot: $savedMode (${
+                when (savedMode) {
+                    0 -> "Disabled"
+                    1 -> "Interpreter"
+                    2 -> "Recompiler"
+                    3 -> "NCE/JIT"
+                    else -> "Unknown"
+                }
+            })")
+        } else {
+            // Default to NCE/JIT if not set
+            RPCSX.instance.setNCEMode(3)
+            GeneralSettings["nce_mode"] = 3
+            Log.i("RPCSX", "NCE mode not set, defaulting to NCE/JIT (mode 3)")
+        }
+    }
 
     private fun keyCodeToPadBit(keyCode: Int): Pair<Int, Int> {
         val event = inputBindings[keyCode] ?: Pair(0, 0)

@@ -301,9 +301,10 @@ fun AdvancedSettingsScreen(
                                             RPCSX.instance.settingsSet(itemPath, "\"Interpreter\"")
                                             // Activate our NCE JIT layer on top
                                             RPCSX.instance.setNCEMode(3)
+                                            // Save NCE mode to preferences for persistence
+                                            net.rpcsx.utils.GeneralSettings["nce_mode"] = 3
                                             itemObject.put("value", value)
                                             itemValue = value
-                                            Toast.makeText(context, "🚀 NCE Activated! (JIT + Interpreter fallback)", Toast.LENGTH_SHORT).show()
                                             return@SingleSelectionDialog
                                         }
                                         
@@ -319,7 +320,7 @@ fun AdvancedSettingsScreen(
                                             itemObject.put("value", value)
                                             itemValue = value
                                             
-                                            // Sync NCE mode when PPU Decoder changes
+                                            // Sync NCE mode when PPU Decoder changes and save to preferences
                                             if (isPpuDecoder) {
                                                 val nceMode = when (value) {
                                                     "LLVM Recompiler (Legacy)" -> 2
@@ -328,6 +329,7 @@ fun AdvancedSettingsScreen(
                                                     else -> 0
                                                 }
                                                 RPCSX.instance.setNCEMode(nceMode)
+                                                net.rpcsx.utils.GeneralSettings["nce_mode"] = nceMode
                                             }
                                         }
                                     },

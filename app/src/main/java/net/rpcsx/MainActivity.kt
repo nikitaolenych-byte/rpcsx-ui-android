@@ -152,18 +152,36 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Auto-enable NCE/JIT (ppu_decoder_mode = 3) on first launch for ARMv9 optimization.
+     * Auto-enable NCE/JIT on first launch for ARMv9 optimization.
+     * Sets PPU Decoder to Interpreter as base and activates NCE JIT layer on top.
      */
     private fun autoEnableNceJit() {
         val nceEnabledKey = "nce_jit_auto_enabled"
+        val nceMode = GeneralSettings["nce_mode"] as? Int ?: -1
+        
+        // Always restore NCE mode from saved preference
+        if (nceMode >= 0) {
+            RPCSX.instance.setNCEMode(nceMode)
+            Log.i("RPCSX", "Restored NCE mode from preferences: $nceMode")
+        }
+        
+        // First launch - auto-enable NCE/JIT
         if (GeneralSettings[nceEnabledKey] != true) {
             try {
-                val ok = RPCSX.instance.settingsSet("CPU@@PPU Decoder", "3")
+                // Set Interpreter as base PPU decoder (NCE JIT works on top)
+                val ok = RPCSX.instance.settingsSet("CPU@@PPU Decoder", "\"Interpreter\"")
                 if (ok) {
+                    // Activate NCE JIT layer (mode 3)
+                    RPCSX.instance.setNCEMode(3)
+                    GeneralSettings["nce_mode"] = 3
                     GeneralSettings[nceEnabledKey] = true
-                    Log.i("RPCSX", "NCE/JIT auto-enabled (ppu_decoder_mode=3)")
+                    Log.i("RPCSX", "NCE/JIT auto-enabled (Interpreter + NCE JIT layer)")
                 } else {
-                    Log.w("RPCSX", "Failed to auto-enable NCE/JIT")
+                    Log.w("RPCSX", "Failed to set PPU Decoder, trying fallback...")
+                    // Just enable NCE anyway
+                    RPCSX.instance.setNCEMode(3)
+                    GeneralSettings["nce_mode"] = 3
+                    GeneralSettings[nceEnabledKey] = true
                 }
             } catch (e: Exception) {
                 Log.e("RPCSX", "Error auto-enabling NCE/JIT", e)
