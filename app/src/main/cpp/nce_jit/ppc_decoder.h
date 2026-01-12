@@ -102,6 +102,7 @@ enum class ExtOp31 : uint16_t {
     LWARX = 20,
     LWZX = 23,
     SLW = 24,
+    SRW = 536,      // Shift Right Word
     CNTLZW = 26,
     AND = 28,
     CMPL = 32,

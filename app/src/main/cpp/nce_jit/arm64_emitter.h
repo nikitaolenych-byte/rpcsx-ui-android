@@ -604,9 +604,6 @@ public:
         // MOV Wd, Wn (32-bit move zero-extends to 64-bit)
         buf_.Emit(0x2A0003E0 | (static_cast<uint32_t>(rn) << 16) | static_cast<uint32_t>(rd));
     }
-
-private:
-    CodeBuffer& buf_;
     
     // Helper: try to encode bitmask immediate
     // Returns false if immediate cannot be encoded
@@ -634,7 +631,8 @@ private:
         
         return false;
     }
-};
+    
+public:
     // ============================================
     // Load/Store (additional for PowerPC)
     // ============================================
