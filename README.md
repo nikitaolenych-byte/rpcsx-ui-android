@@ -58,6 +58,31 @@ This fork adds **high-performance optimizations** specifically for **Snapdragon 
 
 ---
 
+## 🔧 NCE ARM64 JIT Integration
+
+To enable full PPU JIT performance, apply the NCE patch to RPCSX core:
+
+```bash
+# Clone RPCSX
+git clone https://github.com/RPCSX/rpcsx.git
+cd rpcsx
+
+# Apply NCE ARM64 JIT patch
+git apply ../rpcsx-ui-android/patches/rpcsx-nce-arm64-jit.patch
+
+# Build with NCE support
+mkdir build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+make -j$(nproc)
+```
+
+The patch adds:
+- **ppu_decoder_type::nce_arm64** - New PPU decoder option
+- **PowerPC → ARM64 JIT** - Direct translation
+- **Block caching** - Compiled code reuse
+
+---
+
 > **Warning**: Do not ask for link to games or system files. Piracy is not permitted on the GitHub nor in the Discord.
 
 
@@ -74,3 +99,21 @@ Android 10+
 
 RPCSX-UI-Android is licensed under GPLv2 license except directories containing their own LICENSE file, or files containing their own license.
 
+
+## 🧩 Integrate NCE JIT into RPCSX core
+
+The NCE ARM64 JIT is provided as a patch for `librpcsx.so` (core emulator):
+
+1) Clone RPCSX core:
+```bash
+git clone https://github.com/RPCSX/rpcsx.git
+```
+2) Apply patch:
+```bash
+cd rpcsx
+git apply ../rpcsx-ui-android/patches/rpcsx-nce-arm64-jit.patch
+```
+3) Build Android core (librpcsx.so) per upstream instructions.
+4) Replace the `librpcsx.so` bundled with this UI.
+
+After replacing the core, select **PPU Decoder → NCE (ARM64 JIT)** in settings and test.
