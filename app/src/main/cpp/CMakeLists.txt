@@ -102,10 +102,14 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # ${CMAKE_CURRENT_SOURCE_DIR}/fsr31/include
 )
 
+# Find Vulkan for vkGetDeviceProcAddr etc.
+find_library(VULKAN_LIB vulkan)
+
 target_link_libraries(${CMAKE_PROJECT_NAME}
     android
     log
     adrenotools
     z
     libzstd_static
+    ${VULKAN_LIB}
 )
