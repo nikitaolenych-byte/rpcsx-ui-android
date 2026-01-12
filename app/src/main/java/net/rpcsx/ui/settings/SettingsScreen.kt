@@ -279,8 +279,15 @@ fun AdvancedSettingsScreen(
                                     variants.add(variantsJson.getString(i))
                                 }
                                 
-                                // Check if this is PPU Decoder setting (in Core section)
-                                val isPpuDecoder = key == "PPU Decoder" || itemPath.contains("Core@@PPU Decoder")
+                                // Check if this is PPU Decoder setting
+                                val isPpuDecoder = key == "PPU Decoder" || 
+                                                   itemPath.contains("PPU Decoder") ||
+                                                   key.contains("PPU")
+                                
+                                // Log for debugging
+                                if (isPpuDecoder) {
+                                    Log.i("RPCSX", "PPU Decoder found: key=$key, path=$itemPath, variants=$variants")
+                                }
 
                                 SingleSelectionDialog(
                                     currentValue = if (itemValue in variants) itemValue else variants[0],
