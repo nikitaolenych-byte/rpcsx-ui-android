@@ -16,7 +16,9 @@ struct VulkanConfig {
     bool enable_async_compute;
     bool enable_mesh_shaders;
     bool enable_ray_tracing;
+    bool purge_cache_on_start;  // Примусове очищення кешу
     uint32_t max_frames_in_flight;
+    const char* cache_directory;  // Директорія для shader cache
 };
 
 /**
@@ -28,6 +30,11 @@ bool InitializeVulkan(const VulkanConfig& config);
  * Створення логічного пристрою з оптимізаціями для Adreno
  */
 VkDevice CreateOptimizedDevice(VkPhysicalDevice physical_device);
+
+/**
+ * Примусове очищення всіх shader кешів
+ */
+void PurgeAllShaderCaches(const char* base_directory);
 
 /**
  * Налаштування descriptor pools для емулятора

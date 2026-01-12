@@ -1,5 +1,6 @@
 /**
  * NCE Engine заголовковий файл
+ * Native Code Execution для ARMv9/Cortex-X4
  */
 
 #ifndef RPCSX_NCE_ENGINE_H
@@ -15,6 +16,24 @@ namespace rpcsx::nce {
  * @return true якщо успішно
  */
 bool InitializeNCE();
+
+/**
+ * Встановлення режиму NCE (для UI)
+ * @param mode 0=Disabled, 1=Interpreter, 2=Recompiler, 3=NCE/JIT
+ */
+void SetNCEMode(int mode);
+
+/**
+ * Отримання поточного режиму NCE
+ * @return Поточний режим (0-3)
+ */
+int GetNCEMode();
+
+/**
+ * Перевірка чи NCE/JIT активний
+ * @return true якщо NCE/JIT включено і готове
+ */
+bool IsNCEActive();
 
 /**
  * Трансляція PPU коду в ARM64+SVE2
@@ -36,6 +55,11 @@ void ExecuteOnGoldenCore(void* native_code);
  * @param registers Регістри
  */
 void EmulateSPUWithSVE2(const void* spu_code, void* registers);
+
+/**
+ * Інвалідація code cache
+ */
+void InvalidateCodeCache();
 
 /**
  * Завершення роботи NCE

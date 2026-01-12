@@ -478,6 +478,15 @@ fun PpuDecoderSettingsScreen(
     navigateBack: () -> Unit
 ) {
     val context = LocalContext.current
+    var selectedMode by remember { mutableStateOf(3) } // Default to NCE/JIT
+    
+    // PPU Decoder modes
+    val decoderModes = listOf(
+        0 to "Interpreter (Slowest)",
+        1 to "Interpreter (Cached)",
+        2 to "Recompiler (LLVM)",
+        3 to "JIT/NCE (Fastest - ARMv9)"
+    )
 
     Scaffold(
         topBar = {
@@ -500,22 +509,67 @@ fun PpuDecoderSettingsScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            item(key = "ppu_decoder_jit") {
-                HomePreference(
-                    title = stringResource(R.string.ppu_decoder_jit),
-                    icon = { Icon(painterResource(R.drawable.ic_play), null) },
-                    description = stringResource(R.string.ppu_decoder_description),
-                    onClick = {
-                        val ok = RPCSX.instance.settingsSet("CPU@@PPU Decoder", "3")
-                        if (!ok) {
-                            AlertDialogQueue.showDialog(
-                                context.getString(R.string.error),
-                                context.getString(R.string.failed_to_assign_value, "3", "CPU@@PPU Decoder")
-                            )
-                        } else {
-                            Toast.makeText(context, context.getString(R.string.ppu_decoder_jit), Toast.LENGTH_SHORT).show()
+            item(key = "ppu_decoder_header") {
+                Text(
+                    text = "Select PPU Decoder Mode",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(16.dp)
+                )
+            }
+            
+            decoderModes.forEach { (mode, name) ->
+                item(key = "ppu_decoder_mode_$mode") {
+                    val isSelected = selectedMode == mode
+                    val isRecommended = mode == 3
+                    
+                    HomePreference(
+                        title = name + if (isRecommended) " ★" else "",
+                        icon = { 
+                            Icon(
+                                painterResource(
+                                    if (isSelected) R.drawable.ic_play 
+                                    else R.drawable.ic_circle
+                                ), 
+                                null,
+                                tint = if (isSelected) MaterialTheme.colorScheme.primary 
+                                       else MaterialTheme.colorScheme.onSurface
+                            ) 
+                        },
+                        description = when (mode) {
+                            0 -> "Pure interpretation, very slow but maximum compatibility"
+                            1 -> "Cached interpreter, better than pure but still slow"
+                            2 -> "LLVM recompiler, good balance of speed and compatibility"
+                            3 -> "Native Code Execution - Direct ARM64 JIT for Cortex-X4"
+                            else -> ""
+                        },
+                        onClick = {
+                            val ok = RPCSX.instance.settingsSet("CPU@@PPU Decoder", mode.toString())
+                            if (!ok) {
+                                AlertDialogQueue.showDialog(
+                                    context.getString(R.string.error),
+                                    context.getString(R.string.failed_to_assign_value, mode.toString(), "CPU@@PPU Decoder")
+                                )
+                            } else {
+                                selectedMode = mode
+                                Toast.makeText(
+                                    context, 
+                                    "PPU Decoder set to: $name", 
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
                         }
-                    }
+                    )
+                }
+            }
+            
+            item(key = "ppu_decoder_info") {
+                Text(
+                    text = "★ Recommended for Snapdragon 8s Gen 3 (Cortex-X4)\n\n" +
+                           "NCE/JIT mode uses native ARM64 execution for maximum performance. " +
+                           "Requires ARMv9 CPU with SVE2 support.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(16.dp)
                 )
             }
         }

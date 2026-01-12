@@ -102,6 +102,15 @@ class RPCSX {
     // ARMv9 Optimization Functions
     external fun initializeARMv9Optimizations(cacheDir: String, titleId: String, buildId: String): Boolean
     external fun shutdownARMv9Optimizations()
+    
+    // NCE Mode control (0=Disabled, 1=Interpreter, 2=Recompiler, 3=NCE/JIT)
+    external fun setNCEMode(mode: Int)
+    external fun getNCEMode(): Int
+    external fun isNCEActive(): Boolean
+    
+    // Cache management
+    external fun purgeAllCaches(cacheDir: String)
+    external fun getFastmemStats(): String
 
 
     companion object {
@@ -130,6 +139,8 @@ class RPCSX {
             
             if (armv9OptimizationsEnabled) {
                 android.util.Log.i("RPCSX", "ARMv9 optimizations enabled successfully!")
+                // Auto-set NCE/JIT mode
+                instance.setNCEMode(3)
             } else {
                 android.util.Log.e("RPCSX", "Failed to enable ARMv9 optimizations")
             }
@@ -146,6 +157,14 @@ class RPCSX {
                 instance.shutdownARMv9Optimizations()
                 armv9OptimizationsEnabled = false
             }
+        }
+        
+        /**
+         * Встановлення режиму PPU декодера
+         */
+        fun setDecoderMode(mode: Int) {
+            instance.setNCEMode(mode)
+            android.util.Log.i("RPCSX", "PPU Decoder mode set to $mode")
         }
 
         fun boot(path: String): BootResult {

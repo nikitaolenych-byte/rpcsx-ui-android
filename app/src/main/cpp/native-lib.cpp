@@ -490,3 +490,68 @@ Java_net_rpcsx_RPCSX_shutdownARMv9Optimizations(JNIEnv *env, jobject) {
   LOGI("ARMv9 optimizations shutdown complete");
 }
 
+/**
+ * Встановлення режиму NCE (0=Disabled, 1=Interpreter, 2=Recompiler, 3=NCE/JIT)
+ */
+extern "C" JNIEXPORT void JNICALL
+Java_net_rpcsx_RPCSX_setNCEMode(JNIEnv *env, jobject, jint mode) {
+  LOGI("Setting NCE mode to %d", mode);
+  rpcsx::nce::SetNCEMode(mode);
+}
+
+/**
+ * Отримання поточного режиму NCE
+ */
+extern "C" JNIEXPORT jint JNICALL
+Java_net_rpcsx_RPCSX_getNCEMode(JNIEnv *env, jobject) {
+  return rpcsx::nce::GetNCEMode();
+}
+
+/**
+ * Перевірка чи NCE/JIT активний
+ */
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_isNCEActive(JNIEnv *env, jobject) {
+  return rpcsx::nce::IsNCEActive() ? JNI_TRUE : JNI_FALSE;
+}
+
+/**
+ * Примусове очищення всіх кешів (shader, pipeline, code)
+ */
+extern "C" JNIEXPORT void JNICALL
+Java_net_rpcsx_RPCSX_purgeAllCaches(JNIEnv *env, jobject, jstring jcacheDir) {
+  LOGI("Purging all caches...");
+  
+  auto cacheDir = unwrap(env, jcacheDir);
+  
+  // Очищення NCE code cache
+  rpcsx::nce::InvalidateCodeCache();
+  
+  // Очищення Vulkan shader/pipeline cache
+  rpcsx::vulkan::PurgeAllShaderCaches(cacheDir.c_str());
+  
+  // Очищення 3-tier shader cache
+  // rpcsx::shaders::PurgeAllCaches();
+  
+  LOGI("All caches purged");
+}
+
+/**
+ * Отримання статистики fastmem для діагностики
+ */
+extern "C" JNIEXPORT jstring JNICALL
+Java_net_rpcsx_RPCSX_getFastmemStats(JNIEnv *env, jobject) {
+  uint64_t accesses = 0, faults = 0;
+  size_t size = 0;
+  rpcsx::memory::GetFastmemStats(&accesses, &faults, &size);
+  
+  char buf[256];
+  snprintf(buf, sizeof(buf), 
+           "Fastmem: %zu GB, Accesses: %llu, Faults: %llu",
+           size / (1024*1024*1024),
+           (unsigned long long)accesses,
+           (unsigned long long)faults);
+  
+  return wrap(env, buf);
+}
+
