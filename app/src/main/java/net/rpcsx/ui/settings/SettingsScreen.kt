@@ -279,17 +279,14 @@ fun AdvancedSettingsScreen(
                                     variants.add(variantsJson.getString(i))
                                 }
                                 
-                                // Add NCE option for PPU Decoder if not present
+                                // Check if this is PPU Decoder setting
                                 val isPpuDecoder = key == "PPU Decoder" || itemPath.contains("PPU Decoder")
-                                if (isPpuDecoder && !variants.contains("NCE")) {
-                                    variants.add("NCE")
-                                }
 
                                 SingleSelectionDialog(
                                     currentValue = if (itemValue in variants) itemValue else variants[0],
                                     values = variants,
                                     icon = null,
-                                    title = key + if (itemValue == def) "" else " *" + if (isPpuDecoder) " ⚡" else "",
+                                    title = key + if (itemValue == def) "" else " *",
                                     onValueChange = { value ->
                                         if (!RPCSX.instance.settingsSet(
                                                 itemPath, "\"" + value + "\""
@@ -303,18 +300,14 @@ fun AdvancedSettingsScreen(
                                             itemObject.put("value", value)
                                             itemValue = value
                                             
-                                            // Activate NCE JIT when selected
+                                            // Sync NCE mode when PPU Decoder changes
                                             if (isPpuDecoder) {
                                                 val nceMode = when (value) {
-                                                    "NCE" -> 3
                                                     "Recompiler (LLVM)" -> 2
                                                     "Interpreter" -> 0
-                                                    else -> 1
+                                                    else -> 1 // Cached interpreter
                                                 }
                                                 RPCSX.instance.setNCEMode(nceMode)
-                                                if (value == "NCE") {
-                                                    Toast.makeText(context, "🚀 NCE/JIT Activated!", Toast.LENGTH_SHORT).show()
-                                                }
                                             }
                                         }
                                     },
