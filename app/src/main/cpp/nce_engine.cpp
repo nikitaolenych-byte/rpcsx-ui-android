@@ -115,10 +115,18 @@ static bool CheckSVE2Support() {
 
 /**
  * Отримання розміру SVE вектора
+ * Потрібен target attribute для SVE intrinsics
  */
+#if defined(__aarch64__) && RPCSX_HAS_SVE2
+__attribute__((target("sve2")))
+static size_t GetSVEVectorLengthImpl() {
+    return svcntb();  // Bytes per vector
+}
+#endif
+
 static size_t GetSVEVectorLength() {
 #if defined(__aarch64__) && RPCSX_HAS_SVE2
-    return svcntb();  // Bytes per vector
+    return GetSVEVectorLengthImpl();
 #else
     return 16;  // Fallback to NEON size
 #endif
@@ -429,7 +437,7 @@ void EmulateSPUWithSVE2(const void* spu_code, void* registers) {
     // SVE2 забезпечує ідеальне відповідність SPU векторам (128 біт)
     // Використовуємо predicated operations для точної семантики
     
-    const size_t vlen = svcntb();
+    const size_t vlen = GetSVEVectorLength();
     LOGI("SVE vector length: %zu bytes", vlen);
     
     // Приклад: векторне додавання float32 (типова SPU операція)
