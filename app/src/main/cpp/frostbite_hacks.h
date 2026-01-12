@@ -80,6 +80,11 @@ void OptimizeCulling();
 void ApplyRuntimePatches();
 
 /**
+ * Battlefield 4 specific hacks
+ */
+void ApplyBF4Hacks();
+
+/**
  * Отримання конфігурації
  */
 const FrostbiteConfig& GetConfig();
