@@ -339,9 +339,8 @@ void* BaselineCompiler::EmitCompare(uint32_t instr, void* emit_ptr) {
 OptimizingCompiler::OptimizingCompiler(const OptimizationFlags& flags)
     : flags_(flags)
     , code_cache_(nullptr)
-    , code_cache_size_(0)
-    , code_cache_used_(0)
-    , initialized_(false) {}
+    , cache_size_(0)
+    , cache_used_(0) {}
 
 OptimizingCompiler::~OptimizingCompiler() {
     Shutdown();
@@ -349,9 +348,8 @@ OptimizingCompiler::~OptimizingCompiler() {
 
 bool OptimizingCompiler::Initialize(void* code_cache, size_t cache_size) {
     code_cache_ = code_cache;
-    code_cache_size_ = cache_size;
-    code_cache_used_ = 0;
-    initialized_ = true;
+    cache_size_ = cache_size;
+    cache_used_ = 0;
     
     memset(&reg_state_, 0xFF, sizeof(reg_state_));  // -1 = free
     
@@ -360,7 +358,6 @@ bool OptimizingCompiler::Initialize(void* code_cache, size_t cache_size) {
 }
 
 void OptimizingCompiler::Shutdown() {
-    initialized_ = false;
     code_cache_ = nullptr;
 }
 
@@ -368,7 +365,7 @@ CompiledBlockV8* OptimizingCompiler::Compile(const uint8_t* ppc_code, uint64_t a
                                               const HotspotProfile* profile) {
     std::lock_guard<std::mutex> lock(compile_mutex_);
     
-    if (!initialized_ || !code_cache_) return nullptr;
+    if (!code_cache_) return nullptr;
     
     LOGI("Optimizing compile: 0x%llx (%zu bytes)", 
          static_cast<unsigned long long>(address), size);
@@ -518,11 +515,11 @@ void OptimizingCompiler::TailDuplication(CFG& cfg) {
 }
 
 void* OptimizingCompiler::EmitARM64(const CFG& cfg) {
-    if (code_cache_used_ + 4096 > code_cache_size_) {
+    if (cache_used_ + 4096 > cache_size_) {
         return nullptr;
     }
     
-    void* code_start = static_cast<uint8_t*>(code_cache_) + code_cache_used_;
+    void* code_start = static_cast<uint8_t*>(code_cache_) + cache_used_;
     void* emit_ptr = code_start;
     
     EmitPrologue(emit_ptr);
@@ -539,7 +536,7 @@ void* OptimizingCompiler::EmitARM64(const CFG& cfg) {
     __builtin___clear_cache(static_cast<char*>(code_start),
                             static_cast<char*>(code_start) + code_size);
     
-    code_cache_used_ += (code_size + 15) & ~15;
+    cache_used_ += (code_size + 15) & ~15;
     
     return code_start;
 }
