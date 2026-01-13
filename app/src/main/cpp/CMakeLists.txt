@@ -83,6 +83,8 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
     nce_jit/arm64_emitter.cpp
     # NCE Standalone JIT (ARM64 only)
     nce_core/nce_standalone.cpp
+    # NCE Native - Real PS3 Execution (телефон = PS3!)
+    nce_core/nce_native.cpp
     # NCE v8 - Ultimate Edition (Multi-tier JIT)
     nce_v8/nce_v8.cpp
     nce_v8/tiered_jit.cpp
