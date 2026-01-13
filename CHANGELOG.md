@@ -2,6 +2,52 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.2-gamepatches] - 2026-01-12
+
+### 🎮 Universal Game Patches
+
+Додано патчі та оптимізації для 6 популярних PS3 ігор.
+
+### ✨ Added
+
+- **Universal Game Patches System** (`game_patches.cpp/h`)
+  - 🎮 Автоматичне визначення гри за Title ID
+  - ⚙️ Per-game конфігурації (FPS, physics, threads)
+  - 🔧 Game-specific оптимізації для кожної гри
+
+### 🕹️ Supported Games
+
+| Гра | Рушій | Target FPS | Оптимізації |
+|-----|-------|------------|-------------|
+| **Demon's Souls** | Souls Engine | 30 FPS | Blood effects, lighting, AI pathfinding |
+| **Saw** | Unreal Engine 3 | 30 FPS | Gore effects, trap physics, dark areas |
+| **Saw II: Flesh & Blood** | UE3 | 30 FPS | Gore decals, puzzle physics, QTE timing |
+| **inFamous** | Sucker Punch | 30 FPS | Open world streaming, electricity effects |
+| **inFamous 2** | SP Engine v2 | 30 FPS | UGC system, destruction physics |
+| **Real Steel** | Yuke's Engine | 60 FPS | Robot physics, crowd rendering |
+
+### 📋 Supported Title IDs
+
+**Demon's Souls:**
+- BLUS30443, BLES00932, BCJS30022, BCJS70013, BCAS20071
+- NPUB30910, NPEB01202, NPJA00102
+
+**Saw:**
+- BLUS30375, BLES00676, NPUB30358, NPEB00554
+
+**Saw II:**
+- BLUS30572, BLES01058, NPUB30570, NPEB00833
+
+**inFamous:**
+- BCUS98119, BCES00609, BCJS30048, BCAS20091
+- NPUA80318, NPEA00266, NPJA00084
+
+**inFamous 2:**
+- BCUS98125, BCES01143, BCJS30073, BCAS20181
+- NPUA80638, NPEA00322, NPJA00089
+
+---
+
 ## [1.0.1-realsteel] - 2026-01-12
 
 ### 🤖 Real Steel Optimizations
