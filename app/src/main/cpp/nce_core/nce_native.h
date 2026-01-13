@@ -301,7 +301,7 @@ public:
     
     // Load and run PS3 game
     bool LoadGame(const char* eboot_path);
-    void StartGame();
+    bool StartGame();
     void StopGame();
     
     // State
