@@ -304,17 +304,23 @@ fun AdvancedSettingsScreen(
                                     icon = null,
                                     title = key + if (itemValue == def) "" else " *",
                                     onValueChange = { value ->
-                                        // Special handling for NCE - use LLVM to compile PPU + NCE for optimization
+                                        // Special handling for NCE - activates NCE Native!
                                         if (isPpuDecoder && value == "NCE") {
                                             // IMPORTANT: Must use LLVM to compile PPU modules!
                                             // Interpreter skips PPU compilation entirely.
                                             RPCSX.instance.settingsSet(itemPath, "\"LLVM Recompiler (Legacy)\"")
-                                            // Activate NCE JIT layer for ARM64 runtime optimizations
+                                            // Activate NCE Native - Your phone IS PlayStation 3!
                                             RPCSX.instance.setNCEMode(3)
                                             // Save NCE mode (use cached setter for performance)
                                             net.rpcsx.utils.GeneralSettings.nceMode = 3
                                             itemObject.put("value", value)
                                             itemValue = value
+                                            
+                                            // Log NCE Native activation
+                                            android.util.Log.i("RPCSX-NCE", "╔════════════════════════════════════════╗")
+                                            android.util.Log.i("RPCSX-NCE", "║   NCE Native Activated!                ║")
+                                            android.util.Log.i("RPCSX-NCE", "║   Your phone IS now PlayStation 3!    ║")
+                                            android.util.Log.i("RPCSX-NCE", "╚════════════════════════════════════════╝")
                                             return@SingleSelectionDialog
                                         }
                                         

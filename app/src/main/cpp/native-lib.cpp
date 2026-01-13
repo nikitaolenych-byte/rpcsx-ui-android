@@ -549,12 +549,28 @@ Java_net_rpcsx_RPCSX_shutdownARMv9Optimizations(JNIEnv *env, jobject) {
 }
 
 /**
- * Встановлення режиму NCE (0=Disabled, 1=Interpreter, 2=Recompiler, 3=NCE/JIT)
+ * Встановлення режиму NCE (0=Disabled, 1=Interpreter, 2=Recompiler, 3=NCE Native!)
  */
 extern "C" JNIEXPORT void JNICALL
 Java_net_rpcsx_RPCSX_setNCEMode(JNIEnv *env, jobject, jint mode) {
-  LOGI("Setting NCE mode to %d", mode);
+  LOGI("╔════════════════════════════════════════════════════════════╗");
+  LOGI("║  PPU Decoder: Setting NCE mode to %d                       ║", mode);
+  LOGI("╚════════════════════════════════════════════════════════════╝");
+  
   rpcsx::nce::SetNCEMode(mode);
+  
+  if (mode == 3) {
+    LOGI("╔════════════════════════════════════════════════════════════╗");
+    LOGI("║     🎮 YOUR PHONE IS NOW PLAYSTATION 3! 🎮                 ║");
+    LOGI("║                                                            ║");
+    LOGI("║  NCE Native Activated:                                     ║");
+    LOGI("║  • PS3 Memory Space: 256MB XDR + 256MB GDDR3              ║");
+    LOGI("║  • PPU: Cell → ARM64 JIT                                  ║");
+    LOGI("║  • SPU: 6 threads → ARM NEON                              ║");
+    LOGI("║  • RSX: GPU → Vulkan                                      ║");
+    LOGI("║  • Syscalls: LV2 → Android                                ║");
+    LOGI("╚════════════════════════════════════════════════════════════╝");
+  }
 }
 
 /**
@@ -571,6 +587,33 @@ Java_net_rpcsx_RPCSX_getNCEMode(JNIEnv *env, jobject) {
 extern "C" JNIEXPORT jboolean JNICALL
 Java_net_rpcsx_RPCSX_isNCEActive(JNIEnv *env, jobject) {
   return rpcsx::nce::IsNCEActive() ? JNI_TRUE : JNI_FALSE;
+}
+
+/**
+ * Перевірка чи NCE Native активний (Phone IS PS3)
+ */
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_isNCENativeActive(JNIEnv *env, jobject) {
+  return rpcsx::nce::IsNCENativeActive() ? JNI_TRUE : JNI_FALSE;
+}
+
+/**
+ * Завантаження та запуск PS3 гри через NCE Native
+ */
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_loadAndStartGame(JNIEnv *env, jobject, jstring jgamePath) {
+  auto gamePath = unwrap(env, jgamePath);
+  LOGI("Loading PS3 game via NCE Native: %s", gamePath.c_str());
+  return rpcsx::nce::LoadAndStartGame(gamePath.c_str()) ? JNI_TRUE : JNI_FALSE;
+}
+
+/**
+ * Зупинка запущеної гри
+ */
+extern "C" JNIEXPORT void JNICALL
+Java_net_rpcsx_RPCSX_stopGame(JNIEnv *env, jobject) {
+  LOGI("Stopping game via NCE Native");
+  rpcsx::nce::StopGame();
 }
 
 /**

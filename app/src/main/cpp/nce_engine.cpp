@@ -4,11 +4,14 @@
  * 
  * HARDENING: Повна підтримка SVE2, захист регістрів, fault recovery
  * JIT: Повний PowerPC (Cell PPU) → ARM64 транслятор для PS3 емуляції
+ * 
+ * NCE Native v2.0: Your phone IS now a PlayStation 3!
  */
 
 #include "nce_engine.h"
 #include "signal_handler.h"
 #include "nce_jit/jit_compiler.h"
+#include "nce_core/nce_native.h"  // NCE Native - Real PS3 Execution
 #include <android/log.h>
 #include <sys/mman.h>
 #include <sys/prctl.h>
@@ -48,7 +51,8 @@ enum class NCEMode : int {
     DISABLED = 0,
     INTERPRETER = 1,
     RECOMPILER = 2,
-    NCE_JIT = 3  // Найшвидший - прямий JIT на ARM
+    NCE_JIT = 3,        // Швидкий JIT на ARM
+    NCE_NATIVE = 4      // NCE Native - Phone IS PS3!
 };
 
 // Налаштування для прямого виконання PPU коду на ARM
@@ -83,7 +87,7 @@ static NCEContext g_nce_ctx = {
     .cache_size = CODE_CACHE_SIZE_DEFAULT,
     .cache_used = 0,
     .active = false,
-    .mode = NCEMode::NCE_JIT,
+    .mode = NCEMode::NCE_NATIVE,  // Default to NCE Native - Phone IS PS3!
     .ppu_thread_affinity = 0xF0,  // CPU 4-7 (Cortex-X4 cores)
     .saved_regs = {},
     .regs_valid = false
@@ -92,6 +96,9 @@ static NCEContext g_nce_ctx = {
 // Global JIT Compiler instance
 static std::unique_ptr<JitCompiler> g_jit_compiler;
 static PPCState g_ppc_state = {};  // Emulated PS3 Cell PPU state
+
+// NCE Native instance
+static std::unique_ptr<NativeCodeExecutor> g_nce_native;
 
 /**
  * Перевірка SVE2 підтримки в runtime
@@ -212,8 +219,12 @@ void SetNCEMode(int mode) {
     NCEMode new_mode = static_cast<NCEMode>(mode);
     NCEMode old_mode = g_nce_ctx.mode.exchange(new_mode);
     
-    const char* mode_names[] = {"Disabled", "Interpreter", "Recompiler", "NCE/JIT"};
-    LOGI("NCE mode set to: %s (%d)", mode_names[mode], mode);
+    const char* mode_names[] = {"Disabled", "Interpreter", "Recompiler", "NCE/JIT", "NCE Native"};
+    LOGI("╔════════════════════════════════════════════════════════════╗");
+    LOGI("║  NCE Mode Switch: %s → %s", 
+         mode_names[static_cast<int>(old_mode)], 
+         mode_names[mode]);
+    LOGI("╚════════════════════════════════════════════════════════════╝");
     
     // Enable/disable JIT signal handler based on mode
     if (new_mode == NCEMode::NCE_JIT && old_mode != NCEMode::NCE_JIT) {
@@ -225,6 +236,45 @@ void SetNCEMode(int mode) {
         rpcsx::crash::EnableJITHandler(false);
         LOGI("JIT signal handler disabled");
     }
+    
+    // ========================================================================
+    // NCE Native Mode (mode == 3 from UI means NCE, we activate NCE Native!)
+    // ========================================================================
+    if (mode == 3 || mode == 4) {
+        LOGI("╔════════════════════════════════════════════════════════════╗");
+        LOGI("║          NCE NATIVE - YOUR PHONE IS NOW PS3!               ║");
+        LOGI("╚════════════════════════════════════════════════════════════╝");
+        
+        // Initialize NCE Native if not already
+        if (!g_nce_native) {
+            g_nce_native = std::make_unique<NativeCodeExecutor>();
+        }
+        
+        // Configure NCE Native
+        NCEConfig config;
+        config.enable_fastmem = true;
+        config.enable_jit = true;
+        config.enable_block_linking = true;
+        config.jit_cache_size = 256 * 1024 * 1024;  // 256MB
+        config.enable_spu = true;
+        config.spu_thread_count = 6;  // 6 SPUs like real PS3
+        config.spu_use_neon = true;
+        config.enable_rsx = true;
+        config.rsx_use_vulkan = true;
+        
+        if (g_nce_native->Initialize(config)) {
+            LOGI("✓ NCE Native initialized - PS3 execution ready!");
+            LOGI("  Memory: PS3 address space mapped");
+            LOGI("  PPU: Cell Broadband Engine ready");
+            LOGI("  SPU: 6 Synergistic Processing Units ready");
+            LOGI("  RSX: Reality Synthesizer (Vulkan backend)");
+        } else {
+            LOGE("✗ Failed to initialize NCE Native");
+        }
+        
+        // Also enable JIT handler for native mode
+        rpcsx::crash::EnableJITHandler(true);
+    }
 }
 
 int GetNCEMode() {
@@ -232,7 +282,51 @@ int GetNCEMode() {
 }
 
 bool IsNCEActive() {
-    return g_nce_ctx.active && g_nce_ctx.mode == NCEMode::NCE_JIT;
+    // NCE is active in both JIT and Native modes
+    NCEMode mode = g_nce_ctx.mode.load();
+    return g_nce_ctx.active && (mode == NCEMode::NCE_JIT || mode == NCEMode::NCE_NATIVE);
+}
+
+/**
+ * Check if NCE Native mode is active
+ */
+bool IsNCENativeActive() {
+    return g_nce_native && g_nce_native->IsRunning();
+}
+
+/**
+ * Load and start a PS3 game with NCE Native
+ */
+bool LoadAndStartGame(const char* game_path) {
+    if (!g_nce_native) {
+        LOGE("NCE Native not initialized");
+        return false;
+    }
+    
+    LOGI("Loading PS3 game: %s", game_path);
+    
+    if (!g_nce_native->LoadGame(game_path)) {
+        LOGE("Failed to load game");
+        return false;
+    }
+    
+    if (!g_nce_native->StartGame()) {
+        LOGE("Failed to start game");
+        return false;
+    }
+    
+    LOGI("Game started successfully on NCE Native!");
+    return true;
+}
+
+/**
+ * Stop the running game
+ */
+void StopGame() {
+    if (g_nce_native) {
+        g_nce_native->StopGame();
+        LOGI("Game stopped");
+    }
 }
 
 /**
@@ -497,7 +591,18 @@ void InvalidateCodeCache() {
  * Очищення NCE ресурсів
  */
 void ShutdownNCE() {
-    // Shutdown JIT compiler first
+    LOGI("╔════════════════════════════════════════════════════════════╗");
+    LOGI("║           Shutting down NCE Engine                         ║");
+    LOGI("╚════════════════════════════════════════════════════════════╝");
+    
+    // Shutdown NCE Native first
+    if (g_nce_native) {
+        g_nce_native->Shutdown();
+        g_nce_native.reset();
+        LOGI("NCE Native shutdown complete");
+    }
+    
+    // Shutdown JIT compiler
     if (g_jit_compiler) {
         g_jit_compiler->Shutdown();
         g_jit_compiler.reset();

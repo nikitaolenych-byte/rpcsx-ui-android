@@ -103,10 +103,16 @@ class RPCSX {
     external fun initializeARMv9Optimizations(cacheDir: String, titleId: String, buildId: String): Boolean
     external fun shutdownARMv9Optimizations()
     
-    // NCE Mode control (0=Disabled, 1=Interpreter, 2=Recompiler, 3=NCE/JIT)
+    // NCE Mode control (0=Disabled, 1=Interpreter, 2=Recompiler, 3=NCE Native!)
+    // When mode=3, NCE Native activates - Your phone IS PlayStation 3!
     external fun setNCEMode(mode: Int)
     external fun getNCEMode(): Int
     external fun isNCEActive(): Boolean
+    external fun isNCENativeActive(): Boolean
+    
+    // NCE Native - PS3 game loading
+    external fun loadAndStartGame(gamePath: String): Boolean
+    external fun stopGame()
     
     // Cache management
     external fun purgeAllCaches(cacheDir: String)

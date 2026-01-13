@@ -1,13 +1,14 @@
 /**
  * NCE Engine заголовковий файл
  * Native Code Execution для ARMv9/Cortex-X4
- * x86-64 → ARM64 JIT компілятор для PS4 емуляції
+ * PowerPC Cell PPU → ARM64 JIT компілятор для PS3 емуляції
  * 
- * NCE v8 - Ultimate Edition
- * - Multi-tier JIT (Interpreter → Baseline → Optimizing)
- * - Branch Prediction (TAGE-like)
- * - Loop Vectorization (SVE2/NEON)
- * - On-Stack Replacement (OSR)
+ * NCE Native v2.0 - Your Phone IS PlayStation 3!
+ * - Real PS3 memory map (256MB XDR + 256MB GDDR3)
+ * - LV2 syscall translation (80+ syscalls)
+ * - PPU → ARM64 JIT execution
+ * - SPU → ARM NEON (6 threads)
+ * - RSX → Vulkan rendering
  */
 
 #ifndef RPCSX_NCE_ENGINE_H
@@ -16,12 +17,12 @@
 #include <cstdint>
 #include <cstddef>
 
-// NCE Version
-#define NCE_VERSION_MAJOR 8
+// NCE Version - Native Edition
+#define NCE_VERSION_MAJOR 2
 #define NCE_VERSION_MINOR 0
 #define NCE_VERSION_PATCH 0
-#define NCE_VERSION_STRING "8.0.0-ultimate"
-#define NCE_CODENAME "Thunderbolt"
+#define NCE_VERSION_STRING "2.0.0-native"
+#define NCE_CODENAME "Native"
 
 namespace rpcsx::nce {
 
@@ -33,7 +34,7 @@ bool InitializeNCE();
 
 /**
  * Встановлення режиму NCE (для UI)
- * @param mode 0=Disabled, 1=Interpreter, 2=Recompiler, 3=NCE/JIT, 4=NCE v8
+ * @param mode 0=Disabled, 1=Interpreter, 2=Recompiler, 3=NCE (activates NCE Native!)
  */
 void SetNCEMode(int mode);
 
@@ -48,6 +49,24 @@ int GetNCEMode();
  * @return true якщо NCE/JIT включено і готове
  */
 bool IsNCEActive();
+
+/**
+ * Перевірка чи NCE Native активний (Phone IS PS3)
+ * @return true якщо NCE Native запущено
+ */
+bool IsNCENativeActive();
+
+/**
+ * Завантаження та запуск PS3 гри через NCE Native
+ * @param game_path Шлях до ELF/SELF файлу
+ * @return true якщо успішно
+ */
+bool LoadAndStartGame(const char* game_path);
+
+/**
+ * Зупинка запущеної гри
+ */
+void StopGame();
 
 /**
  * Трансляція x86-64 коду в ARM64 через JIT
