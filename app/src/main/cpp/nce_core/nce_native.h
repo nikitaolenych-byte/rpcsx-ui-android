@@ -400,14 +400,14 @@ public:
         double fps;
     };
     Stats GetStats() const;
-    
-<<<<<<< HEAD
-private:
+
+public:
     NativeCodeExecutor() = default;
     ~NativeCodeExecutor() = default;
-    
+
+private:
     NCEConfig config_;
-    
+
     std::unique_ptr<PPUExecutionEngine> ppu_;
     std::unique_ptr<SPUExecutionEngine> spu_;
     std::unique_ptr<RSXExecutionEngine> rsx_;
