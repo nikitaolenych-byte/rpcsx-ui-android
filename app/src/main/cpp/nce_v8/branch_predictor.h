@@ -97,7 +97,7 @@ public:
     void Reset() { history_ = 0; }
     
 private:
-    static constexpr uint64_t MASK = (1ULL << 64) - 1;
+    static constexpr uint64_t MASK = 0xFFFFFFFFFFFFFFFFULL;
     uint64_t history_;
 };
 
