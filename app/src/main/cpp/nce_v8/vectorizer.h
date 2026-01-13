@@ -310,36 +310,43 @@ public:
         const std::vector<uint64_t>& store_addrs,
         int64_t estimated_trip_count) {
         VectorizationPlan plan;
-        plan.can_vectorize = false;
-        plan.original_header = header_addr;
-        plan.vectorized_header = 0;
+        plan.strategy = VectorizationPlan::Strategy::NONE;
         plan.vector_width = 4;  // Default NEON width
         plan.unroll_factor = 1;
-        plan.estimated_speedup = 1.0;
-        plan.use_sve2 = false;
-        plan.use_neon = false;
+        plan.needs_epilogue = false;
+        plan.needs_runtime_check = false;
+        plan.estimated_speedup = 1.0f;
+        plan.memory_pattern = VectorizationPlan::AccessPattern::UNKNOWN;
+        plan.stride = 0;
         
         // Check for dependencies
-        auto dep_graph = dep_analyzer_.Analyze(load_addrs, store_addrs);
-        if (!dep_graph.has_cycles) {
+        auto deps = dep_analyzer_.Analyze(load_addrs, store_addrs, estimated_trip_count);
+        if (dep_analyzer_.IsSafeToVectorize(deps)) {
+            uint32_t safe_width = dep_analyzer_.GetSafeVectorWidth(deps);
+            
             // Check if SVE2 is available and preferred
             if (prefer_sve2_) {
                 #if defined(__ARM_FEATURE_SVE2)
-                plan.use_sve2 = true;
+                plan.strategy = VectorizationPlan::Strategy::SVE2_SCALABLE;
                 plan.vector_width = 8;  // Variable, but assume 256-bit
                 #else
-                plan.use_neon = true;
+                plan.strategy = VectorizationPlan::Strategy::NEON_128;
                 plan.vector_width = 4;  // 128-bit
                 #endif
             } else {
-                plan.use_neon = true;
+                plan.strategy = VectorizationPlan::Strategy::NEON_128;
                 plan.vector_width = 4;
             }
             
+            // Clamp to safe width
+            if (plan.vector_width > safe_width) {
+                plan.vector_width = safe_width;
+            }
+            
             // Calculate speedup estimate
-            if (estimated_trip_count >= plan.vector_width * 2) {
-                plan.can_vectorize = true;
-                plan.estimated_speedup = plan.vector_width * 0.8;  // Account for overhead
+            if (estimated_trip_count >= static_cast<int64_t>(plan.vector_width) * 2) {
+                plan.estimated_speedup = plan.vector_width * 0.8f;  // Account for overhead
+                plan.needs_epilogue = (estimated_trip_count % plan.vector_width) != 0;
             }
         }
         
@@ -353,7 +360,7 @@ public:
         size_t code_size,
         void* emit_buffer,
         size_t buffer_size) {
-        if (!plan.can_vectorize) return nullptr;
+        if (plan.strategy == VectorizationPlan::Strategy::NONE) return nullptr;
         // Implementation placeholder - would generate SVE2/NEON code
         return emit_buffer;
     }
