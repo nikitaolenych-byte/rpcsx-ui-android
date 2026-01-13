@@ -300,7 +300,7 @@ private:
 // ============================================================================
 class LoopVectorizer {
 public:
-    LoopVectorizer(bool prefer_sve2 = true);
+    LoopVectorizer(bool prefer_sve2 = true) : prefer_sve2_(prefer_sve2) {}
     
     // Analyze loop and create vectorization plan
     VectorizationPlan Analyze(
@@ -308,7 +308,43 @@ public:
         uint64_t back_edge_addr,
         const std::vector<uint64_t>& load_addrs,
         const std::vector<uint64_t>& store_addrs,
-        int64_t estimated_trip_count);
+        int64_t estimated_trip_count) {
+        VectorizationPlan plan;
+        plan.can_vectorize = false;
+        plan.original_header = header_addr;
+        plan.vectorized_header = 0;
+        plan.vector_width = 4;  // Default NEON width
+        plan.unroll_factor = 1;
+        plan.estimated_speedup = 1.0;
+        plan.use_sve2 = false;
+        plan.use_neon = false;
+        
+        // Check for dependencies
+        auto dep_graph = dep_analyzer_.Analyze(load_addrs, store_addrs);
+        if (!dep_graph.has_cycles) {
+            // Check if SVE2 is available and preferred
+            if (prefer_sve2_) {
+                #if defined(__ARM_FEATURE_SVE2)
+                plan.use_sve2 = true;
+                plan.vector_width = 8;  // Variable, but assume 256-bit
+                #else
+                plan.use_neon = true;
+                plan.vector_width = 4;  // 128-bit
+                #endif
+            } else {
+                plan.use_neon = true;
+                plan.vector_width = 4;
+            }
+            
+            // Calculate speedup estimate
+            if (estimated_trip_count >= plan.vector_width * 2) {
+                plan.can_vectorize = true;
+                plan.estimated_speedup = plan.vector_width * 0.8;  // Account for overhead
+            }
+        }
+        
+        return plan;
+    }
     
     // Generate vectorized code
     void* Vectorize(
@@ -316,7 +352,11 @@ public:
         const uint8_t* original_code,
         size_t code_size,
         void* emit_buffer,
-        size_t buffer_size);
+        size_t buffer_size) {
+        if (!plan.can_vectorize) return nullptr;
+        // Implementation placeholder - would generate SVE2/NEON code
+        return emit_buffer;
+    }
     
     // Generate scalar epilogue
     void* EmitEpilogue(
@@ -324,7 +364,10 @@ public:
         const uint8_t* original_code,
         size_t code_size,
         void* emit_buffer,
-        size_t buffer_size);
+        size_t buffer_size) {
+        // Implementation placeholder
+        return emit_buffer;
+    }
     
 private:
     bool prefer_sve2_;
