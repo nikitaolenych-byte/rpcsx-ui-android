@@ -86,6 +86,8 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
     # NCE v8 - Ultimate Edition (Multi-tier JIT)
     nce_v8/nce_v8.cpp
     nce_v8/tiered_jit.cpp
+    # NCE v8 LLVM Backend (~100-200x speedup)
+    nce_v8/llvm_backend.cpp
     # PLT Hooking + PPU Interceptor
     plt_hook.cpp
     ppu_interceptor.cpp

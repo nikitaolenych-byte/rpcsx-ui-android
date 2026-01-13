@@ -37,9 +37,10 @@ constexpr const char* NCE_CODENAME = "Thunderbolt";
 // ============================================================================
 enum class CompilationTier : uint8_t {
     INTERPRETER = 0,      // Slowest, immediate execution
-    BASELINE_JIT = 1,     // Fast compile, moderate speed
-    OPTIMIZING_JIT = 2,   // Slow compile, maximum speed
-    MEGAMORPHIC = 3,      // Polymorphic call site optimization
+    BASELINE_JIT = 1,     // Fast compile, moderate speed (~10x)
+    OPTIMIZING_JIT = 2,   // SSA compile, good speed (~50x)
+    TIER_3_LLVM = 3,      // LLVM backend, maximum speed (~100-200x)
+    MEGAMORPHIC = 4,      // Polymorphic call site optimization
 };
 
 // ============================================================================
