@@ -1,10 +1,11 @@
-name: Build RPCSX Core with NCE JIT
+name: Build RPCSX Core with NCE v8 JIT
 
 on:
   workflow_dispatch:
   push:
     paths:
       - 'patches/rpcsx-nce-arm64-jit.patch'
+      - 'app/src/main/cpp/nce_v8/**'
 
 permissions:
   contents: write
@@ -78,7 +79,7 @@ jobs:
       - name: Upload librpcsx.so artifact
         uses: actions/upload-artifact@v4
         with:
-          name: librpcsx-nce-arm64
+          name: librpcsx-nce-v8-arm64
           path: artifacts/
           retention-days: 30
           if-no-files-found: warn
