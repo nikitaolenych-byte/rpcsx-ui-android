@@ -33,12 +33,8 @@ namespace nce {
 
 // ============================================================================
 // NCE Version
+// NOTE: version macros are defined in `nce_engine.h` (NCE_VERSION_MAJOR, NCE_VERSION_MINOR, etc.)
 // ============================================================================
-constexpr int NCE_VERSION_MAJOR = 2;
-constexpr int NCE_VERSION_MINOR = 0;
-constexpr const char* NCE_VERSION_STRING = "2.0.0-native";
-constexpr const char* NCE_CODENAME = "Native";
-
 // ============================================================================
 // NCE Configuration
 // ============================================================================
