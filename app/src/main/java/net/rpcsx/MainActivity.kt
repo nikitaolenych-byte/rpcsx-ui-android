@@ -157,7 +157,7 @@ class MainActivity : ComponentActivity() {
      */
     private fun autoEnableNceJit() {
         val nceEnabledKey = "nce_jit_auto_enabled"
-        val nceMode = GeneralSettings["nce_mode"] as? Int ?: -1
+        val nceMode = GeneralSettings.nceMode
         
         // Always restore NCE mode from saved preference
         if (nceMode >= 0) {
@@ -175,14 +175,14 @@ class MainActivity : ComponentActivity() {
                 if (ok) {
                     // Activate NCE JIT layer (mode 3) for additional ARM64 optimizations
                     RPCSX.instance.setNCEMode(3)
-                    GeneralSettings["nce_mode"] = 3
+                    GeneralSettings.nceMode = 3
                     GeneralSettings[nceEnabledKey] = true
                     Log.i("RPCSX", "NCE/JIT auto-enabled (LLVM + NCE optimization layer)")
                 } else {
                     Log.w("RPCSX", "Failed to set PPU Decoder to LLVM, trying fallback...")
                     // Still enable NCE for runtime optimizations
                     RPCSX.instance.setNCEMode(3)
-                    GeneralSettings["nce_mode"] = 3
+                    GeneralSettings.nceMode = 3
                     GeneralSettings[nceEnabledKey] = true
                 }
             } catch (e: Exception) {

@@ -288,9 +288,18 @@ fun AdvancedSettingsScreen(
                                 if (isPpuDecoder && !variants.contains("NCE")) {
                                     variants.add(0, "NCE") // Add at top of list
                                 }
+                                
+                                // Check if NCE mode is active (use cached value for performance)
+                                // If NCE mode = 3, show "NCE" even if underlying decoder is LLVM
+                                val savedNceMode = net.rpcsx.utils.GeneralSettings.nceMode
+                                val displayValue = if (isPpuDecoder && savedNceMode == 3) {
+                                    "NCE"
+                                } else {
+                                    itemValue
+                                }
 
                                 SingleSelectionDialog(
-                                    currentValue = if (itemValue in variants) itemValue else variants[0],
+                                    currentValue = if (displayValue in variants) displayValue else variants[0],
                                     values = variants,
                                     icon = null,
                                     title = key + if (itemValue == def) "" else " *",
@@ -302,8 +311,8 @@ fun AdvancedSettingsScreen(
                                             RPCSX.instance.settingsSet(itemPath, "\"LLVM Recompiler (Legacy)\"")
                                             // Activate NCE JIT layer for ARM64 runtime optimizations
                                             RPCSX.instance.setNCEMode(3)
-                                            // Save NCE mode to preferences for persistence
-                                            net.rpcsx.utils.GeneralSettings["nce_mode"] = 3
+                                            // Save NCE mode (use cached setter for performance)
+                                            net.rpcsx.utils.GeneralSettings.nceMode = 3
                                             itemObject.put("value", value)
                                             itemValue = value
                                             return@SingleSelectionDialog
@@ -321,7 +330,7 @@ fun AdvancedSettingsScreen(
                                             itemObject.put("value", value)
                                             itemValue = value
                                             
-                                            // Sync NCE mode when PPU Decoder changes and save to preferences
+                                            // Sync NCE mode when PPU Decoder changes
                                             if (isPpuDecoder) {
                                                 val nceMode = when (value) {
                                                     "LLVM Recompiler (Legacy)" -> 2
@@ -330,7 +339,7 @@ fun AdvancedSettingsScreen(
                                                     else -> 0
                                                 }
                                                 RPCSX.instance.setNCEMode(nceMode)
-                                                net.rpcsx.utils.GeneralSettings["nce_mode"] = nceMode
+                                                net.rpcsx.utils.GeneralSettings.nceMode = nceMode
                                             }
                                         }
                                     },

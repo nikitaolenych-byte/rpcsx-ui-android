@@ -99,8 +99,8 @@ class RPCSXActivity : Activity() {
      * This prevents NCE from being reset to interpreter when launching games.
      */
     private fun restoreNCEMode() {
-        val savedMode = GeneralSettings["nce_mode"] as? Int
-        if (savedMode != null && savedMode >= 0) {
+        val savedMode = GeneralSettings.nceMode
+        if (savedMode >= 0) {
             RPCSX.instance.setNCEMode(savedMode)
             Log.i("RPCSX", "Restored NCE mode before boot: $savedMode (${
                 when (savedMode) {
@@ -114,7 +114,7 @@ class RPCSXActivity : Activity() {
         } else {
             // Default to NCE/JIT if not set
             RPCSX.instance.setNCEMode(3)
-            GeneralSettings["nce_mode"] = 3
+            GeneralSettings.nceMode = 3
             Log.i("RPCSX", "NCE mode not set, defaulting to NCE/JIT (mode 3)")
         }
     }

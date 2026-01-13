@@ -7,10 +7,23 @@ import android.content.SharedPreferences
 object GeneralSettings {
 
     private lateinit var prefs: SharedPreferences
+    
+    // In-memory cache for frequently accessed values to avoid SharedPreferences overhead
+    private var cachedNceMode: Int? = null
 
     fun init(context: Context) {
         prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+        // Pre-load cached values
+        cachedNceMode = prefs.getInt("nce_mode", -1).takeIf { prefs.contains("nce_mode") }
     }
+    
+    // Fast access to NCE mode without SharedPreferences lookup
+    var nceMode: Int
+        get() = cachedNceMode ?: -1
+        set(value) {
+            cachedNceMode = value
+            prefs.edit().putInt("nce_mode", value).apply()
+        }
 
     operator fun get(key: String): Any? = with(prefs) {
         when {
