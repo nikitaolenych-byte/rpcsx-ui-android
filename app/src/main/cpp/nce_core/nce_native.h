@@ -25,6 +25,19 @@
 #include "ps3_memory_map.h"
 #include "ps3_syscall.h"
 
+#include "ps3_memory_map.h"
+#include "ps3_syscall.h"
+#include "thread_pool.h"
+#include "profiler.h"
+#include "game_mode_android.h"
+
+// Forward declarations
+namespace rpcsx {
+namespace ppu { class PPUInterpreter; class PPUJITCompiler; }
+namespace spu { class SPUThreadGroup; class SPUJITCompiler; }
+namespace rsx { class RSXEmulator; }
+}
+
 namespace rpcsx {
 namespace nce {
 
@@ -34,6 +47,11 @@ namespace nce {
 constexpr int NCE_VERSION_MAJOR = 2;
 constexpr int NCE_VERSION_MINOR = 0;
 constexpr const char* NCE_VERSION_STRING = "2.0.0-native";
+// NCE Version (defined in nce_engine.h)
+// ============================================================================
+// constexpr int NCE_VERSION_MAJOR = 2;
+// constexpr int NCE_VERSION_MINOR = 0;
+// constexpr const char* NCE_VERSION_STRING = "2.0.0-native";
 constexpr const char* NCE_CODENAME = "Native";
 
 // ============================================================================
@@ -157,13 +175,18 @@ public:
     
 private:
     NCEConfig config_;
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
     struct PPUThread {
         uint64_t id;
         std::thread native_thread;
         std::atomic<bool> running;
         ps3::PPUThreadContext context;
     };
+<<<<<<< HEAD
     
     std::vector<std::unique_ptr<PPUThread>> threads_;
     std::atomic<uint64_t> next_thread_id_{1};
@@ -176,6 +199,26 @@ private:
     void* CompileBlock(uint64_t address);
     void ExecuteBlock(PPUThread& thread, void* code);
     
+=======
+
+    std::vector<std::unique_ptr<PPUThread>> threads_;
+    std::atomic<uint64_t> next_thread_id_{1};
+
+    // JIT code cache (legacy)
+    void* jit_cache_ = nullptr;
+    size_t jit_cache_used_ = 0;
+
+    // PPU Interpreter (legacy)
+    std::unique_ptr<ppu::PPUInterpreter> ppu_interpreter_;
+
+    // PPU JIT Compiler (новий)
+    std::unique_ptr<ppu::PPUJITCompiler> ppu_jit_;
+
+    // Compile and execute block
+    void* CompileBlock(uint64_t address);
+    void ExecuteBlock(PPUThread& thread, void* code);
+
+>>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
     // Handle syscall (called from JIT code)
     static void HandleSyscall(PPUThread* thread);
 };
@@ -208,11 +251,16 @@ public:
     
 private:
     NCEConfig config_;
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
     struct SPUThread {
         int id;
         std::thread native_thread;
         std::atomic<bool> running;
+<<<<<<< HEAD
         
         // Local Store (256KB)
         uint8_t local_store[256 * 1024];
@@ -221,22 +269,49 @@ private:
         __uint128_t gpr[128];     // 128 x 128-bit registers
         uint32_t pc;
         
+=======
+
+        // Local Store (256KB)
+        uint8_t local_store[256 * 1024];
+
+        // Registers
+        __uint128_t gpr[128];     // 128 x 128-bit registers
+        uint32_t pc;
+
+>>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
         // Channels
         uint32_t snr[2];          // Signal Notification Registers
         uint32_t out_mbox;
         uint32_t in_mbox;
     };
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
     struct SPUThreadGroup {
         uint32_t id;
         std::string name;
         std::vector<SPUThread> threads;
         std::atomic<bool> running;
     };
+<<<<<<< HEAD
     
     std::vector<std::unique_ptr<SPUThreadGroup>> thread_groups_;
     std::atomic<uint32_t> next_group_id_{1};
     
+=======
+
+    std::vector<std::unique_ptr<SPUThreadGroup>> thread_groups_;
+    std::atomic<uint32_t> next_group_id_{1};
+
+    // SPU Interpreter (real execution with NEON!)
+    std::unique_ptr<spu::SPUThreadGroup> spu_thread_group_;
+
+    // SPU JIT Compiler (новий)
+    std::unique_ptr<spu::SPUJITCompiler> spu_jit_;
+
+>>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
     // SPU instruction execution (using NEON)
     void ExecuteSPUInstruction(SPUThread& spu, uint32_t instr);
 };
@@ -298,7 +373,11 @@ public:
     
     // Load and run PS3 game
     bool LoadGame(const char* eboot_path);
+<<<<<<< HEAD
     void StartGame();
+=======
+    bool StartGame();
+>>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
     void StopGame();
     
     // State
@@ -322,6 +401,7 @@ public:
     };
     Stats GetStats() const;
     
+<<<<<<< HEAD
 private:
     NativeCodeExecutor() = default;
     ~NativeCodeExecutor() = default;
@@ -334,6 +414,29 @@ private:
     
     std::atomic<bool> running_{false};
     
+=======
+public:
+    NativeCodeExecutor() = default;
+    ~NativeCodeExecutor() = default;
+
+private:
+
+    std::unique_ptr<PPUExecutionEngine> ppu_;
+    std::unique_ptr<SPUExecutionEngine> spu_;
+    std::unique_ptr<RSXExecutionEngine> rsx_;
+
+    // Thread pool for async tasks (IO, shader compile, etc)
+    std::unique_ptr<util::ThreadPool> thread_pool_;
+
+    // Profiler for performance stats
+    util::Profiler profiler_;
+
+    // Game Mode (Android performance mode)
+    bool game_mode_enabled_ = false;
+
+    std::atomic<bool> running_{false};
+
+>>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
     // Main PPU thread ID
     uint64_t main_thread_id_ = 0;
 };

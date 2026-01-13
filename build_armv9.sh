@@ -4,7 +4,9 @@
 # Автоматична збірка з максимальними оптимізаціями
 
 set -e  # Вийти при помилці
-
+# Change to script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
 echo "=================================================="
 echo "RPCSX ARMv9 Build Script"
 echo "Target: Snapdragon 8s Gen 3 (ARMv9+SVE2)"

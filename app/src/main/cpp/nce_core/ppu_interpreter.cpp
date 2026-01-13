@@ -120,6 +120,7 @@ void PPUInterpreter::WriteMemory64(PPUState& state, uint64_t addr, uint64_t valu
 // Execution
 // ============================================================================
 void PPUInterpreter::Step(PPUState& state) {
+<<<<<<< HEAD
     uint32_t inst_raw = ReadMemory32(state, state.pc);
     PPUInstruction inst = { inst_raw };
     
@@ -135,10 +136,35 @@ void PPUInterpreter::Execute(PPUState& state, uint64_t count) {
 }
 
 void PPUInterpreter::Run(PPUState& state) {
+=======
+    profiler_.Start("PPU_Step");
+    uint32_t inst_raw = ReadMemory32(state, state.pc);
+    PPUInstruction inst = { inst_raw };
+    state.npc = state.pc + 4;
+    ExecuteInstruction(state, inst);
+    state.pc = state.npc;
+    profiler_.Stop("PPU_Step");
+}
+
+void PPUInterpreter::Execute(PPUState& state, uint64_t count) {
+    profiler_.Start("PPU_Execute");
+    for (uint64_t i = 0; i < count && state.running; ++i) {
+        Step(state);
+    }
+    profiler_.Stop("PPU_Execute");
+}
+
+void PPUInterpreter::Run(PPUState& state) {
+    profiler_.Start("PPU_Run");
+>>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
     state.running = true;
     while (state.running && !state.halted) {
         Step(state);
     }
+<<<<<<< HEAD
+=======
+    profiler_.Stop("PPU_Run");
+>>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
 }
 
 // ============================================================================

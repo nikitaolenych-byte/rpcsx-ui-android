@@ -121,16 +121,31 @@ class SPUInterpreter {
 public:
     SPUInterpreter();
     ~SPUInterpreter();
+<<<<<<< HEAD
     
     // Initialize SPU with ID (0-5) and main memory pointer
     void Initialize(uint32_t spu_id, void* main_memory, size_t memory_size);
     void Shutdown();
     
+=======
+
+    util::Profiler profiler_;
+    double GetLastStepTime() const { return profiler_.GetElapsed("SPU_Step"); }
+
+    // Initialize SPU with ID (0-5) and main memory pointer
+    void Initialize(uint32_t spu_id, void* main_memory, size_t memory_size);
+    void Shutdown();
+
+>>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
     // Execute
     void Step(SPUState& state);
     void Execute(SPUState& state, uint64_t count);
     void Run(SPUState& state);
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
     // Thread execution (для паралельного виконання 6 SPU)
     void RunInThread(SPUState& state);
     

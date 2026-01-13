@@ -159,6 +159,7 @@ class PPUInterpreter {
 public:
     PPUInterpreter();
     ~PPUInterpreter() = default;
+<<<<<<< HEAD
     
     // Initialize with memory base
     void Initialize(void* memory_base, size_t memory_size);
@@ -172,17 +173,44 @@ public:
     // Run until halt
     void Run(PPUState& state);
     
+=======
+
+    // Profiler for timing
+    util::Profiler profiler_;
+
+    // Initialize with memory base
+    void Initialize(void* memory_base, size_t memory_size);
+
+    // Execute single instruction
+    void Step(PPUState& state);
+    double GetLastStepTime() const { return profiler_.GetElapsed("PPU_Step"); }
+
+    // Execute N instructions
+    void Execute(PPUState& state, uint64_t count);
+
+    // Run until halt
+    void Run(PPUState& state);
+
+>>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
     // Memory access
     uint8_t  ReadMemory8(PPUState& state, uint64_t addr);
     uint16_t ReadMemory16(PPUState& state, uint64_t addr);
     uint32_t ReadMemory32(PPUState& state, uint64_t addr);
     uint64_t ReadMemory64(PPUState& state, uint64_t addr);
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
     void WriteMemory8(PPUState& state, uint64_t addr, uint8_t value);
     void WriteMemory16(PPUState& state, uint64_t addr, uint16_t value);
     void WriteMemory32(PPUState& state, uint64_t addr, uint32_t value);
     void WriteMemory64(PPUState& state, uint64_t addr, uint64_t value);
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
 private:
     void* memory_base_;
     size_t memory_size_;

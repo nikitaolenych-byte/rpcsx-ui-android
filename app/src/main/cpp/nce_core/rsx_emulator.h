@@ -340,6 +340,11 @@ public:
     bool Initialize(void* vram_base, size_t vram_size,
                    VkInstance instance, VkPhysicalDevice physical_device,
                    VkDevice device, VkQueue graphics_queue, uint32_t queue_family);
+<<<<<<< HEAD
+=======
+        util::Profiler profiler_;
+        double GetLastRunTime() const { return profiler_.GetElapsed("RSX_Run"); }
+>>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
     void Shutdown();
     
     // Allocate RSX context (command buffer у VRAM)

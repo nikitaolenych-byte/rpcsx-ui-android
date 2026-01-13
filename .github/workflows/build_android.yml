@@ -23,7 +23,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
           cache: gradle
 
       - name: Set up Android SDK
@@ -44,8 +44,8 @@ jobs:
 
       - name: Build Release APK
         run: |
-          chmod +x gradlew
-          ./gradlew :app:assembleRelease --stacktrace --warning-mode all
+          chmod +x build_armv9.sh
+          ./build_armv9.sh
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

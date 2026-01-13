@@ -8,6 +8,10 @@
 #include <cstdint>
 #include <cstddef>
 #include <vector>
+<<<<<<< HEAD
+=======
+#include <nce_core/thread_pool.h>
+>>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
 #include <unordered_map>
 #include <queue>
 #include <mutex>
@@ -34,6 +38,7 @@ struct ShaderCompilationTask {
  * Ініціалізація трирівневого shader cache
  */
 bool InitializeShaderCache(const char* cache_directory);
+#include <nce_core/thread_pool.h>
 
 /**
  * Ініціалізація shader cache з build-id (для інвалідації кешу після оновлень)
@@ -61,7 +66,11 @@ void CacheShaderL3(uint64_t hash, const CompiledShader& shader);
  * Async компіляція шейдерів
  */
 void QueueShaderCompilation(const ShaderCompilationTask& task);
+<<<<<<< HEAD
 void AsyncCompilationWorker();
+=======
+void SetThreadPool(util::ThreadPool* pool);
+>>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
 
 /**
  * Компресія/декомпресія
@@ -83,7 +92,7 @@ void ShutdownShaderCache();
 CompiledShader* LoadFromL2Cache(uint64_t hash);
 CompiledShader* LoadFromL3Cache(uint64_t hash);
 void EvictOldestL1Entries();
-void LoadPersistentCache();
+void SetThreadPool(util::ThreadPool* pool);
 void CompileShaderAsync(const ShaderCompilationTask& task);
 
 } // namespace rpcsx::shaders
