@@ -244,6 +244,8 @@ std::vector<uint8_t> DecompressShader(const void* compressed_data, size_t compre
 /**
  * Ініціалізація трирівневого кешу
  */
+void LoadPersistentCache();
+
 bool InitializeShaderCache(const char* cache_directory) {
     return InitializeShaderCache(cache_directory, nullptr);
 }
