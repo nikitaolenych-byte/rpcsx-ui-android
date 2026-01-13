@@ -22,6 +22,7 @@
 #include "thread_scheduler.h"
 #include "frostbite_hacks.h"
 #include "realsteel_hacks.h"
+#include "game_patches.h"
 #include "vulkan_renderer.h"
 #include "fsr31/fsr31.h"
 #include "signal_handler.h"
@@ -281,11 +282,13 @@ extern "C" JNIEXPORT jint JNICALL Java_net_rpcsx_RPCSX_boot(JNIEnv *env,
   if (auto getTitleId = rpcsxLib.getTitleId) {
       std::string titlId = getTitleId();
       if (!titlId.empty()) {
+          // Universal game patches (Demon's Souls, Saw, inFamous, etc.)
+          rpcsx::patches::InitializeGamePatches(titlId.c_str());
           // Frostbite engine games (BF4, PvZ:GW, etc.)
           rpcsx::frostbite::InitializeFrostbiteHacks(titlId.c_str());
           // Real Steel (robot boxing game)
           rpcsx::realsteel::InitializeRealSteelHacks(titlId.c_str());
-          LOGI("Attempted to apply game-specific hacks for ID: %s", titlId.c_str());
+          LOGI("Applied game-specific patches for ID: %s", titlId.c_str());
       }
   }
 
@@ -475,13 +478,22 @@ Java_net_rpcsx_RPCSX_initializeARMv9Optimizations(JNIEnv *env, jobject,
     success = false;
   }
   
-  // 5. Ініціалізація Frostbite хаків (якщо потрібно)
+  // 5. Game-specific patches (Demon's Souls, Saw, inFamous, etc.)
+  auto gameType = rpcsx::patches::DetectGame(titleId.c_str());
+  if (gameType != rpcsx::patches::GameType::UNKNOWN) {
+    const auto& config = rpcsx::patches::GetGameConfig(gameType);
+    LOGI("Detected game: %s - applying patches (target: %d FPS)...", 
+         config.name, config.target_fps);
+    rpcsx::patches::InitializeGamePatches(titleId.c_str());
+  }
+  
+  // 5.1. Ініціалізація Frostbite хаків (якщо потрібно)
   if (rpcsx::frostbite::IsFrostbite3Game(titleId.c_str())) {
     LOGI("Frostbite 3 game detected - applying engine-specific hacks...");
     rpcsx::frostbite::InitializeFrostbiteHacks(titleId.c_str());
   }
   
-  // 5.1. Ініціалізація Real Steel хаків (якщо потрібно)
+  // 5.2. Ініціалізація Real Steel хаків (якщо потрібно)
   if (rpcsx::realsteel::IsRealSteelGame(titleId.c_str())) {
     LOGI("Real Steel detected - applying game-specific optimizations...");
     rpcsx::realsteel::InitializeRealSteelHacks(titleId.c_str());

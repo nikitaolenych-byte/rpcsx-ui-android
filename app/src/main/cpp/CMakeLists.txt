@@ -75,6 +75,7 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
     thread_scheduler.cpp
     frostbite_hacks.cpp
     realsteel_hacks.cpp
+    game_patches.cpp
     vulkan_renderer.cpp
     fsr31/fsr31.cpp
     # NCE JIT PowerPC (Cell PPU) → ARM64 compiler
