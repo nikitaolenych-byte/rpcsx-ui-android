@@ -1,12 +1,9 @@
-// ============================================================================
 // RSX - Reality Synthesizer (PS3 GPU) → Vulkan Backend
-// ============================================================================
 // RSX базується на NVIDIA G70/G71 (GeForce 7800)
 // 256MB GDDR3 VRAM
 // OpenGL ES 2.0 рівень функціональності
 // 
 // Транслюємо RSX команди → Vulkan для Android
-// ============================================================================
 
 #pragma once
 
@@ -19,9 +16,7 @@
 namespace rpcsx {
 namespace rsx {
 
-// ============================================================================
 // RSX Register Map
-// ============================================================================
 constexpr uint32_t RSX_CONTEXT_BASE = 0x40000000;
 constexpr uint32_t RSX_CONTEXT_SIZE = 16 * 1024 * 1024;  // 16MB command buffer
 
@@ -120,18 +115,14 @@ enum RSXRegister : uint32_t {
     NV4097_CLEAR_SURFACE                     = 0x00001D8C,
 };
 
-// ============================================================================
 // RSX Command Buffer
-// ============================================================================
 struct RSXCommand {
     uint32_t method;     // Register offset
     uint32_t count;      // Number of args
     uint32_t args[256];  // Arguments
 };
 
-// ============================================================================
 // RSX State
-// ============================================================================
 struct RSXState {
     // Command buffer (ring buffer у GDDR3)
     uint32_t* command_buffer;
@@ -223,9 +214,7 @@ struct RSXState {
     bool flip_pending;
 };
 
-// ============================================================================
 // Vulkan Backend for RSX
-// ============================================================================
 class RSXVulkanBackend {
 public:
     RSXVulkanBackend();
@@ -328,9 +317,7 @@ private:
                                 std::vector<uint32_t>& spirv);
 };
 
-// ============================================================================
 // RSX Emulator - Main Interface
-// ============================================================================
 class RSXEmulator {
 public:
     RSXEmulator();
@@ -340,11 +327,8 @@ public:
     bool Initialize(void* vram_base, size_t vram_size,
                    VkInstance instance, VkPhysicalDevice physical_device,
                    VkDevice device, VkQueue graphics_queue, uint32_t queue_family);
-<<<<<<< HEAD
-=======
         util::Profiler profiler_;
         double GetLastRunTime() const { return profiler_.GetElapsed("RSX_Run"); }
->>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
     void Shutdown();
     
     // Allocate RSX context (command buffer у VRAM)

@@ -8,10 +8,7 @@
 #include <cstdint>
 #include <cstddef>
 #include <vector>
-<<<<<<< HEAD
-=======
 #include <nce_core/thread_pool.h>
->>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
 #include <unordered_map>
 #include <queue>
 #include <mutex>
@@ -66,11 +63,7 @@ void CacheShaderL3(uint64_t hash, const CompiledShader& shader);
  * Async компіляція шейдерів
  */
 void QueueShaderCompilation(const ShaderCompilationTask& task);
-<<<<<<< HEAD
-void AsyncCompilationWorker();
-=======
 void SetThreadPool(util::ThreadPool* pool);
->>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
 
 /**
  * Компресія/декомпресія

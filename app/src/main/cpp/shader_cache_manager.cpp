@@ -39,17 +39,8 @@ struct ShaderCacheImpl {
     // L3: Compressed кеш
     std::string l3_cache_file;
     
-<<<<<<< HEAD
-    // Async компіляція
-    std::queue<ShaderCompilationTask> compilation_queue;
-    std::mutex queue_mutex;
-    std::condition_variable queue_cv;
-    std::atomic<bool> async_running;
-    std::thread async_thread;
-=======
     // Async компіляція через глобальний thread pool
     util::ThreadPool* thread_pool = nullptr;
->>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
     
     // Статистика
     std::atomic<uint64_t> l1_hits{0};
@@ -277,13 +268,6 @@ bool InitializeShaderCache(const char* cache_directory, const char* build_id) {
     // Завантажуємо існуючий кеш з диска
     LoadPersistentCache();
 
-<<<<<<< HEAD
-    // Запускаємо async компіляцію
-    g_cache->async_running = true;
-    g_cache->async_thread = std::thread(AsyncCompilationWorker);
-
-=======
->>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
     LOGI("Shader cache initialized at: %s", cache_directory);
     return true;
 }
@@ -392,51 +376,12 @@ void CacheShaderL3(uint64_t hash, const CompiledShader& shader) {
 /**
  * Async shader compilation worker thread
  */
-<<<<<<< HEAD
-void AsyncCompilationWorker() {
-    LOGI("Async shader compilation thread started");
-    
-    while (g_cache->async_running) {
-        ShaderCompilationTask task;
-        
-        {
-            std::unique_lock<std::mutex> lock(g_cache->queue_mutex);
-            g_cache->queue_cv.wait(lock, [] {
-                return !g_cache->compilation_queue.empty() || !g_cache->async_running;
-            });
-            
-            if (!g_cache->async_running && g_cache->compilation_queue.empty()) {
-                break;
-            }
-            
-            task = g_cache->compilation_queue.front();
-            g_cache->compilation_queue.pop();
-        }
-        
-        // Компілюємо шейдер
-        CompileShaderAsync(task);
-    }
-    
-    LOGI("Async shader compilation thread stopped");
-}
-=======
 // AsyncCompilationWorker більше не потрібен
->>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
 
 /**
  * Додавання завдання в чергу async компіляції
  */
 void QueueShaderCompilation(const ShaderCompilationTask& task) {
-<<<<<<< HEAD
-    if (!g_cache) return;
-    
-    std::lock_guard<std::mutex> lock(g_cache->queue_mutex);
-    g_cache->compilation_queue.push(task);
-    g_cache->queue_cv.notify_one();
-    
-    LOGI("Shader queued for async compilation (queue size: %zu)", 
-         g_cache->compilation_queue.size());
-=======
     if (!g_cache || !g_cache->thread_pool) {
         LOGE("Thread pool not set for shader cache!");
         return;
@@ -452,7 +397,6 @@ void SetThreadPool(util::ThreadPool* pool) {
         g_cache->thread_pool = pool;
         LOGI("Shader cache: thread pool set");
     }
->>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
 }
 
 /**
@@ -483,27 +427,12 @@ void PrintCacheStats() {
  */
 void ShutdownShaderCache() {
     if (!g_cache) return;
-<<<<<<< HEAD
-    
-    // Зупиняємо async компіляцію
-    g_cache->async_running = false;
-    g_cache->queue_cv.notify_all();
-    
-    if (g_cache->async_thread.joinable()) {
-        g_cache->async_thread.join();
-    }
-    
-    // Виводимо статистику
-    PrintCacheStats();
-    
-=======
     // Дочекаємося завершення всіх завдань, якщо thread pool заданий
     if (g_cache->thread_pool) {
         g_cache->thread_pool->wait();
     }
     // Виводимо статистику
     PrintCacheStats();
->>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
     g_cache.reset();
     LOGI("Shader cache shutdown complete");
 }

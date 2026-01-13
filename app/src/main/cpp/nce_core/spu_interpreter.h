@@ -1,9 +1,6 @@
-// ============================================================================
 // SPU Interpreter - Cell Synergistic Processing Unit
-// ============================================================================
 // PS3 має 6 SPU процесорів для SIMD обчислень
 // Кожен SPU має 256KB Local Store + 128 регістрів по 128 біт
-// ============================================================================
 
 #pragma once
 
@@ -16,9 +13,7 @@
 namespace rpcsx {
 namespace spu {
 
-// ============================================================================
 // SPU Register State
-// ============================================================================
 struct SPUState {
     // 128 General Purpose Registers (128-bit кожен)
     union SPUReg {
@@ -81,9 +76,7 @@ struct SPUState {
     uint32_t spu_id;  // 0-5 for 6 SPUs
 };
 
-// ============================================================================
 // SPU Instruction Format
-// ============================================================================
 struct SPUInstruction {
     uint32_t raw;
     
@@ -114,20 +107,11 @@ struct SPUInstruction {
     uint32_t i18() const { return (raw >> 7) & 0x3FFFF; }
 };
 
-// ============================================================================
 // SPU Interpreter
-// ============================================================================
 class SPUInterpreter {
 public:
     SPUInterpreter();
     ~SPUInterpreter();
-<<<<<<< HEAD
-    
-    // Initialize SPU with ID (0-5) and main memory pointer
-    void Initialize(uint32_t spu_id, void* main_memory, size_t memory_size);
-    void Shutdown();
-    
-=======
 
     util::Profiler profiler_;
     double GetLastStepTime() const { return profiler_.GetElapsed("SPU_Step"); }
@@ -136,16 +120,11 @@ public:
     void Initialize(uint32_t spu_id, void* main_memory, size_t memory_size);
     void Shutdown();
 
->>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
     // Execute
     void Step(SPUState& state);
     void Execute(SPUState& state, uint64_t count);
     void Run(SPUState& state);
-<<<<<<< HEAD
-    
-=======
 
->>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
     // Thread execution (для паралельного виконання 6 SPU)
     void RunInThread(SPUState& state);
     
@@ -160,9 +139,7 @@ private:
     
     void ExecuteInstruction(SPUState& state, SPUInstruction inst);
     
-    // ========================================================================
     // Memory Load/Store
-    // ========================================================================
     void LQD(SPUState& state, SPUInstruction inst);    // Load Quadword (128-bit)
     void LQX(SPUState& state, SPUInstruction inst);    // Load Quadword Indexed
     void LQA(SPUState& state, SPUInstruction inst);    // Load Quadword Absolute
@@ -172,9 +149,7 @@ private:
     void STQA(SPUState& state, SPUInstruction inst);
     void STQR(SPUState& state, SPUInstruction inst);
     
-    // ========================================================================
     // Integer Arithmetic (SIMD)
-    // ========================================================================
     void AH(SPUState& state, SPUInstruction inst);     // Add Halfword
     void AHI(SPUState& state, SPUInstruction inst);    // Add Halfword Immediate
     void A(SPUState& state, SPUInstruction inst);      // Add Word
@@ -196,9 +171,7 @@ private:
     void MPYS(SPUState& state, SPUInstruction inst);   // Multiply and Shift Right
     void MPYHHA(SPUState& state, SPUInstruction inst); // Multiply High High and Add
     
-    // ========================================================================
     // Integer Compare
-    // ========================================================================
     void CEQB(SPUState& state, SPUInstruction inst);   // Compare Equal Byte
     void CEQH(SPUState& state, SPUInstruction inst);   // Compare Equal Halfword
     void CEQ(SPUState& state, SPUInstruction inst);    // Compare Equal Word
@@ -218,9 +191,7 @@ private:
     void CLGTHI(SPUState& state, SPUInstruction inst);
     void CLGTI(SPUState& state, SPUInstruction inst);
     
-    // ========================================================================
     // Branch
-    // ========================================================================
     void BR(SPUState& state, SPUInstruction inst);     // Branch Relative
     void BRA(SPUState& state, SPUInstruction inst);    // Branch Absolute
     void BRSL(SPUState& state, SPUInstruction inst);   // Branch Relative and Set Link
@@ -234,9 +205,7 @@ private:
     void BRHZ(SPUState& state, SPUInstruction inst);   // Branch if Halfword Zero
     void BRHNZ(SPUState& state, SPUInstruction inst);  // Branch if Halfword Not Zero
     
-    // ========================================================================
     // Logical
-    // ========================================================================
     void AND(SPUState& state, SPUInstruction inst);    // AND
     void ANDC(SPUState& state, SPUInstruction inst);   // AND Complement
     void ANDBI(SPUState& state, SPUInstruction inst);  // AND Byte Immediate
@@ -256,9 +225,7 @@ private:
     void NOR(SPUState& state, SPUInstruction inst);
     void EQV(SPUState& state, SPUInstruction inst);
     
-    // ========================================================================
     // Shift/Rotate
-    // ========================================================================
     void SHLH(SPUState& state, SPUInstruction inst);   // Shift Left Halfword
     void SHLHI(SPUState& state, SPUInstruction inst);
     void SHL(SPUState& state, SPUInstruction inst);    // Shift Left Word
@@ -284,9 +251,7 @@ private:
     void ROTMA(SPUState& state, SPUInstruction inst);  // Rotate and Mask Algebraic Word
     void ROTMAI(SPUState& state, SPUInstruction inst);
     
-    // ========================================================================
     // Floating Point (використовуємо NEON)
-    // ========================================================================
     void FA(SPUState& state, SPUInstruction inst);     // Floating Add
     void FS(SPUState& state, SPUInstruction inst);     // Floating Subtract
     void FM(SPUState& state, SPUInstruction inst);     // Floating Multiply
@@ -305,9 +270,7 @@ private:
     void FSCRRD(SPUState& state, SPUInstruction inst); // Floating Status and Control Register Read
     void FSCRWR(SPUState& state, SPUInstruction inst); // Floating Status and Control Register Write
     
-    // ========================================================================
     // Select/Shuffle/Permute
-    // ========================================================================
     void SELB(SPUState& state, SPUInstruction inst);   // Select Bits
     void SHUFB(SPUState& state, SPUInstruction inst);  // Shuffle Bytes
     void MPYA(SPUState& state, SPUInstruction inst);   // Multiply and Add
@@ -320,16 +283,12 @@ private:
     void CDD(SPUState& state, SPUInstruction inst);    // Generate Controls for Doubleword Insertion
     void CDX(SPUState& state, SPUInstruction inst);
     
-    // ========================================================================
     // Channel Instructions (SPU-specific)
-    // ========================================================================
     void RDCH(SPUState& state, SPUInstruction inst);   // Read Channel
     void RCHCNT(SPUState& state, SPUInstruction inst); // Read Channel Count
     void WRCH(SPUState& state, SPUInstruction inst);   // Write Channel
     
-    // ========================================================================
     // Control
-    // ========================================================================
     void STOP(SPUState& state, SPUInstruction inst);   // Stop and Signal
     void STOPD(SPUState& state, SPUInstruction inst);  // Stop and Signal with Dependencies
     void LNOP(SPUState& state, SPUInstruction inst);   // No Operation (Load)
@@ -344,9 +303,7 @@ private:
     void GetQuadword(SPUState& state, uint32_t rt, uint8_t* data);
 };
 
-// ============================================================================
 // SPU Thread Group - Manages 6 SPUs in parallel
-// ============================================================================
 class SPUThreadGroup {
 public:
     SPUThreadGroup();

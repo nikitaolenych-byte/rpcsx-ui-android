@@ -1,8 +1,5 @@
-// ============================================================================
 // PPU Interpreter Implementation
-// ============================================================================
 // Повна реалізація PowerPC Cell PPU інструкцій для PS3
-// ============================================================================
 
 #include "ppu_interpreter.h"
 #include <android/log.h>
@@ -17,9 +14,7 @@
 namespace rpcsx {
 namespace ppu {
 
-// ============================================================================
 // Byte Swap Helpers (PS3 is Big Endian, ARM is Little Endian)
-// ============================================================================
 static inline uint16_t bswap16(uint16_t x) {
     return __builtin_bswap16(x);
 }
@@ -32,9 +27,7 @@ static inline uint64_t bswap64(uint64_t x) {
     return __builtin_bswap64(x);
 }
 
-// ============================================================================
 // Constructor
-// ============================================================================
 PPUInterpreter::PPUInterpreter() 
     : memory_base_(nullptr)
     , memory_size_(0) {
@@ -46,9 +39,7 @@ void PPUInterpreter::Initialize(void* memory_base, size_t memory_size) {
     LOGI("PPU Interpreter initialized with %zu MB memory", memory_size / (1024 * 1024));
 }
 
-// ============================================================================
 // Memory Access (Big Endian)
-// ============================================================================
 uint8_t PPUInterpreter::ReadMemory8(PPUState& state, uint64_t addr) {
     if (addr >= memory_size_) {
         LOGE("Memory read out of bounds: 0x%llx", (unsigned long long)addr);
@@ -116,27 +107,8 @@ void PPUInterpreter::WriteMemory64(PPUState& state, uint64_t addr, uint64_t valu
     *reinterpret_cast<uint64_t*>(static_cast<uint8_t*>(memory_base_) + addr) = bswap64(value);
 }
 
-// ============================================================================
 // Execution
-// ============================================================================
 void PPUInterpreter::Step(PPUState& state) {
-<<<<<<< HEAD
-    uint32_t inst_raw = ReadMemory32(state, state.pc);
-    PPUInstruction inst = { inst_raw };
-    
-    state.npc = state.pc + 4;
-    ExecuteInstruction(state, inst);
-    state.pc = state.npc;
-}
-
-void PPUInterpreter::Execute(PPUState& state, uint64_t count) {
-    for (uint64_t i = 0; i < count && state.running; ++i) {
-        Step(state);
-    }
-}
-
-void PPUInterpreter::Run(PPUState& state) {
-=======
     profiler_.Start("PPU_Step");
     uint32_t inst_raw = ReadMemory32(state, state.pc);
     PPUInstruction inst = { inst_raw };
@@ -156,20 +128,14 @@ void PPUInterpreter::Execute(PPUState& state, uint64_t count) {
 
 void PPUInterpreter::Run(PPUState& state) {
     profiler_.Start("PPU_Run");
->>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
     state.running = true;
     while (state.running && !state.halted) {
         Step(state);
     }
-<<<<<<< HEAD
-=======
     profiler_.Stop("PPU_Run");
->>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
 }
 
-// ============================================================================
 // Instruction Execution Dispatcher
-// ============================================================================
 void PPUInterpreter::ExecuteInstruction(PPUState& state, PPUInstruction inst) {
     uint32_t op = inst.opcode();
     
@@ -439,9 +405,7 @@ void PPUInterpreter::ExecuteInstruction(PPUState& state, PPUInstruction inst) {
     }
 }
 
-// ============================================================================
 // Branch Instructions Implementation
-// ============================================================================
 void PPUInterpreter::B(PPUState& state, PPUInstruction inst) {
     int64_t offset = inst.li();
     if (inst.aa()) {
@@ -506,9 +470,7 @@ void PPUInterpreter::BCCTR(PPUState& state, PPUInstruction inst) {
     }
 }
 
-// ============================================================================
 // Load/Store Instructions
-// ============================================================================
 void PPUInterpreter::LBZ(PPUState& state, PPUInstruction inst) {
     uint64_t addr = inst.ra() ? state.gpr[inst.ra()] : 0;
     addr += inst.simm16();
@@ -683,9 +645,7 @@ void PPUInterpreter::STDX(PPUState& state, PPUInstruction inst) {
     WriteMemory64(state, addr, state.gpr[inst.rd()]);
 }
 
-// ============================================================================
 // Integer Arithmetic Instructions
-// ============================================================================
 void PPUInterpreter::ADDI(PPUState& state, PPUInstruction inst) {
     uint64_t a = inst.ra() ? state.gpr[inst.ra()] : 0;
     state.gpr[inst.rd()] = a + inst.simm16();
@@ -820,9 +780,7 @@ void PPUInterpreter::DIVDU(PPUState& state, PPUInstruction inst) {
     if (inst.rc_bit()) UpdateCR0(state, state.gpr[inst.rd()]);
 }
 
-// ============================================================================
 // Integer Compare Instructions
-// ============================================================================
 void PPUInterpreter::CMPI(PPUState& state, PPUInstruction inst) {
     int crfd = inst.crfd();
     int64_t a = state.gpr[inst.ra()];
@@ -851,9 +809,7 @@ void PPUInterpreter::CMPL(PPUState& state, PPUInstruction inst) {
     UpdateCRnU(state, crfd, a, b);
 }
 
-// ============================================================================
 // Integer Logical Instructions
-// ============================================================================
 void PPUInterpreter::ANDI(PPUState& state, PPUInstruction inst) {
     state.gpr[inst.ra()] = state.gpr[inst.rd()] & inst.uimm16();
     UpdateCR0(state, state.gpr[inst.ra()]);
@@ -905,9 +861,7 @@ void PPUInterpreter::NOR(PPUState& state, PPUInstruction inst) {
     if (inst.rc_bit()) UpdateCR0(state, state.gpr[inst.ra()]);
 }
 
-// ============================================================================
 // System Call
-// ============================================================================
 void PPUInterpreter::SC(PPUState& state, PPUInstruction inst) {
     // System call - trigger syscall handler
     state.interrupt_pending |= 1;  // Mark syscall interrupt
@@ -916,9 +870,7 @@ void PPUInterpreter::SC(PPUState& state, PPUInstruction inst) {
          (unsigned long long)state.gpr[11]);
 }
 
-// ============================================================================
 // Helper Functions
-// ============================================================================
 void PPUInterpreter::UpdateCR0(PPUState& state, int64_t value) {
     uint32_t cr = 0;
     if (value < 0) cr |= CR_LT;

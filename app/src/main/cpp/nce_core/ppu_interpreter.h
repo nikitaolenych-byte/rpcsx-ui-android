@@ -1,9 +1,6 @@
-// ============================================================================
 // PPU Interpreter - Full PowerPC Cell Implementation
-// ============================================================================
 // Повна реалізація всіх PPU інструкцій PS3 Cell Broadband Engine
 // ~200 інструкцій PowerPC 64-bit
-// ============================================================================
 
 #pragma once
 
@@ -15,9 +12,7 @@
 namespace rpcsx {
 namespace ppu {
 
-// ============================================================================
 // PPU Register State
-// ============================================================================
 struct PPUState {
     // General Purpose Registers (64-bit)
     uint64_t gpr[32];
@@ -66,9 +61,7 @@ struct PPUState {
     uint32_t interrupt_pending;
 };
 
-// ============================================================================
 // Condition Register Bits
-// ============================================================================
 enum CR_BITS {
     CR_LT = 0x8,  // Less Than
     CR_GT = 0x4,  // Greater Than
@@ -76,18 +69,14 @@ enum CR_BITS {
     CR_SO = 0x1   // Summary Overflow
 };
 
-// ============================================================================
 // XER Bits
-// ============================================================================
 enum XER_BITS {
     XER_SO = 0x80000000,  // Summary Overflow
     XER_OV = 0x40000000,  // Overflow
     XER_CA = 0x20000000   // Carry
 };
 
-// ============================================================================
 // PPU Instruction Decoder
-// ============================================================================
 struct PPUInstruction {
     uint32_t raw;
     
@@ -152,28 +141,11 @@ struct PPUInstruction {
     uint32_t crbd() const { return (raw >> 21) & 0x1F; }
 };
 
-// ============================================================================
 // PPU Interpreter Class
-// ============================================================================
 class PPUInterpreter {
 public:
     PPUInterpreter();
     ~PPUInterpreter() = default;
-<<<<<<< HEAD
-    
-    // Initialize with memory base
-    void Initialize(void* memory_base, size_t memory_size);
-    
-    // Execute single instruction
-    void Step(PPUState& state);
-    
-    // Execute N instructions
-    void Execute(PPUState& state, uint64_t count);
-    
-    // Run until halt
-    void Run(PPUState& state);
-    
-=======
 
     // Profiler for timing
     util::Profiler profiler_;
@@ -191,26 +163,17 @@ public:
     // Run until halt
     void Run(PPUState& state);
 
->>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
     // Memory access
     uint8_t  ReadMemory8(PPUState& state, uint64_t addr);
     uint16_t ReadMemory16(PPUState& state, uint64_t addr);
     uint32_t ReadMemory32(PPUState& state, uint64_t addr);
     uint64_t ReadMemory64(PPUState& state, uint64_t addr);
-<<<<<<< HEAD
-    
-=======
 
->>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
     void WriteMemory8(PPUState& state, uint64_t addr, uint8_t value);
     void WriteMemory16(PPUState& state, uint64_t addr, uint16_t value);
     void WriteMemory32(PPUState& state, uint64_t addr, uint32_t value);
     void WriteMemory64(PPUState& state, uint64_t addr, uint64_t value);
-<<<<<<< HEAD
-    
-=======
 
->>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
 private:
     void* memory_base_;
     size_t memory_size_;
@@ -218,17 +181,13 @@ private:
     // Instruction handlers
     void ExecuteInstruction(PPUState& state, PPUInstruction inst);
     
-    // ========================================================================
     // Branch Instructions
-    // ========================================================================
     void B(PPUState& state, PPUInstruction inst);      // Branch
     void BC(PPUState& state, PPUInstruction inst);     // Branch Conditional
     void BCLR(PPUState& state, PPUInstruction inst);   // Branch Conditional to LR
     void BCCTR(PPUState& state, PPUInstruction inst);  // Branch Conditional to CTR
     
-    // ========================================================================
     // Load/Store Instructions
-    // ========================================================================
     void LBZ(PPUState& state, PPUInstruction inst);    // Load Byte and Zero
     void LBZU(PPUState& state, PPUInstruction inst);   // Load Byte and Zero with Update
     void LBZX(PPUState& state, PPUInstruction inst);   // Load Byte and Zero Indexed
@@ -260,9 +219,7 @@ private:
     void STDU(PPUState& state, PPUInstruction inst);
     void STDX(PPUState& state, PPUInstruction inst);
     
-    // ========================================================================
     // Integer Arithmetic Instructions
-    // ========================================================================
     void ADDI(PPUState& state, PPUInstruction inst);   // Add Immediate
     void ADDIS(PPUState& state, PPUInstruction inst);  // Add Immediate Shifted
     void ADD(PPUState& state, PPUInstruction inst);    // Add
@@ -288,17 +245,13 @@ private:
     void DIVD(PPUState& state, PPUInstruction inst);   // Divide Doubleword
     void DIVDU(PPUState& state, PPUInstruction inst);
     
-    // ========================================================================
     // Integer Compare Instructions
-    // ========================================================================
     void CMPI(PPUState& state, PPUInstruction inst);   // Compare Immediate
     void CMP(PPUState& state, PPUInstruction inst);    // Compare
     void CMPLI(PPUState& state, PPUInstruction inst);  // Compare Logical Immediate
     void CMPL(PPUState& state, PPUInstruction inst);   // Compare Logical
     
-    // ========================================================================
     // Integer Logical Instructions
-    // ========================================================================
     void ANDI(PPUState& state, PPUInstruction inst);   // AND Immediate
     void ANDIS(PPUState& state, PPUInstruction inst);  // AND Immediate Shifted
     void ORI(PPUState& state, PPUInstruction inst);    // OR Immediate
@@ -320,9 +273,7 @@ private:
     void CNTLZD(PPUState& state, PPUInstruction inst); // Count Leading Zeros Doubleword
     void POPCNTB(PPUState& state, PPUInstruction inst);// Population Count Bytes
     
-    // ========================================================================
     // Integer Rotate/Shift Instructions
-    // ========================================================================
     void RLWINM(PPUState& state, PPUInstruction inst); // Rotate Left Word Immediate then AND with Mask
     void RLWNM(PPUState& state, PPUInstruction inst);  // Rotate Left Word then AND with Mask
     void RLWIMI(PPUState& state, PPUInstruction inst); // Rotate Left Word Immediate then Mask Insert
@@ -341,9 +292,7 @@ private:
     void SRAD(PPUState& state, PPUInstruction inst);   // Shift Right Algebraic Doubleword
     void SRADI(PPUState& state, PPUInstruction inst);  // Shift Right Algebraic Doubleword Immediate
     
-    // ========================================================================
     // Move To/From Special Purpose Registers
-    // ========================================================================
     void MTSPR(PPUState& state, PPUInstruction inst);  // Move To SPR
     void MFSPR(PPUState& state, PPUInstruction inst);  // Move From SPR
     void MTCRF(PPUState& state, PPUInstruction inst);  // Move To CR Fields
@@ -352,9 +301,7 @@ private:
     void MTOCRF(PPUState& state, PPUInstruction inst); // Move To One CR Field
     void MCRXR(PPUState& state, PPUInstruction inst);  // Move to CR from XER
     
-    // ========================================================================
     // Floating Point Load/Store
-    // ========================================================================
     void LFS(PPUState& state, PPUInstruction inst);    // Load Floating-Point Single
     void LFSU(PPUState& state, PPUInstruction inst);
     void LFSX(PPUState& state, PPUInstruction inst);
@@ -368,9 +315,7 @@ private:
     void STFDU(PPUState& state, PPUInstruction inst);
     void STFDX(PPUState& state, PPUInstruction inst);
     
-    // ========================================================================
     // Floating Point Arithmetic
-    // ========================================================================
     void FADD(PPUState& state, PPUInstruction inst);   // FP Add
     void FADDS(PPUState& state, PPUInstruction inst);  // FP Add Single
     void FSUB(PPUState& state, PPUInstruction inst);   // FP Subtract
@@ -393,9 +338,7 @@ private:
     void FNMSUBS(PPUState& state, PPUInstruction inst);
     void FSEL(PPUState& state, PPUInstruction inst);   // FP Select
     
-    // ========================================================================
     // Floating Point Compare/Convert/Move
-    // ========================================================================
     void FCMPU(PPUState& state, PPUInstruction inst);  // FP Compare Unordered
     void FCMPO(PPUState& state, PPUInstruction inst);  // FP Compare Ordered
     void FCTID(PPUState& state, PPUInstruction inst);  // FP Convert to Integer Doubleword
@@ -414,9 +357,7 @@ private:
     void MTFSB0(PPUState& state, PPUInstruction inst); // Move To FPSCR Bit 0
     void MTFSB1(PPUState& state, PPUInstruction inst); // Move To FPSCR Bit 1
     
-    // ========================================================================
     // VMX (AltiVec/Vector) Instructions
-    // ========================================================================
     void LVX(PPUState& state, PPUInstruction inst);    // Load Vector Indexed
     void LVXL(PPUState& state, PPUInstruction inst);   // Load Vector Indexed LRU
     void LVEBX(PPUState& state, PPUInstruction inst);  // Load Vector Element Byte Indexed
@@ -516,9 +457,7 @@ private:
     void VRFIP(PPUState& state, PPUInstruction inst);   // Vector Round to FP Integer toward Positive Infinity
     void VRFIM(PPUState& state, PPUInstruction inst);   // Vector Round to FP Integer toward Minus Infinity
     
-    // ========================================================================
     // System Instructions
-    // ========================================================================
     void SC(PPUState& state, PPUInstruction inst);     // System Call
     void TW(PPUState& state, PPUInstruction inst);     // Trap Word
     void TD(PPUState& state, PPUInstruction inst);     // Trap Doubleword
@@ -541,9 +480,7 @@ private:
     void STWCX(PPUState& state, PPUInstruction inst);  // Store Word Conditional Indexed
     void STDCX(PPUState& state, PPUInstruction inst);  // Store Doubleword Conditional Indexed
     
-    // ========================================================================
     // CR Logical Instructions
-    // ========================================================================
     void CRAND(PPUState& state, PPUInstruction inst);  // CR AND
     void CROR(PPUState& state, PPUInstruction inst);   // CR OR
     void CRXOR(PPUState& state, PPUInstruction inst);  // CR XOR
@@ -554,9 +491,7 @@ private:
     void CRORC(PPUState& state, PPUInstruction inst);  // CR OR with Complement
     void MCRF(PPUState& state, PPUInstruction inst);   // Move CR Field
     
-    // ========================================================================
     // Helper Functions
-    // ========================================================================
     void UpdateCR0(PPUState& state, int64_t value);
     void UpdateCR1(PPUState& state);
     void UpdateCRn(PPUState& state, int n, int64_t a, int64_t b);

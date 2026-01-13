@@ -1,6 +1,4 @@
-// ============================================================================
 // NCE Native Implementation - Real PS3 Execution
-// ============================================================================
 
 #include "nce_native.h"
 #include "ps3_memory_map.h"
@@ -27,9 +25,7 @@
 namespace rpcsx {
 namespace nce {
 
-// ============================================================================
 // Byte Swap Utilities (PS3 is Big Endian, ARM is Little Endian)
-// ============================================================================
 static inline uint16_t bswap16(uint16_t x) {
     return __builtin_bswap16(x);
 }
@@ -42,9 +38,7 @@ static inline uint64_t bswap64(uint64_t x) {
     return __builtin_bswap64(x);
 }
 
-// ============================================================================
 // PS3 Memory Manager Implementation
-// ============================================================================
 namespace ps3 {
 
 PS3MemoryManager& PS3MemoryManager::Instance() {
@@ -312,9 +306,7 @@ size_t PS3MemoryManager::GetFreeVideoMemory() const {
     return VIDEO_MEMORY_SIZE - video_memory_used_;
 }
 
-// ============================================================================
 // Syscall Translator Implementation
-// ============================================================================
 
 SyscallTranslator& SyscallTranslator::Instance() {
     static SyscallTranslator instance;
@@ -578,9 +570,7 @@ int64_t SyscallTranslator::sys_prx_start_module(PPUThreadContext& ctx) {
 
 }  // namespace ps3
 
-// ============================================================================
 // NativeCodeExecutor Implementation
-// ============================================================================
 
 NativeCodeExecutor& NativeCodeExecutor::Instance() {
     static NativeCodeExecutor instance;
@@ -612,8 +602,6 @@ bool NativeCodeExecutor::Initialize(const NCEConfig& config) {
         return false;
     }
     
-<<<<<<< HEAD
-=======
     // Thread pool: 4 потоки (можна зробити динамічно)
     thread_pool_ = std::make_unique<util::ThreadPool>(4);
     // Передаємо thread pool у shader cache
@@ -623,18 +611,13 @@ bool NativeCodeExecutor::Initialize(const NCEConfig& config) {
     game_mode_enabled_ = true;
     android::EnableGameMode();
 
->>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
     // Initialize PPU engine
     ppu_ = std::make_unique<PPUExecutionEngine>();
     if (!ppu_->Initialize(config)) {
         LOGE("Failed to initialize PPU engine");
         return false;
     }
-<<<<<<< HEAD
-    
-=======
 
->>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
     // Initialize SPU engine
     if (config.enable_spu) {
         spu_ = std::make_unique<SPUExecutionEngine>();
@@ -643,13 +626,8 @@ bool NativeCodeExecutor::Initialize(const NCEConfig& config) {
             return false;
         }
     }
-<<<<<<< HEAD
-    
-    LOGI("NCE initialized successfully!");
-=======
 
     LOGI("NCE initialized successfully! (GameMode=%d)", (int)game_mode_enabled_);
->>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
     return true;
 }
 
@@ -657,16 +635,6 @@ void NativeCodeExecutor::Shutdown() {
     if (running_) {
         StopGame();
     }
-<<<<<<< HEAD
-    
-    rsx_.reset();
-    spu_.reset();
-    ppu_.reset();
-    
-    ps3::SyscallTranslator::Instance().Shutdown();
-    ps3::PS3MemoryManager::Instance().Shutdown();
-    
-=======
 
     // Thread pool
     thread_pool_.reset();
@@ -684,7 +652,6 @@ void NativeCodeExecutor::Shutdown() {
     ps3::SyscallTranslator::Instance().Shutdown();
     ps3::PS3MemoryManager::Instance().Shutdown();
 
->>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
     LOGI("NCE shutdown complete");
 }
 
@@ -713,15 +680,9 @@ bool NativeCodeExecutor::LoadGame(const char* eboot_path) {
     return true;
 }
 
-<<<<<<< HEAD
-void NativeCodeExecutor::StartGame() {
-    if (running_) {
-        return;
-=======
 bool NativeCodeExecutor::StartGame() {
     if (running_) {
         return false; // Already running
->>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
     }
     
     LOGI("Starting game execution...");
@@ -729,10 +690,7 @@ bool NativeCodeExecutor::StartGame() {
     
     // Start main PPU thread
     ppu_->StartThread(main_thread_id_);
-<<<<<<< HEAD
-=======
     return true;
->>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
 }
 
 void NativeCodeExecutor::StopGame() {
@@ -766,38 +724,17 @@ PS3ModuleLoader& NativeCodeExecutor::GetLoader() {
     return PS3ModuleLoader::Instance();
 }
 
-// ============================================================================
 // PPU Execution Engine
-// ============================================================================
 
-<<<<<<< HEAD
-PPUExecutionEngine::PPUExecutionEngine() {}
-=======
 PPUExecutionEngine::PPUExecutionEngine() {
     ppu_interpreter_ = std::make_unique<ppu::PPUInterpreter>();
     ppu_jit_ = std::make_unique<ppu::PPUJITCompiler>();
 }
->>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
 PPUExecutionEngine::~PPUExecutionEngine() { Shutdown(); }
 
 bool PPUExecutionEngine::Initialize(const NCEConfig& config) {
     config_ = config;
     
-<<<<<<< HEAD
-    // Allocate JIT cache
-    if (config.enable_jit) {
-        jit_cache_ = mmap(nullptr, config.jit_cache_size,
-                          PROT_READ | PROT_WRITE | PROT_EXEC,
-                          MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-        if (jit_cache_ == MAP_FAILED) {
-            LOGE("Failed to allocate JIT cache");
-            jit_cache_ = nullptr;
-        } else {
-            LOGI("JIT cache: %zu MB", config.jit_cache_size / (1024*1024));
-        }
-    }
-    
-=======
     // Initialize PPU Interpreter
     ppu_interpreter_->Initialize(ps3::PS3MemoryManager::Instance().GetMainMemory(),
                                   ps3::MAIN_MEMORY_SIZE);
@@ -809,7 +746,6 @@ bool PPUExecutionEngine::Initialize(const NCEConfig& config) {
     }
 
     LOGI("PPU Execution Engine initialized (JIT=%d)", (int)config.enable_jit);
->>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
     return true;
 }
 
@@ -825,14 +761,11 @@ void PPUExecutionEngine::Shutdown() {
     }
     threads_.clear();
     
-<<<<<<< HEAD
-=======
     // Shutdown PPU interpreter
     if (ppu_interpreter_) {
         ppu_interpreter_->Shutdown();
     }
     
->>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
     // Free JIT cache
     if (jit_cache_) {
         munmap(jit_cache_, config_.jit_cache_size);
@@ -901,11 +834,6 @@ void PPUExecutionEngine::StopThread(uint64_t thread_id) {
 void PPUExecutionEngine::Run(uint64_t thread_id) {
     for (auto& thread : threads_) {
         if (thread->id == thread_id) {
-<<<<<<< HEAD
-            // Execute until syscall
-            // In real implementation, this would JIT compile and run PPU code
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-=======
             if (config_.enable_jit && ppu_jit_) {
                 // JIT: компілюємо та виконуємо блок
                 void* code = ppu_jit_->CompileBlock(thread->context.pc);
@@ -953,31 +881,21 @@ void PPUExecutionEngine::Run(uint64_t thread_id) {
                 thread->context.cr = state.cr;
                 thread->context.xer = state.xer;
             }
->>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
             return;
         }
     }
 }
 
-// ============================================================================
 // SPU Execution Engine
-// ============================================================================
 
-<<<<<<< HEAD
-SPUExecutionEngine::SPUExecutionEngine() {}
-=======
 SPUExecutionEngine::SPUExecutionEngine() {
     spu_thread_group_ = std::make_unique<spu::SPUThreadGroup>();
     spu_jit_ = std::make_unique<spu::SPUJITCompiler>();
 }
->>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
 SPUExecutionEngine::~SPUExecutionEngine() { Shutdown(); }
 
 bool SPUExecutionEngine::Initialize(const NCEConfig& config) {
     config_ = config;
-<<<<<<< HEAD
-    LOGI("SPU Engine initialized: %d SPUs", config.spu_thread_count);
-=======
     
     // Initialize SPU thread group with main memory access
     spu_thread_group_->Initialize(
@@ -992,17 +910,13 @@ bool SPUExecutionEngine::Initialize(const NCEConfig& config) {
     }
 
     LOGI("SPU Engine initialized: %d SPUs with NEON SIMD, JIT=%d", config.spu_thread_count, spu_jit_ ? 1 : 0);
->>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
     return true;
 }
 
 void SPUExecutionEngine::Shutdown() {
-<<<<<<< HEAD
-=======
     if (spu_thread_group_) {
         spu_thread_group_->Shutdown();
     }
->>>>>>> c3fa6c4 (build: ARMv9 NCE, thread pool, SIMD, shader cache, UI NCE button)
     thread_groups_.clear();
 }
 
@@ -1029,9 +943,7 @@ uint32_t SPUExecutionEngine::CreateThreadGroup(const char* name, int num_spus, i
     return id;
 }
 
-// ============================================================================
 // Module Loader
-// ============================================================================
 
 PS3ModuleLoader& PS3ModuleLoader::Instance() {
     static PS3ModuleLoader instance;
@@ -1054,9 +966,7 @@ PS3ModuleInfo* PS3ModuleLoader::LoadModule(const char* path) {
     return ptr;
 }
 
-// ============================================================================
 // C API
-// ============================================================================
 
 extern "C" {
 
