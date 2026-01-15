@@ -68,3 +68,21 @@ PY
           PAYLOAD=$(printf '{"title":"CI Debug — %s","body":%s}' "$GITHUB_REF" "$CONTENT")
           echo "Creating issue with payload size: ${#PAYLOAD}"
           curl -s -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github+json" https://api.github.com/repos/$GITHUB_REPOSITORY/issues -d "$PAYLOAD" | jq -r '.html_url // .message' || true
+
+      - name: Create GitHub Issue (fallback, always)
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ ! -f debug-output.txt ]; then
+            echo "No debug-output.txt produced; capturing job summary and environment" > debug-output.txt || true
+            echo "Run URL: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${{ github.run_id }}" >> debug-output.txt || true
+          fi
+          CONTENT=$(python3 - <<PY
+import json
+print(json.dumps(open('debug-output.txt').read()))
+PY
+)
+          PAYLOAD=$(printf '{"title":"CI Debug (fallback) — %s","body":%s}' "$GITHUB_REF" "$CONTENT")
+          curl -s -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github+json" https://api.github.com/repos/$GITHUB_REPOSITORY/issues -d "$PAYLOAD" || true
