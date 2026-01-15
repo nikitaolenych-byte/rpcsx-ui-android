@@ -186,13 +186,7 @@ void SPUInterpreter::ExecuteInstruction(SPUState& state, SPUInstruction inst) {
             }
             break;
             
-        case 0x00:
-            if (op == 0) {
-                STOP(state, inst);
-            } else if (op == 1) {
-                NOP(state, inst);
-            }
-            break;
+        
             
         default:
             // LOGE("SPU %d: Unknown opcode 0x%03x at PC=0x%08x", 
