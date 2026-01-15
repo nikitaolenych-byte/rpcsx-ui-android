@@ -730,8 +730,7 @@ PS3ModuleLoader& NativeCodeExecutor::GetLoader() {
 // PPU Execution Engine
 
 PPUExecutionEngine::PPUExecutionEngine() {
-    ppu_interpreter_ = std::make_unique<ppu::PPUInterpreter>();
-    ppu_jit_ = std::make_unique<ppu::PPUJITCompiler>();
+    // Defer heavy allocations to Initialize()
 }
 PPUExecutionEngine::~PPUExecutionEngine() { Shutdown(); }
 
@@ -739,11 +738,13 @@ bool PPUExecutionEngine::Initialize(const NCEConfig& config) {
     config_ = config;
     
     // Initialize PPU Interpreter
+    if (!ppu_interpreter_) ppu_interpreter_ = std::make_unique<ppu::PPUInterpreter>();
     ppu_interpreter_->Initialize(ps3::PS3MemoryManager::Instance().GetMainMemory(),
                                   ps3::MAIN_MEMORY_SIZE);
 
     // Initialize PPU JIT
-    if (config.enable_jit && ppu_jit_) {
+    if (config.enable_jit) {
+        if (!ppu_jit_) ppu_jit_ = std::make_unique<ppu::PPUJITCompiler>();
         ppu_jit_->Initialize(config.jit_cache_size);
         LOGI("PPU JIT enabled");
     }
@@ -892,8 +893,7 @@ void PPUExecutionEngine::Run(uint64_t thread_id) {
 // SPU Execution Engine
 
 SPUExecutionEngine::SPUExecutionEngine() {
-    spu_thread_group_ = std::make_unique<spu::SPUThreadGroup>();
-    spu_jit_ = std::make_unique<spu::SPUJITCompiler>();
+    // Defer allocations to Initialize()
 }
 SPUExecutionEngine::~SPUExecutionEngine() { Shutdown(); }
 
@@ -901,12 +901,14 @@ bool SPUExecutionEngine::Initialize(const NCEConfig& config) {
     config_ = config;
     
     // Initialize SPU thread group with main memory access
+    if (!spu_thread_group_) spu_thread_group_ = std::make_unique<spu::SPUThreadGroup>();
     spu_thread_group_->Initialize(
         ps3::PS3MemoryManager::Instance().GetMainMemory(),
         ps3::MAIN_MEMORY_SIZE
     );
 
     // Initialize SPU JIT
+    if (!spu_jit_) spu_jit_ = std::make_unique<spu::SPUJITCompiler>();
     if (spu_jit_) {
         spu_jit_->Initialize(64 * 1024 * 1024);
         LOGI("SPU JIT enabled");
