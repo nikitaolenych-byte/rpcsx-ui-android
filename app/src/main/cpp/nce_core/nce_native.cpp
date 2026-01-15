@@ -1,9 +1,11 @@
 // NCE Native Implementation - Real PS3 Execution
 
 #include "nce_native.h"
+#include "nce_engine.h"
 #include "ps3_memory_map.h"
 #include "ps3_syscall.h"
 #include "ppu_interpreter.h"
+#include "ppu_jit_compiler.h"
 #include "spu_interpreter.h"
 
 #include "rsx_emulator.h"

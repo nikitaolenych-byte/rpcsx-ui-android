@@ -29,6 +29,8 @@
 #include "game_mode_android.h"
 
 namespace rpcsx {
+namespace ppu { class PPUInterpreter; class PPUJITCompiler; }
+namespace spu { class SPUThreadGroup; class SPUJITCompiler; }
 namespace nce {
 
 // ============================================================================
@@ -177,6 +179,10 @@ private:
     
     // Handle syscall (called from JIT code)
     static void HandleSyscall(PPUThread* thread);
+
+    // Interpreter and JIT instances
+    std::unique_ptr<ppu::PPUInterpreter> ppu_interpreter_;
+    std::unique_ptr<ppu::PPUJITCompiler> ppu_jit_;
 };
 
 // ============================================================================
@@ -238,6 +244,10 @@ private:
     
     // SPU instruction execution (using NEON)
     void ExecuteSPUInstruction(SPUThread& spu, uint32_t instr);
+
+    // SPU runtime objects
+    std::unique_ptr<spu::SPUThreadGroup> spu_thread_group_;
+    std::unique_ptr<spu::SPUJITCompiler> spu_jit_;
 };
 
 // ============================================================================
