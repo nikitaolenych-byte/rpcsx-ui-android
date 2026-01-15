@@ -100,3 +100,21 @@ PY
 )
           PAYLOAD=$(printf '{"title":"CI Debug (fallback) — %s","body":%s}' "$GITHUB_REF" "$CONTENT")
           curl -s -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github+json" https://api.github.com/repos/$GITHUB_REPOSITORY/issues -d "$PAYLOAD" || true
+
+      - name: Commit diagnostics file back to branch (fallback)
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          BRANCH=${GITHUB_REF#refs/heads/}
+          if [ -f debug-output.txt ]; then
+            git config user.email "actions@github.com" || true
+            git config user.name "GitHub Actions" || true
+            git add debug-output.txt || true
+            git commit -m "ci: add debug-output for ${BRANCH}" || true
+            git push "https://${GITHUB_ACTOR}:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:refs/heads/${BRANCH} || true
+            echo "Pushed debug-output.txt to branch ${BRANCH}"
+          else
+            echo "No debug-output.txt present to commit"
+          fi
