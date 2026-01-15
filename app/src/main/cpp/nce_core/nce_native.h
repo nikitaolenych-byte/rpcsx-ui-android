@@ -183,8 +183,8 @@ private:
     static void HandleSyscall(PPUThread* thread);
 
     // Interpreter and JIT instances
-    std::unique_ptr<ppu::PPUInterpreter> ppu_interpreter_;
-    std::unique_ptr<ppu::PPUJITCompiler> ppu_jit_;
+    ppu::PPUInterpreter* ppu_interpreter_ = nullptr;
+    ppu::PPUJITCompiler* ppu_jit_ = nullptr;
 };
 
 // ============================================================================
@@ -248,8 +248,8 @@ private:
     void ExecuteSPUInstruction(SPUThread& spu, uint32_t instr);
 
     // SPU runtime objects
-    std::unique_ptr<spu::SPUThreadGroup> spu_thread_group_;
-    std::unique_ptr<spu::SPUJITCompiler> spu_jit_;
+    spu::SPUThreadGroup* spu_thread_group_ = nullptr;
+    spu::SPUJITCompiler* spu_jit_ = nullptr;
 };
 
 // ============================================================================

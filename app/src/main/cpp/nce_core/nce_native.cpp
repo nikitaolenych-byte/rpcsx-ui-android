@@ -738,13 +738,13 @@ bool PPUExecutionEngine::Initialize(const NCEConfig& config) {
     config_ = config;
     
     // Initialize PPU Interpreter
-    if (!ppu_interpreter_) ppu_interpreter_ = std::make_unique<ppu::PPUInterpreter>();
+    if (!ppu_interpreter_) ppu_interpreter_ = new ppu::PPUInterpreter();
     ppu_interpreter_->Initialize(ps3::PS3MemoryManager::Instance().GetMainMemory(),
                                   ps3::MAIN_MEMORY_SIZE);
 
     // Initialize PPU JIT
     if (config.enable_jit) {
-        if (!ppu_jit_) ppu_jit_ = std::make_unique<ppu::PPUJITCompiler>();
+        if (!ppu_jit_) ppu_jit_ = new ppu::PPUJITCompiler();
         ppu_jit_->Initialize(config.jit_cache_size);
         LOGI("PPU JIT enabled");
     }
@@ -768,12 +768,19 @@ void PPUExecutionEngine::Shutdown() {
     // Shutdown PPU interpreter
     if (ppu_interpreter_) {
         ppu_interpreter_->Shutdown();
+        delete ppu_interpreter_;
+        ppu_interpreter_ = nullptr;
     }
     
     // Free JIT cache
     if (jit_cache_) {
         munmap(jit_cache_, config_.jit_cache_size);
         jit_cache_ = nullptr;
+    }
+    if (ppu_jit_) {
+        ppu_jit_->Shutdown();
+        delete ppu_jit_;
+        ppu_jit_ = nullptr;
     }
 }
 
@@ -901,14 +908,14 @@ bool SPUExecutionEngine::Initialize(const NCEConfig& config) {
     config_ = config;
     
     // Initialize SPU thread group with main memory access
-    if (!spu_thread_group_) spu_thread_group_ = std::make_unique<spu::SPUThreadGroup>();
+    if (!spu_thread_group_) spu_thread_group_ = new spu::SPUThreadGroup();
     spu_thread_group_->Initialize(
         ps3::PS3MemoryManager::Instance().GetMainMemory(),
         ps3::MAIN_MEMORY_SIZE
     );
 
     // Initialize SPU JIT
-    if (!spu_jit_) spu_jit_ = std::make_unique<spu::SPUJITCompiler>();
+    if (!spu_jit_) spu_jit_ = new spu::SPUJITCompiler();
     if (spu_jit_) {
         spu_jit_->Initialize(64 * 1024 * 1024);
         LOGI("SPU JIT enabled");
@@ -921,6 +928,13 @@ bool SPUExecutionEngine::Initialize(const NCEConfig& config) {
 void SPUExecutionEngine::Shutdown() {
     if (spu_thread_group_) {
         spu_thread_group_->Shutdown();
+        delete spu_thread_group_;
+        spu_thread_group_ = nullptr;
+    }
+    if (spu_jit_) {
+        spu_jit_->Shutdown();
+        delete spu_jit_;
+        spu_jit_ = nullptr;
     }
     thread_groups_.clear();
 }
