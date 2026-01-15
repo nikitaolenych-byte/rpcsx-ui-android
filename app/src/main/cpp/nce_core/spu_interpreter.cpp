@@ -427,7 +427,7 @@ void SPUInterpreter::SHLI(SPUState& state, SPUInstruction inst) {
     uint32_t shift = inst.i10() & 0x3F;
     
     if (shift < 32) {
-        state.gpr[rt].neon_u32 = vshlq_n_u32(state.gpr[ra].neon_u32, shift);
+        state.gpr[rt].neon_u32 = vshlq_u32(state.gpr[ra].neon_u32, vdupq_n_s32(static_cast<int32_t>(shift)));
     } else {
         state.gpr[rt].neon_u32 = vdupq_n_u32(0);
     }

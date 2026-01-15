@@ -325,18 +325,7 @@ void PPUInterpreter::ExecuteInstruction(PPUState& state, PPUInstruction inst) {
         case 54: STFD(state, inst); break;
         case 55: STFDU(state, inst); break;
         
-        case 31:  // FP Load/Store Indexed handled in opcode 31 above
-            switch (inst.xo_x()) {
-                case 535: LFSX(state, inst); break;
-                case 567: LFSUX(state, inst); break;
-                case 599: LFDX(state, inst); break;
-                case 631: LFDUX(state, inst); break;
-                case 663: STFSX(state, inst); break;
-                case 695: STFSUX(state, inst); break;
-                case 727: STFDX(state, inst); break;
-                case 759: STFDUX(state, inst); break;
-            }
-            break;
+        // Duplicate FP indexed handlers removed (handled in opcode 31 above)
             
         // Floating Point Arithmetic
         case 63:
@@ -364,7 +353,7 @@ void PPUInterpreter::ExecuteInstruction(PPUState& state, PPUInstruction inst) {
                     case 32: FCMPO(state, inst); break;
                     case 38: MTFSB1(state, inst); break;
                     case 40: FNEG(state, inst); break;
-                    case 64: MCRFS(state, inst); break;
+                    case 64: MCRF(state, inst); break;
                     case 70: MTFSB0(state, inst); break;
                     case 72: FMR(state, inst); break;
                     case 134: MTFSFI(state, inst); break;
@@ -392,10 +381,7 @@ void PPUInterpreter::ExecuteInstruction(PPUState& state, PPUInstruction inst) {
         // Trap
         case 3: TWI(state, inst); break;
         case 2: TDI(state, inst); break;
-        case 31:
-            if (inst.xo_x() == 4) TW(state, inst);
-            else if (inst.xo_x() == 68) TD(state, inst);
-            break;
+        // Duplicate trap handlers for opcode 31 removed
             
         default:
             LOGE("Unknown opcode: %d (inst=0x%08x at PC=0x%llx)", 
@@ -942,7 +928,7 @@ STUB_IMPL(MFOCRF) STUB_IMPL(MTOCRF) STUB_IMPL(MCRXR)
 STUB_IMPL(LFS) STUB_IMPL(LFSU) STUB_IMPL(LFSX) STUB_IMPL(LFSUX)
 STUB_IMPL(LFD) STUB_IMPL(LFDU) STUB_IMPL(LFDX) STUB_IMPL(LFDUX)
 STUB_IMPL(STFS) STUB_IMPL(STFSU) STUB_IMPL(STFSX) STUB_IMPL(STFSUX)
-STUB_IMPL(STFD) STUB_IMPL(STFDU) STUB_IMPL(STFDX) STUB_IMPL(STFDUX)
+STUB_IMPL(STFD) STUB_IMPL(STFDU) STUB_IMPL(STFDX) STUB_IMPL(STFDUX) STUB_IMPL(STDUX)
 STUB_IMPL(FADD) STUB_IMPL(FADDS) STUB_IMPL(FSUB) STUB_IMPL(FSUBS)
 STUB_IMPL(FMUL) STUB_IMPL(FMULS) STUB_IMPL(FDIV) STUB_IMPL(FDIVS)
 STUB_IMPL(FSQRT) STUB_IMPL(FSQRTS) STUB_IMPL(FRES) STUB_IMPL(FRSQRTE)
