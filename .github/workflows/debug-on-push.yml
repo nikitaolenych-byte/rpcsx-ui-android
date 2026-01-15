@@ -25,6 +25,20 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Quick create issue (sanity check)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          CONTENT="Automated debug run triggered for $GITHUB_REF on $GITHUB_SHA"
+          BODY=$(python3 - <<PY
+import json,sys
+print(json.dumps('''"""''' + CONTENT + '''"""'''))
+PY
+)
+          PAYLOAD=$(printf '{"title":"CI Debug quick — %s","body":%s}' "$GITHUB_REF" "$BODY")
+          curl -s -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github+json" https://api.github.com/repos/$GITHUB_REPOSITORY/issues -d "$PAYLOAD" || true
+
       - name: Run environment diagnostics and save to file
         id: diag
         run: |
