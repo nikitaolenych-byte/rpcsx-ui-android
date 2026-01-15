@@ -107,6 +107,10 @@ public:
     uint16_t Read16(uint64_t ps3_addr) const;
     uint32_t Read32(uint64_t ps3_addr) const;
     uint64_t Read64(uint64_t ps3_addr) const;
+
+    // Accessors for raw memory (useful for other subsystems)
+    void* GetMainMemory() const { return main_memory_; }
+    void* GetVideoMemory() const { return video_memory_; }
     
     void Write8(uint64_t ps3_addr, uint8_t value);
     void Write16(uint64_t ps3_addr, uint16_t value);

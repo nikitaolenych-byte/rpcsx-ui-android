@@ -33,6 +33,10 @@ PPUInterpreter::PPUInterpreter()
     , memory_size_(0) {
 }
 
+void PPUInterpreter::Shutdown() {
+    // No background threads to stop currently; placeholder
+}
+
 void PPUInterpreter::Initialize(void* memory_base, size_t memory_size) {
     memory_base_ = memory_base;
     memory_size_ = memory_size;
