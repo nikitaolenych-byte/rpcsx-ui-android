@@ -27,10 +27,12 @@
 #include "thread_pool.h"
 #include "profiler.h"
 #include "game_mode_android.h"
+#include "ppu_jit_compiler.h"
+#include "spu_jit_compiler.h"
 
 namespace rpcsx {
-namespace ppu { class PPUInterpreter; class PPUJITCompiler; }
-namespace spu { class SPUThreadGroup; class SPUJITCompiler; }
+namespace ppu { class PPUInterpreter; /* PPUJITCompiler defined in header */ }
+namespace spu { class SPUThreadGroup; /* SPUJITCompiler defined in header */ }
 namespace nce {
 
 // ============================================================================
