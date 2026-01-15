@@ -31,9 +31,23 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
       
+      - name: Diagnose environment 🔧
+        run: |
+          set -euo pipefail
+          java -version || true
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --version || true
+          yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --list_installed || true
+      
       - name: Install NDK 26.1
         run: |
-          yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --install "ndk;26.1.10909125"
+          set -euo pipefail
+          for i in 1 2 3; do
+            yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --install "ndk;26.1.10909125" && break || {
+              echo "sdkmanager failed (attempt $i), retrying in 5s..."
+              sleep 5
+            }
+          done
           echo "ANDROID_NDK_HOME=${ANDROID_HOME}/ndk/26.1.10909125" >> $GITHUB_ENV
       
       - name: Accept Android SDK Licenses

@@ -23,19 +23,38 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: '17'
           cache: gradle
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+
+      - name: Diagnose environment 🔧
+        run: |
+          set -euo pipefail
+          echo "--- Java ---"
+          java -version || true
+          echo "--- ANDROID_HOME ---"
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "--- sdkmanager version ---"
+          ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --version || true
+          echo "--- Installed packages (short) ---"
+          yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --list_installed || true
 
       - name: Accept Android SDK licenses
         run: yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --licenses
 
       - name: Install NDK and CMake
         run: |
-          yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager "ndk;29.0.13113456" "cmake;3.31.6"
-          echo "ANDROID_NDK_HOME=${ANDROID_HOME}/ndk/29.0.13113456" >> $GITHUB_ENV
+          set -euo pipefail
+          for i in 1 2 3; do
+            yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager "ndk;26.1.10909125" "cmake;3.31.6" && break || {
+              echo "sdkmanager failed (attempt $i), retrying in 5s..."
+              sleep 5
+            }
+          done
+          echo "ANDROID_NDK_HOME=${ANDROID_HOME}/ndk/26.1.10909125" >> $GITHUB_ENV
+          ls -la "${ANDROID_HOME}/ndk" || true
 
       - name: Clean from source
         run: |

@@ -1,0 +1,52 @@
+name: CI Debug — Environment & NDK check
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Run environment diagnostics and save to file
+        run: |
+          set -euo pipefail
+          out=debug-output.txt
+          echo "==== date ====" > "$out"
+          date >> "$out"
+          echo "\n==== java -version ====" >> "$out"
+          java -version 2>&1 | sed 's/^/    /' >> "$out" || true
+          echo "\n==== ANDROID_HOME ====" >> "$out"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$out"
+          echo "\n==== sdkmanager --version ====" >> "$out"
+          ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --version 2>&1 | sed 's/^/    /' >> "$out" || true
+          echo "\n==== sdkmanager --list_installed (short) ====" >> "$out"
+          yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --list_installed 2>&1 | sed 's/^/    /' >> "$out" || true
+          echo "\n==== ls ANDROID_HOME contents ====" >> "$out"
+          ls -la "$ANDROID_HOME" >> "$out" || true
+          echo "\n==== ls ANDROID_HOME/ndk ====" >> "$out"
+          ls -la "${ANDROID_HOME}/ndk" >> "$out" || true
+          echo "\n==== gradle version (if available) ====" >> "$out"
+          ./gradlew -v 2>&1 | sed 's/^/    /' >> "$out" || true
+          echo "\n==== end ====" >> "$out"
+
+      - name: Upload diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-environment
+          path: debug-output.txt
+          retention-days: 7
