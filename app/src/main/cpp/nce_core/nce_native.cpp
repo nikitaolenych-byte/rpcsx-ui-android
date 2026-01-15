@@ -7,6 +7,7 @@
 #include "ppu_interpreter.h"
 #include "ppu_jit_compiler.h"
 #include "spu_interpreter.h"
+#include "spu_jit_compiler.h"
 
 #include "rsx_emulator.h"
 #include "shader_cache_manager.h"
