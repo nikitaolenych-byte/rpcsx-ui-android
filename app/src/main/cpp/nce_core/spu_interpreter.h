@@ -9,6 +9,7 @@
 #include <atomic>
 #include <vector>
 #include <arm_neon.h>  // ARM NEON для 128-bit SIMD
+#include "profiler.h"
 
 namespace rpcsx {
 namespace spu {

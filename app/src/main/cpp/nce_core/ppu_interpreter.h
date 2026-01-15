@@ -8,6 +8,7 @@
 #include <cstring>
 #include <functional>
 #include <unordered_map>
+#include "profiler.h"
 
 namespace rpcsx {
 namespace ppu {

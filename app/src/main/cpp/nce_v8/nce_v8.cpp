@@ -71,7 +71,7 @@ static bool DetectSVE2() {
 }
 
 static uint32_t GetSVEVectorLength() {
-#if defined(__aarch64__) && HAS_SVE2
+#if defined(__aarch64__) && defined(HAS_SVE2) && defined(__ARM_FEATURE_SVE)
     uint64_t vl;
     __asm__ volatile("rdvl %0, #1" : "=r"(vl));
     return static_cast<uint32_t>(vl);

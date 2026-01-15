@@ -9,7 +9,7 @@
 #include <android/log.h>
 #include <cstring>
 #include <sys/mman.h>
-#include "../simd_utils.h"
+#include "simd_utils.h"
 
 #define LOG_TAG "SPU-Interpreter"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)

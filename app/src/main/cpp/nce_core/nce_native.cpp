@@ -1,9 +1,11 @@
 // NCE Native Implementation - Real PS3 Execution
 
 #include "nce_native.h"
+#include "nce_engine.h"
 #include "ps3_memory_map.h"
 #include "ps3_syscall.h"
 #include "ppu_interpreter.h"
+#include "ppu_jit_compiler.h"
 #include "spu_interpreter.h"
 
 #include "rsx_emulator.h"
@@ -727,8 +729,8 @@ PS3ModuleLoader& NativeCodeExecutor::GetLoader() {
 // PPU Execution Engine
 
 PPUExecutionEngine::PPUExecutionEngine() {
-    ppu_interpreter_ = std::make_unique<ppu::PPUInterpreter>();
-    ppu_jit_ = std::make_unique<ppu::PPUJITCompiler>();
+    ppu_interpreter_ = std::make_unique<::rpcsx::ppu::PPUInterpreter>();
+    ppu_jit_ = std::make_unique<::rpcsx::ppu::PPUJITCompiler>();
 }
 PPUExecutionEngine::~PPUExecutionEngine() { Shutdown(); }
 
@@ -763,7 +765,8 @@ void PPUExecutionEngine::Shutdown() {
     
     // Shutdown PPU interpreter
     if (ppu_interpreter_) {
-        ppu_interpreter_->Shutdown();
+        // PPUInterpreter does not expose a Shutdown() API; release the object
+        ppu_interpreter_.reset();
     }
     
     // Free JIT cache
@@ -842,7 +845,7 @@ void PPUExecutionEngine::Run(uint64_t thread_id) {
                 } else {
                     // Fallback: інтерпретатор
                     if (ppu_interpreter_) {
-                        ppu::PPUState state;
+                        ::rpcsx::ppu::PPUState state;
                         memcpy(state.gpr, thread->context.gpr, sizeof(state.gpr));
                         memcpy(state.fpr, thread->context.fpr, sizeof(state.fpr));
                         state.pc = thread->context.pc;
@@ -863,7 +866,7 @@ void PPUExecutionEngine::Run(uint64_t thread_id) {
                 }
             } else if (ppu_interpreter_) {
                 // Інтерпретатор
-                ppu::PPUState state;
+                ::rpcsx::ppu::PPUState state;
                 memcpy(state.gpr, thread->context.gpr, sizeof(state.gpr));
                 memcpy(state.fpr, thread->context.fpr, sizeof(state.fpr));
                 state.pc = thread->context.pc;
@@ -888,34 +891,23 @@ void PPUExecutionEngine::Run(uint64_t thread_id) {
 
 // SPU Execution Engine
 
-SPUExecutionEngine::SPUExecutionEngine() {
-    spu_thread_group_ = std::make_unique<spu::SPUThreadGroup>();
-    spu_jit_ = std::make_unique<spu::SPUJITCompiler>();
-}
+SPUExecutionEngine::SPUExecutionEngine() {}
 SPUExecutionEngine::~SPUExecutionEngine() { Shutdown(); }
 
 bool SPUExecutionEngine::Initialize(const NCEConfig& config) {
     config_ = config;
-    
-    // Initialize SPU thread group with main memory access
-    spu_thread_group_->Initialize(
-        ps3::PS3MemoryManager::Instance().GetMainMemory(),
-        ps3::MAIN_MEMORY_SIZE
-    );
-
-    // Initialize SPU JIT
-    if (spu_jit_) {
-        spu_jit_->Initialize(64 * 1024 * 1024);
-        LOGI("SPU JIT enabled");
-    }
-
-    LOGI("SPU Engine initialized: %d SPUs with NEON SIMD, JIT=%d", config.spu_thread_count, spu_jit_ ? 1 : 0);
+    // No global SPU thread-group object in this implementation; groups are
+    // created on demand with CreateThreadGroup(). Nothing else to do here.
+    LOGI("SPU Engine initialized: max %d SPUs", config_.spu_thread_count);
     return true;
 }
 
 void SPUExecutionEngine::Shutdown() {
-    if (spu_thread_group_) {
-        spu_thread_group_->Shutdown();
+    // Stop and clear all thread groups
+    for (auto& g : thread_groups_) {
+        if (g && g->running) {
+            g->running = false;
+        }
     }
     thread_groups_.clear();
 }
@@ -927,13 +919,13 @@ uint32_t SPUExecutionEngine::CreateThreadGroup(const char* name, int num_spus, i
     group->running = false;
     
     for (int i = 0; i < num_spus && i < config_.spu_thread_count; i++) {
-        SPUThread spu;
+        group->threads.emplace_back(std::make_unique<SPUThread>());
+        auto& spu = *group->threads.back();
         spu.id = i;
         spu.running = false;
         spu.pc = 0;
         memset(spu.local_store, 0, sizeof(spu.local_store));
         memset(spu.gpr, 0, sizeof(spu.gpr));
-        group->threads.push_back(std::move(spu));
     }
     
     uint32_t id = group->id;

@@ -1,0 +1,5 @@
+{
+    "files.autoSaveDelay": 60000,
+    "idf.pythonInstallPath": "/home/codespace/.python/current/bin/python",
+    "sonarlint.pathToCompileCommands": "${workspaceFolder}/app/.cxx/RelWithDebInfo/3q4p6b3h/arm64-v8a/compile_commands.json"
+}

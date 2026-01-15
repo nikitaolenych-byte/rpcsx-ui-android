@@ -27,6 +27,8 @@
 #include "thread_pool.h"
 #include "profiler.h"
 #include "game_mode_android.h"
+#include "ppu_interpreter.h"
+#include "ppu_jit_compiler.h"
 
 namespace rpcsx {
 namespace nce {
@@ -171,6 +173,10 @@ private:
     void* jit_cache_ = nullptr;
     size_t jit_cache_used_ = 0;
     
+    // PPU engines
+    std::unique_ptr<::rpcsx::ppu::PPUInterpreter> ppu_interpreter_;
+    std::unique_ptr<::rpcsx::ppu::PPUJITCompiler> ppu_jit_;
+    
     // Compile and execute block
     void* CompileBlock(uint64_t address);
     void ExecuteBlock(PPUThread& thread, void* code);
@@ -229,7 +235,7 @@ private:
     struct SPUThreadGroup {
         uint32_t id;
         std::string name;
-        std::vector<SPUThread> threads;
+        std::vector<std::unique_ptr<SPUThread>> threads;
         std::atomic<bool> running;
     };
     

@@ -102,6 +102,9 @@ public:
     size_t GetFreeMainMemory() const;
     size_t GetFreeVideoMemory() const;
     
+    // Get main memory pointer
+    void* GetMainMemory() const { return main_memory_; }
+    
     // Direct memory access (for NCE)
     uint8_t  Read8(uint64_t ps3_addr) const;
     uint16_t Read16(uint64_t ps3_addr) const;
