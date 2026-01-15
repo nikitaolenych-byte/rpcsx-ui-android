@@ -116,21 +116,15 @@ C/C++:   164 |         imm <<= 16;
 C/C++:       |             ^   ~~
 C/C++: 1 warning generated.
 C/C++: /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android29 --sysroot=/usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot -Drpcsx_android_EXPORTS -I/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/.cxx/RelWithDebInfo/3q4p6b3h/arm64-v8a/_deps/zstd-src/lib -I/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp -I/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/.cxx/RelWithDebInfo/3q4p6b3h/arm64-v8a/_deps/libadrenotools-src/include -I/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/.cxx/RelWithDebInfo/3q4p6b3h/arm64-v8a/_deps/libadrenotools-src/lib/linkernsbypass/. -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security   -O2 -g -DNDEBUG -std=gnu++20 -fPIC -Ofast -O3 -ffast-math -ftree-vectorize -funroll-loops -finline-functions -fdata-sections -ffunction-sections -Wno-unused-command-line-argument -mcpu=cortex-x4 -march=armv9-a+sve2 -flto -MD -MT CMakeFiles/rpcsx-android.dir/nce_core/nce_native.cpp.o -MF CMakeFiles/rpcsx-android.dir/nce_core/nce_native.cpp.o.d -o CMakeFiles/rpcsx-android.dir/nce_core/nce_native.cpp.o -c /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp
-C/C++: /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:741:68: error: no member named 'GetMainMemory' in 'rpcsx::nce::ps3::PS3MemoryManager'
-C/C++:   741 |     ppu_interpreter_->Initialize(ps3::PS3MemoryManager::Instance().GetMainMemory(),
+C/C++: /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:742:68: error: no member named 'GetMainMemory' in 'rpcsx::nce::ps3::PS3MemoryManager'
+C/C++:   742 |     ppu_interpreter_->Initialize(ps3::PS3MemoryManager::Instance().GetMainMemory(),
 C/C++:       |                                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ^
-C/C++: /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:768:27: error: no member named 'Shutdown' in 'rpcsx::ppu::PPUInterpreter'
-C/C++:   768 |         ppu_interpreter_->Shutdown();
-C/C++:       |         ~~~~~~~~~~~~~~~~~~^
-C/C++: /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:904:43: error: no member named 'GetMainMemory' in 'rpcsx::nce::ps3::PS3MemoryManager'
-C/C++:   904 |         ps3::PS3MemoryManager::Instance().GetMainMemory(),
+C/C++: /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:770:27: error: no member named 'Shutdown' in 'rpcsx::ppu::PPUInterpreter'
+C/C++:   770 |         ppu_interpreter_->Shutdown();
+C/C++:       |         ~~~~~~~~~~~~~~~~  ^
+C/C++: /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:913:43: error: no member named 'GetMainMemory' in 'rpcsx::nce::ps3::PS3MemoryManager'
+C/C++:   913 |         ps3::PS3MemoryManager::Instance().GetMainMemory(),
 C/C++:       |         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ^
-C/C++: /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:910:17: error: member access into incomplete type 'rpcsx::spu::SPUJITCompiler'
-C/C++:   910 |         spu_jit_->Initialize(64 * 1024 * 1024);
-C/C++:       |                 ^
-C/C++: /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.h:33:45: note: forward declaration of 'rpcsx::spu::SPUJITCompiler'
-C/C++:    33 | namespace spu { class SPUThreadGroup; class SPUJITCompiler; }
-C/C++:       |                                             ^
 C/C++: In file included from /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:3:
 C/C++: In file included from /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.h:19:
 C/C++: In file included from /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/memory:940:
@@ -145,8 +139,8 @@ C/C++:       |                     ^
 C/C++: /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/vector:1522:5: note: in instantiation of function template specialization 'std::vector<rpcsx::nce::SPUExecutionEngine::SPUThread>::__construct_one_at_end<rpcsx::nce::SPUExecutionEngine::SPUThread>' requested here
 C/C++:  1522 |     __construct_one_at_end(std::move(__x));
 C/C++:       |     ^
-C/C++: /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:938:24: note: in instantiation of member function 'std::vector<rpcsx::nce::SPUExecutionEngine::SPUThread>::push_back' requested here
-C/C++:   938 |         group->threads.push_back(std::move(spu));
+C/C++: /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:955:24: note: in instantiation of member function 'std::vector<rpcsx::nce::SPUExecutionEngine::SPUThread>::push_back' requested here
+C/C++:   955 |         group->threads.push_back(std::move(spu));
 C/C++:       |                        ^
 C/C++: /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__memory/construct_at.h:47:58: note: candidate template ignored: substitution failure [with _Tp = rpcsx::nce::SPUExecutionEngine::SPUThread, _Args = <rpcsx::nce::SPUExecutionEngine::SPUThread>]: call to implicitly-deleted copy constructor of 'rpcsx::nce::SPUExecutionEngine::SPUThread'
 C/C++:    46 | template <class _Tp, class... _Args, class = decltype(::new(std::declval<void*>()) _Tp(std::declval<_Args>()...))>
@@ -170,44 +164,10 @@ C/C++:       |   ^
 C/C++: /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/vector:1525:13: note: in instantiation of function template specialization 'std::vector<rpcsx::nce::SPUExecutionEngine::SPUThread>::__push_back_slow_path<rpcsx::nce::SPUExecutionEngine::SPUThread>' requested here
 C/C++:  1525 |     __end = __push_back_slow_path(std::move(__x));
 C/C++:       |             ^
-C/C++: /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:938:24: note: in instantiation of member function 'std::vector<rpcsx::nce::SPUExecutionEngine::SPUThread>::push_back' requested here
-C/C++:   938 |         group->threads.push_back(std::move(spu));
+C/C++: /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:955:24: note: in instantiation of member function 'std::vector<rpcsx::nce::SPUExecutionEngine::SPUThread>::push_back' requested here
+C/C++:   955 |         group->threads.push_back(std::move(spu));
 C/C++:       |                        ^
-C/C++: In file included from /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:3:
-C/C++: In file included from /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.h:19:
-C/C++: In file included from /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/memory:944:
-C/C++: In file included from /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__memory/inout_ptr.h:16:
-C/C++: In file included from /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__memory/shared_ptr.h:32:
-C/C++: /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__memory/unique_ptr.h:66:19: error: invalid application of 'sizeof' to an incomplete type 'rpcsx::spu::SPUJITCompiler'
-C/C++:    66 |     static_assert(sizeof(_Tp) >= 0, "cannot delete an incomplete type");
-C/C++:       |                   ^~~~~~~~~~~
-C/C++: /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__memory/unique_ptr.h:280:7: note: in instantiation of member function 'std::default_delete<rpcsx::spu::SPUJITCompiler>::operator()' requested here
-C/C++:   280 |       __ptr_.second()(__tmp);
-C/C++:       |       ^
-C/C++: /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__memory/unique_ptr.h:249:71: note: in instantiation of member function 'std::unique_ptr<rpcsx::spu::SPUJITCompiler>::reset' requested here
-C/C++:   249 |   _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX23 ~unique_ptr() { reset(); }
-C/C++:       |                                                                       ^
-C/C++: /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:893:21: note: in instantiation of member function 'std::unique_ptr<rpcsx::spu::SPUJITCompiler>::~unique_ptr' requested here
-C/C++:   893 | SPUExecutionEngine::SPUExecutionEngine() {
-C/C++:       |                     ^
-C/C++: /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.h:33:45: note: forward declaration of 'rpcsx::spu::SPUJITCompiler'
-C/C++:    33 | namespace spu { class SPUThreadGroup; class SPUJITCompiler; }
-C/C++:       |                                             ^
-C/C++: In file included from /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:3:
-C/C++: In file included from /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.h:19:
-C/C++: In file included from /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/memory:944:
-C/C++: In file included from /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__memory/inout_ptr.h:16:
-C/C++: In file included from /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__memory/shared_ptr.h:32:
-C/C++: /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__memory/unique_ptr.h:622:30: error: allocation of incomplete type 'rpcsx::spu::SPUJITCompiler'
-C/C++:   622 |   return unique_ptr<_Tp>(new _Tp(std::forward<_Args>(__args)...));
-C/C++:       |                              ^~~
-C/C++: /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:895:21: note: in instantiation of function template specialization 'std::make_unique<rpcsx::spu::SPUJITCompiler>' requested here
-C/C++:   895 |     spu_jit_ = std::make_unique<spu::SPUJITCompiler>();
-C/C++:       |                     ^
-C/C++: /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.h:33:45: note: forward declaration of 'rpcsx::spu::SPUJITCompiler'
-C/C++:    33 | namespace spu { class SPUThreadGroup; class SPUJITCompiler; }
-C/C++:       |                                             ^
-C/C++: 8 errors generated.
+C/C++: 5 errors generated.
 
 > Task :app:buildCMakeRelWithDebInfo[arm64-v8a] FAILED
 
@@ -219,17 +179,16 @@ Execution failed for task ':app:buildCMakeRelWithDebInfo[arm64-v8a]'.
   [1/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/debug.c.o
   [2/98] Building CXX object _deps/libadrenotools-build/lib/linkernsbypass/CMakeFiles/linkernsbypass.dir/elf_soname_patcher.cpp.o
   [3/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/threading.c.o
-  [4/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/error_private.c.o
-  [5/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/pool.c.o
-  [6/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/xxhash.c.o
-  [7/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/zstd_common.c.o
+  [4/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/xxhash.c.o
+  [5/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/error_private.c.o
+  [6/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/pool.c.o
+  [7/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/fse_decompress.c.o
   [8/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/entropy_common.c.o
-  [9/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/fse_decompress.c.o
-  [10/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/hist.c.o
-  [11/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/fse_compress.c.o
+  [9/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/zstd_common.c.o
+  [10/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/fse_compress.c.o
+  [11/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/hist.c.o
   [12/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/zstd_compress_literals.c.o
-  [13/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/zstd_compress_sequences.c.o
-  [14/98] Building CXX object _deps/libadrenotools-build/lib/linkernsbypass/CMakeFiles/linkernsbypass.dir/android_linker_ns.cpp.o
+  [13/98] Building CXX object _deps/libadrenotools-build/lib/linkernsbypass/CMakeFiles/linkernsbypass.dir/android_linker_ns.cpp.o
   /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/.cxx/RelWithDebInfo/3q4p6b3h/arm64-v8a/_deps/libadrenotools-src/lib/linkernsbypass/android_linker_ns.cpp:68:5: warning: missing field 'reserved_addr' initializer [-Wmissing-designated-field-initializers]
      68 |     };
         |     ^
@@ -240,8 +199,9 @@ Execution failed for task ':app:buildCMakeRelWithDebInfo[arm64-v8a]'.
     106 |     snprintf(sonameOverwrite.data(), sonameOverwrite.size(), "%03u", TargetId++);
         |     ^
   3 warnings generated.
-  [15/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/huf_compress.c.o
-  [16/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/zstd_compress_superblock.c.o
+  [14/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/zstd_compress_sequences.c.o
+  [15/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/zstd_compress_superblock.c.o
+  [16/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/huf_compress.c.o
   [17/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/zstd_ldm.c.o
   [18/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/zstdmt_compress.c.o
   [19/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/zstd_compress.c.o
@@ -250,15 +210,16 @@ Execution failed for task ':app:buildCMakeRelWithDebInfo[arm64-v8a]'.
   [22/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/zstd_opt.c.o
   [23/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/zstd_fast.c.o
   [24/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/decompress/zstd_ddict.c.o
-  [25/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/decompress/zstd_decompress.c.o
+  [25/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/decompress/huf_decompress.c.o
   [26/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/dictBuilder/cover.c.o
-  [27/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/decompress/huf_decompress.c.o
+  [27/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/decompress/zstd_decompress.c.o
   [28/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/dictBuilder/fastcover.c.o
-  [29/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/dictBuilder/divsufsort.c.o
+  [29/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/dictBuilder/zdict.c.o
   [30/98] Linking CXX static library _deps/libadrenotools-build/lib/linkernsbypass/liblinkernsbypass.a
-  [31/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/decompress/zstd_decompress_block.c.o
-  [32/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/dictBuilder/zdict.c.o
-  [33/98] Building CXX object _deps/libadrenotools-build/CMakeFiles/adrenotools.dir/src/driver.cpp.o
+  [31/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/dictBuilder/divsufsort.c.o
+  [32/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/decompress/zstd_decompress_block.c.o
+  [33/98] Building CXX object CMakeFiles/rpcsx-android.dir/signal_handler.cpp.o
+  [34/98] Building CXX object _deps/libadrenotools-build/CMakeFiles/adrenotools.dir/src/driver.cpp.o
   /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/.cxx/RelWithDebInfo/3q4p6b3h/arm64-v8a/_deps/libadrenotools-src/src/driver.cpp:109:5: warning: missing field 'id' initializer [-Wmissing-designated-field-initializers]
     109 |     };
         |     ^
@@ -266,7 +227,6 @@ Execution failed for task ':app:buildCMakeRelWithDebInfo[arm64-v8a]'.
     145 |     };
         |     ^
   2 warnings generated.
-  [34/98] Building CXX object CMakeFiles/rpcsx-android.dir/signal_handler.cpp.o
   [35/98] Building CXX object _deps/libadrenotools-build/src/hook/CMakeFiles/hook_impl.dir/hook_impl.cpp.o
   /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/.cxx/RelWithDebInfo/3q4p6b3h/arm64-v8a/_deps/libadrenotools-src/src/hook/hook_impl.cpp:151:13: warning: missing field 'reserved_addr' initializer [-Wmissing-designated-field-initializers]
     151 |             };
@@ -281,8 +241,8 @@ Execution failed for task ':app:buildCMakeRelWithDebInfo[arm64-v8a]'.
   [36/98] Building CXX object _deps/libadrenotools-build/CMakeFiles/adrenotools.dir/src/bcenabler.cpp.o
   [37/98] Building CXX object CMakeFiles/rpcsx-android.dir/fastmem_mapper.cpp.o
   [38/98] Building CXX object CMakeFiles/rpcsx-android.dir/native-lib.cpp.o
-  [39/98] Building CXX object CMakeFiles/rpcsx-android.dir/thread_scheduler.cpp.o
-  [40/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/zstd_lazy.c.o
+  [39/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/zstd_lazy.c.o
+  [40/98] Building CXX object CMakeFiles/rpcsx-android.dir/thread_scheduler.cpp.o
   [41/98] Building CXX object CMakeFiles/rpcsx-android.dir/frostbite_hacks.cpp.o
   /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/frostbite_hacks.cpp:170:53: warning: more '%' conversions than data arguments [-Wformat-insufficient-args]
     170 |     LOGI("Shader complexity reduced - expect 20-30% FPS boost");
@@ -297,7 +257,8 @@ Execution failed for task ':app:buildCMakeRelWithDebInfo[arm64-v8a]'.
      12 | #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
         |                                                                  ^~~~~~~~~~~
   2 warnings generated.
-  [42/98] Building CXX object CMakeFiles/rpcsx-android.dir/shader_cache_manager.cpp.o
+  [42/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_engine.cpp.o
+  [43/98] Building CXX object CMakeFiles/rpcsx-android.dir/shader_cache_manager.cpp.o
   /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/shader_cache_manager.cpp:375:69: warning: format specifies type 'unsigned long long' but the argument has type 'uint64_t' (aka 'unsigned long') [-Wformat]
     375 |     LOGI("Shader cached to L3: hash=%016llx (%u bytes compressed)", hash, size);
         |                                     ~~~~~~~                         ^~~~
@@ -334,40 +295,42 @@ Execution failed for task ':app:buildCMakeRelWithDebInfo[arm64-v8a]'.
      20 | #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
         |                                                                  ^~~~~~~~~~~
   5 warnings generated.
-  [43/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_engine.cpp.o
   [44/98] Building CXX object CMakeFiles/rpcsx-android.dir/fsr31/fsr31.cpp.o
   [45/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_jit/ppc_decoder.cpp.o
-  [46/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_jit/arm64_emitter.cpp.o
-  [47/98] Building CXX object CMakeFiles/rpcsx-android.dir/realsteel_hacks.cpp.o
-  [48/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_core/nce_standalone.cpp.o
-  [49/98] Building CXX object CMakeFiles/rpcsx-android.dir/game_patches.cpp.o
-  [50/98] Building CXX object CMakeFiles/rpcsx-android.dir/vulkan_renderer.cpp.o
-  [51/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_v8/nce_v8.cpp.o
-  [52/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_v8/tiered_jit.cpp.o
+  [46/98] Building CXX object CMakeFiles/rpcsx-android.dir/realsteel_hacks.cpp.o
+  [47/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_jit/arm64_emitter.cpp.o
+  [48/98] Building CXX object CMakeFiles/rpcsx-android.dir/game_patches.cpp.o
+  [49/98] Building CXX object CMakeFiles/rpcsx-android.dir/vulkan_renderer.cpp.o
+  [50/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_core/nce_standalone.cpp.o
+  [51/98] Building CXX object CMakeFiles/rpcsx-android.dir/plt_hook.cpp.o
+  [52/98] Building CXX object CMakeFiles/rpcsx-android.dir/ppu_interceptor.cpp.o
+  [53/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/common/debug.c.o
+  [54/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_v8/nce_v8.cpp.o
+  [55/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_v8/llvm_backend.cpp.o
+  [56/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/common/entropy_common.c.o
+  [57/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/common/error_private.c.o
+  [58/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/common/threading.c.o
+  [59/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/common/xxhash.c.o
+  [60/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/common/pool.c.o
+  [61/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/common/fse_decompress.c.o
+  [62/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_v8/tiered_jit.cpp.o
   /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_v8/tiered_jit.cpp:164:13: warning: shift count >= width of type [-Wshift-count-overflow]
     164 |         imm <<= 16;
         |             ^   ~~
   1 warning generated.
-  [53/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/common/debug.c.o
-  [54/98] Building CXX object CMakeFiles/rpcsx-android.dir/plt_hook.cpp.o
-  [55/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_core/nce_native.cpp.o
+  [63/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/common/zstd_common.c.o
+  [64/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_core/nce_native.cpp.o
   FAILED: CMakeFiles/rpcsx-android.dir/nce_core/nce_native.cpp.o 
   /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android29 --sysroot=/usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot -Drpcsx_android_EXPORTS -I/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/.cxx/RelWithDebInfo/3q4p6b3h/arm64-v8a/_deps/zstd-src/lib -I/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp -I/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/.cxx/RelWithDebInfo/3q4p6b3h/arm64-v8a/_deps/libadrenotools-src/include -I/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/.cxx/RelWithDebInfo/3q4p6b3h/arm64-v8a/_deps/libadrenotools-src/lib/linkernsbypass/. -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security   -O2 -g -DNDEBUG -std=gnu++20 -fPIC -Ofast -O3 -ffast-math -ftree-vectorize -funroll-loops -finline-functions -fdata-sections -ffunction-sections -Wno-unused-command-line-argument -mcpu=cortex-x4 -march=armv9-a+sve2 -flto -MD -MT CMakeFiles/rpcsx-android.dir/nce_core/nce_native.cpp.o -MF CMakeFiles/rpcsx-android.dir/nce_core/nce_native.cpp.o.d -o CMakeFiles/rpcsx-android.dir/nce_core/nce_native.cpp.o -c /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp
-  /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:741:68: error: no member named 'GetMainMemory' in 'rpcsx::nce::ps3::PS3MemoryManager'
-    741 |     ppu_interpreter_->Initialize(ps3::PS3MemoryManager::Instance().GetMainMemory(),
+  /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:742:68: error: no member named 'GetMainMemory' in 'rpcsx::nce::ps3::PS3MemoryManager'
+    742 |     ppu_interpreter_->Initialize(ps3::PS3MemoryManager::Instance().GetMainMemory(),
         |                                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ^
-  /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:768:27: error: no member named 'Shutdown' in 'rpcsx::ppu::PPUInterpreter'
-    768 |         ppu_interpreter_->Shutdown();
-        |         ~~~~~~~~~~~~~~~~~~^
-  /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:904:43: error: no member named 'GetMainMemory' in 'rpcsx::nce::ps3::PS3MemoryManager'
-    904 |         ps3::PS3MemoryManager::Instance().GetMainMemory(),
+  /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:770:27: error: no member named 'Shutdown' in 'rpcsx::ppu::PPUInterpreter'
+    770 |         ppu_interpreter_->Shutdown();
+        |         ~~~~~~~~~~~~~~~~  ^
+  /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:913:43: error: no member named 'GetMainMemory' in 'rpcsx::nce::ps3::PS3MemoryManager'
+    913 |         ps3::PS3MemoryManager::Instance().GetMainMemory(),
         |         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ^
-  /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:910:17: error: member access into incomplete type 'rpcsx::spu::SPUJITCompiler'
-    910 |         spu_jit_->Initialize(64 * 1024 * 1024);
-        |                 ^
-  /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.h:33:45: note: forward declaration of 'rpcsx::spu::SPUJITCompiler'
-     33 | namespace spu { class SPUThreadGroup; class SPUJITCompiler; }
-        |                                             ^
   In file included from /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:3:
   In file included from /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.h:19:
   In file included from /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/memory:940:
@@ -382,8 +345,8 @@ Execution failed for task ':app:buildCMakeRelWithDebInfo[arm64-v8a]'.
   /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/vector:1522:5: note: in instantiation of function template specialization 'std::vector<rpcsx::nce::SPUExecutionEngine::SPUThread>::__construct_one_at_end<rpcsx::nce::SPUExecutionEngine::SPUThread>' requested here
    1522 |     __construct_one_at_end(std::move(__x));
         |     ^
-  /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:938:24: note: in instantiation of member function 'std::vector<rpcsx::nce::SPUExecutionEngine::SPUThread>::push_back' requested here
-    938 |         group->threads.push_back(std::move(spu));
+  /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:955:24: note: in instantiation of member function 'std::vector<rpcsx::nce::SPUExecutionEngine::SPUThread>::push_back' requested here
+    955 |         group->threads.push_back(std::move(spu));
         |                        ^
   /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__memory/construct_at.h:47:58: note: candidate template ignored: substitution failure [with _Tp = rpcsx::nce::SPUExecutionEngine::SPUThread, _Args = <rpcsx::nce::SPUExecutionEngine::SPUThread>]: call to implicitly-deleted copy constructor of 'rpcsx::nce::SPUExecutionEngine::SPUThread'
      46 | template <class _Tp, class... _Args, class = decltype(::new(std::declval<void*>()) _Tp(std::declval<_Args>()...))>
@@ -407,49 +370,15 @@ Execution failed for task ':app:buildCMakeRelWithDebInfo[arm64-v8a]'.
   /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/vector:1525:13: note: in instantiation of function template specialization 'std::vector<rpcsx::nce::SPUExecutionEngine::SPUThread>::__push_back_slow_path<rpcsx::nce::SPUExecutionEngine::SPUThread>' requested here
    1525 |     __end = __push_back_slow_path(std::move(__x));
         |             ^
-  /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:938:24: note: in instantiation of member function 'std::vector<rpcsx::nce::SPUExecutionEngine::SPUThread>::push_back' requested here
-    938 |         group->threads.push_back(std::move(spu));
+  /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:955:24: note: in instantiation of member function 'std::vector<rpcsx::nce::SPUExecutionEngine::SPUThread>::push_back' requested here
+    955 |         group->threads.push_back(std::move(spu));
         |                        ^
-  In file included from /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:3:
-  In file included from /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.h:19:
-  In file included from /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/memory:944:
-  In file included from /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__memory/inout_ptr.h:16:
-  In file included from /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__memory/shared_ptr.h:32:
-  /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__memory/unique_ptr.h:66:19: error: invalid application of 'sizeof' to an incomplete type 'rpcsx::spu::SPUJITCompiler'
-     66 |     static_assert(sizeof(_Tp) >= 0, "cannot delete an incomplete type");
-        |                   ^~~~~~~~~~~
-  /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__memory/unique_ptr.h:280:7: note: in instantiation of member function 'std::default_delete<rpcsx::spu::SPUJITCompiler>::operator()' requested here
-    280 |       __ptr_.second()(__tmp);
-        |       ^
-  /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__memory/unique_ptr.h:249:71: note: in instantiation of member function 'std::unique_ptr<rpcsx::spu::SPUJITCompiler>::reset' requested here
-    249 |   _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX23 ~unique_ptr() { reset(); }
-        |                                                                       ^
-  /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:893:21: note: in instantiation of member function 'std::unique_ptr<rpcsx::spu::SPUJITCompiler>::~unique_ptr' requested here
-    893 | SPUExecutionEngine::SPUExecutionEngine() {
-        |                     ^
-  /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.h:33:45: note: forward declaration of 'rpcsx::spu::SPUJITCompiler'
-     33 | namespace spu { class SPUThreadGroup; class SPUJITCompiler; }
-        |                                             ^
-  In file included from /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:3:
-  In file included from /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.h:19:
-  In file included from /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/memory:944:
-  In file included from /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__memory/inout_ptr.h:16:
-  In file included from /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__memory/shared_ptr.h:32:
-  /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__memory/unique_ptr.h:622:30: error: allocation of incomplete type 'rpcsx::spu::SPUJITCompiler'
-    622 |   return unique_ptr<_Tp>(new _Tp(std::forward<_Args>(__args)...));
-        |                              ^~~
-  /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:895:21: note: in instantiation of function template specialization 'std::make_unique<rpcsx::spu::SPUJITCompiler>' requested here
-    895 |     spu_jit_ = std::make_unique<spu::SPUJITCompiler>();
-        |                     ^
-  /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.h:33:45: note: forward declaration of 'rpcsx::spu::SPUJITCompiler'
-     33 | namespace spu { class SPUThreadGroup; class SPUJITCompiler; }
-        |                                             ^
-  8 errors generated.
-  [56/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_v8/llvm_backend.cpp.o
-  [57/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/common/error_private.c.o
-  [58/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/common/entropy_common.c.o
-  [59/98] Building CXX object CMakeFiles/rpcsx-android.dir/ppu_interceptor.cpp.o
-  [60/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_hook.cpp.o
+  5 errors generated.
+  [65/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/compress/hist.c.o
+  [66/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/compress/fse_compress.c.o
+  [67/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_hook.cpp.o
+  [68/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/compress/huf_compress.c.o
+  [69/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/compress/zstd_compress.c.o
   ninja: build stopped: subcommand failed.
   
   C++ build system [build] failed while executing:
@@ -500,23 +429,51 @@ org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':app:bui
 	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:303)
 	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.execute(DefaultPlanExecutor.java:459)
 	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:376)
+	at org.gradle.execution.plan.DefaultPlanExecutor.process(DefaultPlanExecutor.java:111)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph.executeWithServices(DefaultTaskExecutionGraph.java:138)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph.execute(DefaultTaskExecutionGraph.java:123)
+	at org.gradle.execution.SelectedTaskExecutionAction.execute(SelectedTaskExecutionAction.java:35)
+	at org.gradle.execution.DryRunBuildExecutionAction.execute(DryRunBuildExecutionAction.java:51)
+	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor$ExecuteTasks.call(BuildOperationFiringBuildWorkerExecutor.java:54)
+	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor$ExecuteTasks.call(BuildOperationFiringBuildWorkerExecutor.java:43)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:209)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:204)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:166)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:53)
+	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor.execute(BuildOperationFiringBuildWorkerExecutor.java:40)
+	at org.gradle.internal.build.DefaultBuildLifecycleController.lambda$executeTasks$10(DefaultBuildLifecycleController.java:313)
+	at org.gradle.internal.model.StateTransitionController.doTransition(StateTransitionController.java:266)
+	at org.gradle.internal.model.StateTransitionController.lambda$tryTransition$8(StateTransitionController.java:177)
+	at org.gradle.internal.work.DefaultSynchronizer.withLock(DefaultSynchronizer.java:46)
+	at org.gradle.internal.model.StateTransitionController.tryTransition(StateTransitionController.java:177)
+	at org.gradle.internal.build.DefaultBuildLifecycleController.executeTasks(DefaultBuildLifecycleController.java:304)
+	at org.gradle.internal.build.DefaultBuildWorkGraphController$DefaultBuildWorkGraph.runWork(DefaultBuildWorkGraphController.java:220)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocks(DefaultWorkerLeaseService.java:263)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:127)
+	at org.gradle.composite.internal.DefaultBuildController.doRun(DefaultBuildController.java:181)
+	at org.gradle.composite.internal.DefaultBuildController.access$000(DefaultBuildController.java:50)
+	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.lambda$run$0(DefaultBuildController.java:198)
+	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:85)
+	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.run(DefaultBuildController.java:198)
 	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
 	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:48)
 Caused by: org.gradle.internal.UncheckedException: com.android.ide.common.process.ProcessException: ninja: Entering directory `/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/.cxx/RelWithDebInfo/3q4p6b3h/arm64-v8a'
 [1/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/debug.c.o
 [2/98] Building CXX object _deps/libadrenotools-build/lib/linkernsbypass/CMakeFiles/linkernsbypass.dir/elf_soname_patcher.cpp.o
 [3/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/threading.c.o
-[4/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/error_private.c.o
-[5/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/pool.c.o
-[6/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/xxhash.c.o
-[7/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/zstd_common.c.o
+[4/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/xxhash.c.o
+[5/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/error_private.c.o
+[6/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/pool.c.o
+[7/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/fse_decompress.c.o
 [8/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/entropy_common.c.o
-[9/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/fse_decompress.c.o
-[10/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/hist.c.o
-[11/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/fse_compress.c.o
+[9/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/zstd_common.c.o
+[10/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/fse_compress.c.o
+[11/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/hist.c.o
 [12/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/zstd_compress_literals.c.o
-[13/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/zstd_compress_sequences.c.o
-[14/98] Building CXX object _deps/libadrenotools-build/lib/linkernsbypass/CMakeFiles/linkernsbypass.dir/android_linker_ns.cpp.o
+[13/98] Building CXX object _deps/libadrenotools-build/lib/linkernsbypass/CMakeFiles/linkernsbypass.dir/android_linker_ns.cpp.o
 /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/.cxx/RelWithDebInfo/3q4p6b3h/arm64-v8a/_deps/libadrenotools-src/lib/linkernsbypass/android_linker_ns.cpp:68:5: warning: missing field 'reserved_addr' initializer [-Wmissing-designated-field-initializers]
    68 |     };
       |     ^
@@ -527,8 +484,9 @@ Caused by: org.gradle.internal.UncheckedException: com.android.ide.common.proces
   106 |     snprintf(sonameOverwrite.data(), sonameOverwrite.size(), "%03u", TargetId++);
       |     ^
 3 warnings generated.
-[15/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/huf_compress.c.o
-[16/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/zstd_compress_superblock.c.o
+[14/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/zstd_compress_sequences.c.o
+[15/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/zstd_compress_superblock.c.o
+[16/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/huf_compress.c.o
 [17/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/zstd_ldm.c.o
 [18/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/zstdmt_compress.c.o
 [19/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/zstd_compress.c.o
@@ -537,15 +495,16 @@ Caused by: org.gradle.internal.UncheckedException: com.android.ide.common.proces
 [22/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/zstd_opt.c.o
 [23/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/zstd_fast.c.o
 [24/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/decompress/zstd_ddict.c.o
-[25/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/decompress/zstd_decompress.c.o
+[25/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/decompress/huf_decompress.c.o
 [26/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/dictBuilder/cover.c.o
-[27/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/decompress/huf_decompress.c.o
+[27/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/decompress/zstd_decompress.c.o
 [28/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/dictBuilder/fastcover.c.o
-[29/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/dictBuilder/divsufsort.c.o
+[29/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/dictBuilder/zdict.c.o
 [30/98] Linking CXX static library _deps/libadrenotools-build/lib/linkernsbypass/liblinkernsbypass.a
-[31/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/decompress/zstd_decompress_block.c.o
-[32/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/dictBuilder/zdict.c.o
-[33/98] Building CXX object _deps/libadrenotools-build/CMakeFiles/adrenotools.dir/src/driver.cpp.o
+[31/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/dictBuilder/divsufsort.c.o
+[32/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/decompress/zstd_decompress_block.c.o
+[33/98] Building CXX object CMakeFiles/rpcsx-android.dir/signal_handler.cpp.o
+[34/98] Building CXX object _deps/libadrenotools-build/CMakeFiles/adrenotools.dir/src/driver.cpp.o
 /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/.cxx/RelWithDebInfo/3q4p6b3h/arm64-v8a/_deps/libadrenotools-src/src/driver.cpp:109:5: warning: missing field 'id' initializer [-Wmissing-designated-field-initializers]
   109 |     };
       |     ^
@@ -553,7 +512,6 @@ Caused by: org.gradle.internal.UncheckedException: com.android.ide.common.proces
   145 |     };
       |     ^
 2 warnings generated.
-[34/98] Building CXX object CMakeFiles/rpcsx-android.dir/signal_handler.cpp.o
 [35/98] Building CXX object _deps/libadrenotools-build/src/hook/CMakeFiles/hook_impl.dir/hook_impl.cpp.o
 /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/.cxx/RelWithDebInfo/3q4p6b3h/arm64-v8a/_deps/libadrenotools-src/src/hook/hook_impl.cpp:151:13: warning: missing field 'reserved_addr' initializer [-Wmissing-designated-field-initializers]
   151 |             };
@@ -568,8 +526,8 @@ Caused by: org.gradle.internal.UncheckedException: com.android.ide.common.proces
 [36/98] Building CXX object _deps/libadrenotools-build/CMakeFiles/adrenotools.dir/src/bcenabler.cpp.o
 [37/98] Building CXX object CMakeFiles/rpcsx-android.dir/fastmem_mapper.cpp.o
 [38/98] Building CXX object CMakeFiles/rpcsx-android.dir/native-lib.cpp.o
-[39/98] Building CXX object CMakeFiles/rpcsx-android.dir/thread_scheduler.cpp.o
-[40/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/zstd_lazy.c.o
+[39/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/zstd_lazy.c.o
+[40/98] Building CXX object CMakeFiles/rpcsx-android.dir/thread_scheduler.cpp.o
 [41/98] Building CXX object CMakeFiles/rpcsx-android.dir/frostbite_hacks.cpp.o
 /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/frostbite_hacks.cpp:170:53: warning: more '%' conversions than data arguments [-Wformat-insufficient-args]
   170 |     LOGI("Shader complexity reduced - expect 20-30% FPS boost");
@@ -584,7 +542,8 @@ Caused by: org.gradle.internal.UncheckedException: com.android.ide.common.proces
    12 | #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
       |                                                                  ^~~~~~~~~~~
 2 warnings generated.
-[42/98] Building CXX object CMakeFiles/rpcsx-android.dir/shader_cache_manager.cpp.o
+[42/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_engine.cpp.o
+[43/98] Building CXX object CMakeFiles/rpcsx-android.dir/shader_cache_manager.cpp.o
 /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/shader_cache_manager.cpp:375:69: warning: format specifies type 'unsigned long long' but the argument has type 'uint64_t' (aka 'unsigned long') [-Wformat]
   375 |     LOGI("Shader cached to L3: hash=%016llx (%u bytes compressed)", hash, size);
       |                                     ~~~~~~~                         ^~~~
@@ -621,40 +580,42 @@ Caused by: org.gradle.internal.UncheckedException: com.android.ide.common.proces
    20 | #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
       |                                                                  ^~~~~~~~~~~
 5 warnings generated.
-[43/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_engine.cpp.o
 [44/98] Building CXX object CMakeFiles/rpcsx-android.dir/fsr31/fsr31.cpp.o
 [45/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_jit/ppc_decoder.cpp.o
-[46/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_jit/arm64_emitter.cpp.o
-[47/98] Building CXX object CMakeFiles/rpcsx-android.dir/realsteel_hacks.cpp.o
-[48/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_core/nce_standalone.cpp.o
-[49/98] Building CXX object CMakeFiles/rpcsx-android.dir/game_patches.cpp.o
-[50/98] Building CXX object CMakeFiles/rpcsx-android.dir/vulkan_renderer.cpp.o
-[51/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_v8/nce_v8.cpp.o
-[52/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_v8/tiered_jit.cpp.o
+[46/98] Building CXX object CMakeFiles/rpcsx-android.dir/realsteel_hacks.cpp.o
+[47/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_jit/arm64_emitter.cpp.o
+[48/98] Building CXX object CMakeFiles/rpcsx-android.dir/game_patches.cpp.o
+[49/98] Building CXX object CMakeFiles/rpcsx-android.dir/vulkan_renderer.cpp.o
+[50/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_core/nce_standalone.cpp.o
+[51/98] Building CXX object CMakeFiles/rpcsx-android.dir/plt_hook.cpp.o
+[52/98] Building CXX object CMakeFiles/rpcsx-android.dir/ppu_interceptor.cpp.o
+[53/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/common/debug.c.o
+[54/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_v8/nce_v8.cpp.o
+[55/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_v8/llvm_backend.cpp.o
+[56/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/common/entropy_common.c.o
+[57/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/common/error_private.c.o
+[58/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/common/threading.c.o
+[59/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/common/xxhash.c.o
+[60/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/common/pool.c.o
+[61/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/common/fse_decompress.c.o
+[62/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_v8/tiered_jit.cpp.o
 /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_v8/tiered_jit.cpp:164:13: warning: shift count >= width of type [-Wshift-count-overflow]
   164 |         imm <<= 16;
       |             ^   ~~
 1 warning generated.
-[53/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/common/debug.c.o
-[54/98] Building CXX object CMakeFiles/rpcsx-android.dir/plt_hook.cpp.o
-[55/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_core/nce_native.cpp.o
+[63/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/common/zstd_common.c.o
+[64/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_core/nce_native.cpp.o
 FAILED: CMakeFiles/rpcsx-android.dir/nce_core/nce_native.cpp.o 
 /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android29 --sysroot=/usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot -Drpcsx_android_EXPORTS -I/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/.cxx/RelWithDebInfo/3q4p6b3h/arm64-v8a/_deps/zstd-src/lib -I/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp -I/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/.cxx/RelWithDebInfo/3q4p6b3h/arm64-v8a/_deps/libadrenotools-src/include -I/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/.cxx/RelWithDebInfo/3q4p6b3h/arm64-v8a/_deps/libadrenotools-src/lib/linkernsbypass/. -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security   -O2 -g -DNDEBUG -std=gnu++20 -fPIC -Ofast -O3 -ffast-math -ftree-vectorize -funroll-loops -finline-functions -fdata-sections -ffunction-sections -Wno-unused-command-line-argument -mcpu=cortex-x4 -march=armv9-a+sve2 -flto -MD -MT CMakeFiles/rpcsx-android.dir/nce_core/nce_native.cpp.o -MF CMakeFiles/rpcsx-android.dir/nce_core/nce_native.cpp.o.d -o CMakeFiles/rpcsx-android.dir/nce_core/nce_native.cpp.o -c /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp
-/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:741:68: error: no member named 'GetMainMemory' in 'rpcsx::nce::ps3::PS3MemoryManager'
-  741 |     ppu_interpreter_->Initialize(ps3::PS3MemoryManager::Instance().GetMainMemory(),
+/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:742:68: error: no member named 'GetMainMemory' in 'rpcsx::nce::ps3::PS3MemoryManager'
+  742 |     ppu_interpreter_->Initialize(ps3::PS3MemoryManager::Instance().GetMainMemory(),
       |                                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ^
-/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:768:27: error: no member named 'Shutdown' in 'rpcsx::ppu::PPUInterpreter'
-  768 |         ppu_interpreter_->Shutdown();
-      |         ~~~~~~~~~~~~~~~~~~^
-/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:904:43: error: no member named 'GetMainMemory' in 'rpcsx::nce::ps3::PS3MemoryManager'
-  904 |         ps3::PS3MemoryManager::Instance().GetMainMemory(),
+/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:770:27: error: no member named 'Shutdown' in 'rpcsx::ppu::PPUInterpreter'
+  770 |         ppu_interpreter_->Shutdown();
+      |         ~~~~~~~~~~~~~~~~  ^
+/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:913:43: error: no member named 'GetMainMemory' in 'rpcsx::nce::ps3::PS3MemoryManager'
+  913 |         ps3::PS3MemoryManager::Instance().GetMainMemory(),
       |         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ^
-/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:910:17: error: member access into incomplete type 'rpcsx::spu::SPUJITCompiler'
-  910 |         spu_jit_->Initialize(64 * 1024 * 1024);
-      |                 ^
-/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.h:33:45: note: forward declaration of 'rpcsx::spu::SPUJITCompiler'
-   33 | namespace spu { class SPUThreadGroup; class SPUJITCompiler; }
-      |                                             ^
 In file included from /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:3:
 In file included from /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.h:19:
 In file included from /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/memory:940:
@@ -669,8 +630,8 @@ In file included from /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/ll
 /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/vector:1522:5: note: in instantiation of function template specialization 'std::vector<rpcsx::nce::SPUExecutionEngine::SPUThread>::__construct_one_at_end<rpcsx::nce::SPUExecutionEngine::SPUThread>' requested here
  1522 |     __construct_one_at_end(std::move(__x));
       |     ^
-/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:938:24: note: in instantiation of member function 'std::vector<rpcsx::nce::SPUExecutionEngine::SPUThread>::push_back' requested here
-  938 |         group->threads.push_back(std::move(spu));
+/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:955:24: note: in instantiation of member function 'std::vector<rpcsx::nce::SPUExecutionEngine::SPUThread>::push_back' requested here
+  955 |         group->threads.push_back(std::move(spu));
       |                        ^
 /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__memory/construct_at.h:47:58: note: candidate template ignored: substitution failure [with _Tp = rpcsx::nce::SPUExecutionEngine::SPUThread, _Args = <rpcsx::nce::SPUExecutionEngine::SPUThread>]: call to implicitly-deleted copy constructor of 'rpcsx::nce::SPUExecutionEngine::SPUThread'
    46 | template <class _Tp, class... _Args, class = decltype(::new(std::declval<void*>()) _Tp(std::declval<_Args>()...))>
@@ -694,49 +655,15 @@ In file included from /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/ll
 /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/vector:1525:13: note: in instantiation of function template specialization 'std::vector<rpcsx::nce::SPUExecutionEngine::SPUThread>::__push_back_slow_path<rpcsx::nce::SPUExecutionEngine::SPUThread>' requested here
  1525 |     __end = __push_back_slow_path(std::move(__x));
       |             ^
-/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:938:24: note: in instantiation of member function 'std::vector<rpcsx::nce::SPUExecutionEngine::SPUThread>::push_back' requested here
-  938 |         group->threads.push_back(std::move(spu));
+/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:955:24: note: in instantiation of member function 'std::vector<rpcsx::nce::SPUExecutionEngine::SPUThread>::push_back' requested here
+  955 |         group->threads.push_back(std::move(spu));
       |                        ^
-In file included from /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:3:
-In file included from /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.h:19:
-In file included from /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/memory:944:
-In file included from /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__memory/inout_ptr.h:16:
-In file included from /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__memory/shared_ptr.h:32:
-/usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__memory/unique_ptr.h:66:19: error: invalid application of 'sizeof' to an incomplete type 'rpcsx::spu::SPUJITCompiler'
-   66 |     static_assert(sizeof(_Tp) >= 0, "cannot delete an incomplete type");
-      |                   ^~~~~~~~~~~
-/usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__memory/unique_ptr.h:280:7: note: in instantiation of member function 'std::default_delete<rpcsx::spu::SPUJITCompiler>::operator()' requested here
-  280 |       __ptr_.second()(__tmp);
-      |       ^
-/usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__memory/unique_ptr.h:249:71: note: in instantiation of member function 'std::unique_ptr<rpcsx::spu::SPUJITCompiler>::reset' requested here
-  249 |   _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX23 ~unique_ptr() { reset(); }
-      |                                                                       ^
-/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:893:21: note: in instantiation of member function 'std::unique_ptr<rpcsx::spu::SPUJITCompiler>::~unique_ptr' requested here
-  893 | SPUExecutionEngine::SPUExecutionEngine() {
-      |                     ^
-/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.h:33:45: note: forward declaration of 'rpcsx::spu::SPUJITCompiler'
-   33 | namespace spu { class SPUThreadGroup; class SPUJITCompiler; }
-      |                                             ^
-In file included from /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:3:
-In file included from /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.h:19:
-In file included from /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/memory:944:
-In file included from /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__memory/inout_ptr.h:16:
-In file included from /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__memory/shared_ptr.h:32:
-/usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__memory/unique_ptr.h:622:30: error: allocation of incomplete type 'rpcsx::spu::SPUJITCompiler'
-  622 |   return unique_ptr<_Tp>(new _Tp(std::forward<_Args>(__args)...));
-      |                              ^~~
-/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:895:21: note: in instantiation of function template specialization 'std::make_unique<rpcsx::spu::SPUJITCompiler>' requested here
-  895 |     spu_jit_ = std::make_unique<spu::SPUJITCompiler>();
-      |                     ^
-/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.h:33:45: note: forward declaration of 'rpcsx::spu::SPUJITCompiler'
-   33 | namespace spu { class SPUThreadGroup; class SPUJITCompiler; }
-      |                                             ^
-8 errors generated.
-[56/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_v8/llvm_backend.cpp.o
-[57/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/common/error_private.c.o
-[58/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/common/entropy_common.c.o
-[59/98] Building CXX object CMakeFiles/rpcsx-android.dir/ppu_interceptor.cpp.o
-[60/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_hook.cpp.o
+5 errors generated.
+[65/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/compress/hist.c.o
+[66/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/compress/fse_compress.c.o
+[67/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_hook.cpp.o
+[68/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/compress/huf_compress.c.o
+[69/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/compress/zstd_compress.c.o
 ninja: build stopped: subcommand failed.
 
 C++ build system [build] failed while executing:
@@ -867,23 +794,51 @@ C++ build system [build] failed while executing:
 	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:303)
 	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.execute(DefaultPlanExecutor.java:459)
 	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:376)
+	at org.gradle.execution.plan.DefaultPlanExecutor.process(DefaultPlanExecutor.java:111)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph.executeWithServices(DefaultTaskExecutionGraph.java:138)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph.execute(DefaultTaskExecutionGraph.java:123)
+	at org.gradle.execution.SelectedTaskExecutionAction.execute(SelectedTaskExecutionAction.java:35)
+	at org.gradle.execution.DryRunBuildExecutionAction.execute(DryRunBuildExecutionAction.java:51)
+	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor$ExecuteTasks.call(BuildOperationFiringBuildWorkerExecutor.java:54)
+	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor$ExecuteTasks.call(BuildOperationFiringBuildWorkerExecutor.java:43)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:209)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:204)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:166)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:53)
+	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor.execute(BuildOperationFiringBuildWorkerExecutor.java:40)
+	at org.gradle.internal.build.DefaultBuildLifecycleController.lambda$executeTasks$10(DefaultBuildLifecycleController.java:313)
+	at org.gradle.internal.model.StateTransitionController.doTransition(StateTransitionController.java:266)
+	at org.gradle.internal.model.StateTransitionController.lambda$tryTransition$8(StateTransitionController.java:177)
+	at org.gradle.internal.work.DefaultSynchronizer.withLock(DefaultSynchronizer.java:46)
+	at org.gradle.internal.model.StateTransitionController.tryTransition(StateTransitionController.java:177)
+	at org.gradle.internal.build.DefaultBuildLifecycleController.executeTasks(DefaultBuildLifecycleController.java:304)
+	at org.gradle.internal.build.DefaultBuildWorkGraphController$DefaultBuildWorkGraph.runWork(DefaultBuildWorkGraphController.java:220)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocks(DefaultWorkerLeaseService.java:263)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:127)
+	at org.gradle.composite.internal.DefaultBuildController.doRun(DefaultBuildController.java:181)
+	at org.gradle.composite.internal.DefaultBuildController.access$000(DefaultBuildController.java:50)
+	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.lambda$run$0(DefaultBuildController.java:198)
+	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:85)
+	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.run(DefaultBuildController.java:198)
 	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
 	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:48)
 Caused by: com.android.ide.common.process.ProcessException: ninja: Entering directory `/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/.cxx/RelWithDebInfo/3q4p6b3h/arm64-v8a'
 [1/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/debug.c.o
 [2/98] Building CXX object _deps/libadrenotools-build/lib/linkernsbypass/CMakeFiles/linkernsbypass.dir/elf_soname_patcher.cpp.o
 [3/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/threading.c.o
-[4/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/error_private.c.o
-[5/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/pool.c.o
-[6/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/xxhash.c.o
-[7/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/zstd_common.c.o
+[4/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/xxhash.c.o
+[5/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/error_private.c.o
+[6/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/pool.c.o
+[7/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/fse_decompress.c.o
 [8/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/entropy_common.c.o
-[9/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/fse_decompress.c.o
-[10/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/hist.c.o
-[11/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/fse_compress.c.o
+[9/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/common/zstd_common.c.o
+[10/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/fse_compress.c.o
+[11/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/hist.c.o
 [12/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/zstd_compress_literals.c.o
-[13/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/zstd_compress_sequences.c.o
-[14/98] Building CXX object _deps/libadrenotools-build/lib/linkernsbypass/CMakeFiles/linkernsbypass.dir/android_linker_ns.cpp.o
+[13/98] Building CXX object _deps/libadrenotools-build/lib/linkernsbypass/CMakeFiles/linkernsbypass.dir/android_linker_ns.cpp.o
 /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/.cxx/RelWithDebInfo/3q4p6b3h/arm64-v8a/_deps/libadrenotools-src/lib/linkernsbypass/android_linker_ns.cpp:68:5: warning: missing field 'reserved_addr' initializer [-Wmissing-designated-field-initializers]
    68 |     };
       |     ^
@@ -894,8 +849,9 @@ Caused by: com.android.ide.common.process.ProcessException: ninja: Entering dire
   106 |     snprintf(sonameOverwrite.data(), sonameOverwrite.size(), "%03u", TargetId++);
       |     ^
 3 warnings generated.
-[15/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/huf_compress.c.o
-[16/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/zstd_compress_superblock.c.o
+[14/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/zstd_compress_sequences.c.o
+[15/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/zstd_compress_superblock.c.o
+[16/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/huf_compress.c.o
 [17/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/zstd_ldm.c.o
 [18/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/zstdmt_compress.c.o
 [19/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/zstd_compress.c.o
@@ -904,15 +860,16 @@ Caused by: com.android.ide.common.process.ProcessException: ninja: Entering dire
 [22/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/zstd_opt.c.o
 [23/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/zstd_fast.c.o
 [24/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/decompress/zstd_ddict.c.o
-[25/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/decompress/zstd_decompress.c.o
+[25/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/decompress/huf_decompress.c.o
 [26/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/dictBuilder/cover.c.o
-[27/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/decompress/huf_decompress.c.o
+[27/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/decompress/zstd_decompress.c.o
 [28/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/dictBuilder/fastcover.c.o
-[29/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/dictBuilder/divsufsort.c.o
+[29/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/dictBuilder/zdict.c.o
 [30/98] Linking CXX static library _deps/libadrenotools-build/lib/linkernsbypass/liblinkernsbypass.a
-[31/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/decompress/zstd_decompress_block.c.o
-[32/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/dictBuilder/zdict.c.o
-[33/98] Building CXX object _deps/libadrenotools-build/CMakeFiles/adrenotools.dir/src/driver.cpp.o
+[31/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/dictBuilder/divsufsort.c.o
+[32/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/decompress/zstd_decompress_block.c.o
+[33/98] Building CXX object CMakeFiles/rpcsx-android.dir/signal_handler.cpp.o
+[34/98] Building CXX object _deps/libadrenotools-build/CMakeFiles/adrenotools.dir/src/driver.cpp.o
 /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/.cxx/RelWithDebInfo/3q4p6b3h/arm64-v8a/_deps/libadrenotools-src/src/driver.cpp:109:5: warning: missing field 'id' initializer [-Wmissing-designated-field-initializers]
   109 |     };
       |     ^
@@ -920,7 +877,6 @@ Caused by: com.android.ide.common.process.ProcessException: ninja: Entering dire
   145 |     };
       |     ^
 2 warnings generated.
-[34/98] Building CXX object CMakeFiles/rpcsx-android.dir/signal_handler.cpp.o
 [35/98] Building CXX object _deps/libadrenotools-build/src/hook/CMakeFiles/hook_impl.dir/hook_impl.cpp.o
 /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/.cxx/RelWithDebInfo/3q4p6b3h/arm64-v8a/_deps/libadrenotools-src/src/hook/hook_impl.cpp:151:13: warning: missing field 'reserved_addr' initializer [-Wmissing-designated-field-initializers]
   151 |             };
@@ -935,8 +891,8 @@ Caused by: com.android.ide.common.process.ProcessException: ninja: Entering dire
 [36/98] Building CXX object _deps/libadrenotools-build/CMakeFiles/adrenotools.dir/src/bcenabler.cpp.o
 [37/98] Building CXX object CMakeFiles/rpcsx-android.dir/fastmem_mapper.cpp.o
 [38/98] Building CXX object CMakeFiles/rpcsx-android.dir/native-lib.cpp.o
-[39/98] Building CXX object CMakeFiles/rpcsx-android.dir/thread_scheduler.cpp.o
-[40/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/zstd_lazy.c.o
+[39/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_static.dir/__/__/zstd-src/lib/compress/zstd_lazy.c.o
+[40/98] Building CXX object CMakeFiles/rpcsx-android.dir/thread_scheduler.cpp.o
 [41/98] Building CXX object CMakeFiles/rpcsx-android.dir/frostbite_hacks.cpp.o
 /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/frostbite_hacks.cpp:170:53: warning: more '%' conversions than data arguments [-Wformat-insufficient-args]
   170 |     LOGI("Shader complexity reduced - expect 20-30% FPS boost");
@@ -951,7 +907,8 @@ Caused by: com.android.ide.common.process.ProcessException: ninja: Entering dire
    12 | #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
       |                                                                  ^~~~~~~~~~~
 2 warnings generated.
-[42/98] Building CXX object CMakeFiles/rpcsx-android.dir/shader_cache_manager.cpp.o
+[42/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_engine.cpp.o
+[43/98] Building CXX object CMakeFiles/rpcsx-android.dir/shader_cache_manager.cpp.o
 /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/shader_cache_manager.cpp:375:69: warning: format specifies type 'unsigned long long' but the argument has type 'uint64_t' (aka 'unsigned long') [-Wformat]
   375 |     LOGI("Shader cached to L3: hash=%016llx (%u bytes compressed)", hash, size);
       |                                     ~~~~~~~                         ^~~~
@@ -988,40 +945,42 @@ Caused by: com.android.ide.common.process.ProcessException: ninja: Entering dire
    20 | #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
       |                                                                  ^~~~~~~~~~~
 5 warnings generated.
-[43/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_engine.cpp.o
 [44/98] Building CXX object CMakeFiles/rpcsx-android.dir/fsr31/fsr31.cpp.o
 [45/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_jit/ppc_decoder.cpp.o
-[46/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_jit/arm64_emitter.cpp.o
-[47/98] Building CXX object CMakeFiles/rpcsx-android.dir/realsteel_hacks.cpp.o
-[48/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_core/nce_standalone.cpp.o
-[49/98] Building CXX object CMakeFiles/rpcsx-android.dir/game_patches.cpp.o
-[50/98] Building CXX object CMakeFiles/rpcsx-android.dir/vulkan_renderer.cpp.o
-[51/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_v8/nce_v8.cpp.o
-[52/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_v8/tiered_jit.cpp.o
+[46/98] Building CXX object CMakeFiles/rpcsx-android.dir/realsteel_hacks.cpp.o
+[47/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_jit/arm64_emitter.cpp.o
+[48/98] Building CXX object CMakeFiles/rpcsx-android.dir/game_patches.cpp.o
+[49/98] Building CXX object CMakeFiles/rpcsx-android.dir/vulkan_renderer.cpp.o
+[50/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_core/nce_standalone.cpp.o
+[51/98] Building CXX object CMakeFiles/rpcsx-android.dir/plt_hook.cpp.o
+[52/98] Building CXX object CMakeFiles/rpcsx-android.dir/ppu_interceptor.cpp.o
+[53/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/common/debug.c.o
+[54/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_v8/nce_v8.cpp.o
+[55/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_v8/llvm_backend.cpp.o
+[56/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/common/entropy_common.c.o
+[57/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/common/error_private.c.o
+[58/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/common/threading.c.o
+[59/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/common/xxhash.c.o
+[60/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/common/pool.c.o
+[61/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/common/fse_decompress.c.o
+[62/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_v8/tiered_jit.cpp.o
 /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_v8/tiered_jit.cpp:164:13: warning: shift count >= width of type [-Wshift-count-overflow]
   164 |         imm <<= 16;
       |             ^   ~~
 1 warning generated.
-[53/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/common/debug.c.o
-[54/98] Building CXX object CMakeFiles/rpcsx-android.dir/plt_hook.cpp.o
-[55/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_core/nce_native.cpp.o
+[63/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/common/zstd_common.c.o
+[64/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_core/nce_native.cpp.o
 FAILED: CMakeFiles/rpcsx-android.dir/nce_core/nce_native.cpp.o 
 /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=aarch64-none-linux-android29 --sysroot=/usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot -Drpcsx_android_EXPORTS -I/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/.cxx/RelWithDebInfo/3q4p6b3h/arm64-v8a/_deps/zstd-src/lib -I/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp -I/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/.cxx/RelWithDebInfo/3q4p6b3h/arm64-v8a/_deps/libadrenotools-src/include -I/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/.cxx/RelWithDebInfo/3q4p6b3h/arm64-v8a/_deps/libadrenotools-src/lib/linkernsbypass/. -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security   -O2 -g -DNDEBUG -std=gnu++20 -fPIC -Ofast -O3 -ffast-math -ftree-vectorize -funroll-loops -finline-functions -fdata-sections -ffunction-sections -Wno-unused-command-line-argument -mcpu=cortex-x4 -march=armv9-a+sve2 -flto -MD -MT CMakeFiles/rpcsx-android.dir/nce_core/nce_native.cpp.o -MF CMakeFiles/rpcsx-android.dir/nce_core/nce_native.cpp.o.d -o CMakeFiles/rpcsx-android.dir/nce_core/nce_native.cpp.o -c /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp
-/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:741:68: error: no member named 'GetMainMemory' in 'rpcsx::nce::ps3::PS3MemoryManager'
-  741 |     ppu_interpreter_->Initialize(ps3::PS3MemoryManager::Instance().GetMainMemory(),
+/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:742:68: error: no member named 'GetMainMemory' in 'rpcsx::nce::ps3::PS3MemoryManager'
+  742 |     ppu_interpreter_->Initialize(ps3::PS3MemoryManager::Instance().GetMainMemory(),
       |                                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ^
-/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:768:27: error: no member named 'Shutdown' in 'rpcsx::ppu::PPUInterpreter'
-  768 |         ppu_interpreter_->Shutdown();
-      |         ~~~~~~~~~~~~~~~~~~^
-/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:904:43: error: no member named 'GetMainMemory' in 'rpcsx::nce::ps3::PS3MemoryManager'
-  904 |         ps3::PS3MemoryManager::Instance().GetMainMemory(),
+/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:770:27: error: no member named 'Shutdown' in 'rpcsx::ppu::PPUInterpreter'
+  770 |         ppu_interpreter_->Shutdown();
+      |         ~~~~~~~~~~~~~~~~  ^
+/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:913:43: error: no member named 'GetMainMemory' in 'rpcsx::nce::ps3::PS3MemoryManager'
+  913 |         ps3::PS3MemoryManager::Instance().GetMainMemory(),
       |         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ^
-/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:910:17: error: member access into incomplete type 'rpcsx::spu::SPUJITCompiler'
-  910 |         spu_jit_->Initialize(64 * 1024 * 1024);
-      |                 ^
-/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.h:33:45: note: forward declaration of 'rpcsx::spu::SPUJITCompiler'
-   33 | namespace spu { class SPUThreadGroup; class SPUJITCompiler; }
-      |                                             ^
 In file included from /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:3:
 In file included from /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.h:19:
 In file included from /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/memory:940:
@@ -1036,8 +995,8 @@ In file included from /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/ll
 /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/vector:1522:5: note: in instantiation of function template specialization 'std::vector<rpcsx::nce::SPUExecutionEngine::SPUThread>::__construct_one_at_end<rpcsx::nce::SPUExecutionEngine::SPUThread>' requested here
  1522 |     __construct_one_at_end(std::move(__x));
       |     ^
-/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:938:24: note: in instantiation of member function 'std::vector<rpcsx::nce::SPUExecutionEngine::SPUThread>::push_back' requested here
-  938 |         group->threads.push_back(std::move(spu));
+/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:955:24: note: in instantiation of member function 'std::vector<rpcsx::nce::SPUExecutionEngine::SPUThread>::push_back' requested here
+  955 |         group->threads.push_back(std::move(spu));
       |                        ^
 /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__memory/construct_at.h:47:58: note: candidate template ignored: substitution failure [with _Tp = rpcsx::nce::SPUExecutionEngine::SPUThread, _Args = <rpcsx::nce::SPUExecutionEngine::SPUThread>]: call to implicitly-deleted copy constructor of 'rpcsx::nce::SPUExecutionEngine::SPUThread'
    46 | template <class _Tp, class... _Args, class = decltype(::new(std::declval<void*>()) _Tp(std::declval<_Args>()...))>
@@ -1061,49 +1020,15 @@ In file included from /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/ll
 /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/vector:1525:13: note: in instantiation of function template specialization 'std::vector<rpcsx::nce::SPUExecutionEngine::SPUThread>::__push_back_slow_path<rpcsx::nce::SPUExecutionEngine::SPUThread>' requested here
  1525 |     __end = __push_back_slow_path(std::move(__x));
       |             ^
-/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:938:24: note: in instantiation of member function 'std::vector<rpcsx::nce::SPUExecutionEngine::SPUThread>::push_back' requested here
-  938 |         group->threads.push_back(std::move(spu));
+/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:955:24: note: in instantiation of member function 'std::vector<rpcsx::nce::SPUExecutionEngine::SPUThread>::push_back' requested here
+  955 |         group->threads.push_back(std::move(spu));
       |                        ^
-In file included from /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:3:
-In file included from /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.h:19:
-In file included from /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/memory:944:
-In file included from /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__memory/inout_ptr.h:16:
-In file included from /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__memory/shared_ptr.h:32:
-/usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__memory/unique_ptr.h:66:19: error: invalid application of 'sizeof' to an incomplete type 'rpcsx::spu::SPUJITCompiler'
-   66 |     static_assert(sizeof(_Tp) >= 0, "cannot delete an incomplete type");
-      |                   ^~~~~~~~~~~
-/usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__memory/unique_ptr.h:280:7: note: in instantiation of member function 'std::default_delete<rpcsx::spu::SPUJITCompiler>::operator()' requested here
-  280 |       __ptr_.second()(__tmp);
-      |       ^
-/usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__memory/unique_ptr.h:249:71: note: in instantiation of member function 'std::unique_ptr<rpcsx::spu::SPUJITCompiler>::reset' requested here
-  249 |   _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX23 ~unique_ptr() { reset(); }
-      |                                                                       ^
-/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:893:21: note: in instantiation of member function 'std::unique_ptr<rpcsx::spu::SPUJITCompiler>::~unique_ptr' requested here
-  893 | SPUExecutionEngine::SPUExecutionEngine() {
-      |                     ^
-/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.h:33:45: note: forward declaration of 'rpcsx::spu::SPUJITCompiler'
-   33 | namespace spu { class SPUThreadGroup; class SPUJITCompiler; }
-      |                                             ^
-In file included from /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:3:
-In file included from /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.h:19:
-In file included from /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/memory:944:
-In file included from /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__memory/inout_ptr.h:16:
-In file included from /usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__memory/shared_ptr.h:32:
-/usr/local/lib/android/sdk/ndk/29.0.13113456/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/c++/v1/__memory/unique_ptr.h:622:30: error: allocation of incomplete type 'rpcsx::spu::SPUJITCompiler'
-  622 |   return unique_ptr<_Tp>(new _Tp(std::forward<_Args>(__args)...));
-      |                              ^~~
-/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.cpp:895:21: note: in instantiation of function template specialization 'std::make_unique<rpcsx::spu::SPUJITCompiler>' requested here
-  895 |     spu_jit_ = std::make_unique<spu::SPUJITCompiler>();
-      |                     ^
-/home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/src/main/cpp/nce_core/nce_native.h:33:45: note: forward declaration of 'rpcsx::spu::SPUJITCompiler'
-   33 | namespace spu { class SPUThreadGroup; class SPUJITCompiler; }
-      |                                             ^
-8 errors generated.
-[56/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_v8/llvm_backend.cpp.o
-[57/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/common/error_private.c.o
-[58/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/common/entropy_common.c.o
-[59/98] Building CXX object CMakeFiles/rpcsx-android.dir/ppu_interceptor.cpp.o
-[60/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_hook.cpp.o
+5 errors generated.
+[65/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/compress/hist.c.o
+[66/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/compress/fse_compress.c.o
+[67/98] Building CXX object CMakeFiles/rpcsx-android.dir/nce_hook.cpp.o
+[68/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/compress/huf_compress.c.o
+[69/98] Building C object _deps/zstd-build/lib/CMakeFiles/libzstd_shared.dir/__/__/zstd-src/lib/compress/zstd_compress.c.o
 ninja: build stopped: subcommand failed.
 
 C++ build system [build] failed while executing:
@@ -1133,17 +1058,17 @@ C++ build system [build] failed while executing:
 	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)
 	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
 	at org.gradle.internal.reflect.JavaMethod.invoke(JavaMethod.java:125)
-	... 116 more
+	... 145 more
 Caused by: com.android.ide.common.process.ProcessException: Error while executing process /usr/local/lib/android/sdk/cmake/3.31.6/bin/ninja with arguments {-C /home/runner/work/rpcsx-ui-android/rpcsx-ui-android/app/.cxx/RelWithDebInfo/3q4p6b3h/arm64-v8a file_redirect_hook gsl_alloc_hook hook_impl libzstd_shared main_hook rpcsx-android}
 	at com.android.build.gradle.internal.process.GradleProcessResult.buildProcessException(GradleProcessResult.java:73)
 	at com.android.build.gradle.internal.process.GradleProcessResult.assertNormalExitValue(GradleProcessResult.java:48)
 	at com.android.build.gradle.internal.cxx.process.ExecuteProcessKt.execute(ExecuteProcess.kt:277)
-	... 131 more
+	... 160 more
 Caused by: org.gradle.process.internal.ExecException: Process 'command '/usr/local/lib/android/sdk/cmake/3.31.6/bin/ninja'' finished with non-zero exit value 1
 	at org.gradle.process.internal.DefaultExecHandle$ExecResultImpl.assertNormalExitValue(DefaultExecHandle.java:442)
 	at com.android.build.gradle.internal.process.GradleProcessResult.assertNormalExitValue(GradleProcessResult.java:46)
-	... 132 more
+	... 161 more
 
 
-BUILD FAILED in 2m 34s
+BUILD FAILED in 2m 2s
 2 actionable tasks: 2 executed
