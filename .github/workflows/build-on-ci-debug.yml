@@ -1,0 +1,77 @@
+name: CI Build on ci/debug-auto
+
+on:
+  push:
+    branches:
+      - 'ci/debug-auto'
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK and CMake (resilient)
+        run: |
+          set -euo pipefail
+          for i in 1 2 3; do
+            yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager "ndk;26.1.10909125" "cmake;3.31.6" && break || {
+              echo "sdkmanager failed (attempt $i), retrying in 5s..."
+              sleep 5
+            }
+          done
+          echo "ANDROID_NDK_HOME=${ANDROID_HOME}/ndk/26.1.10909125" >> $GITHUB_ENV
+
+      - name: Grant execute permission
+        run: chmod +x gradlew || true
+
+      - name: Run Gradle build and capture output
+        run: |
+          set -euo pipefail
+          ./gradlew :app:assembleRelease --stacktrace --warning-mode all 2>&1 | tee build-log.txt || true
+
+      - name: Upload build log
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-build-log
+          path: build-log.txt
+
+      - name: Commit build log to branch
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -f build-log.txt ]; then
+            git config user.email "actions@github.com" || true
+            git config user.name "GitHub Actions" || true
+            git add build-log.txt || true
+            git commit -m "ci: add build-log from CI run" || true
+            git push "https://${GITHUB_ACTOR}:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:refs/heads/ci/debug-auto || true
+            echo "Pushed build-log.txt to branch"
+          else
+            echo "No build-log.txt present"
+          fi
+
+      - name: Create issue with short summary
+        if: failure()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          BODY='Automated CI build failed on branch ci/debug-auto. build-log.txt committed to branch for inspection.'
+          curl -s -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github+json" https://api.github.com/repos/$GITHUB_REPOSITORY/issues -d "$(printf '{"title":"CI Build failed on ci/debug-auto","body":"%s"}' "$BODY")" || true
