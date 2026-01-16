@@ -156,6 +156,8 @@ void PPUInterpreter::ExecuteInstruction(PPUState& state, PPUInstruction inst) {
                 case 289: CREQV(state, inst); break;
                 case 417: CRORC(state, inst); break;
                 case 449: CROR(state, inst); break;
+                     /* ISYNC belongs to primary opcode 19 (ext group),
+                         STWCX uses xo=150 in this group. Removed duplicate. */
                 default: LOGE("Unknown opcode 19/%d", inst.xo_x()); break;
             }
             break;
@@ -270,7 +272,6 @@ void PPUInterpreter::ExecuteInstruction(PPUState& state, PPUInstruction inst) {
                 // System
                 case 598: SYNC(state, inst); break;
                 case 854: EIEIO(state, inst); break;
-                case 150: ISYNC(state, inst); break;
                 case 86: DCBF(state, inst); break;
                 case 278: DCBT(state, inst); break;
                 case 246: DCBTST(state, inst); break;
@@ -557,6 +558,67 @@ void PPUInterpreter::LDX(PPUState& state, PPUInstruction inst) {
     uint64_t addr = inst.ra() ? state.gpr[inst.ra()] : 0;
     addr += state.gpr[inst.rb()];
     state.gpr[inst.rd()] = ReadMemory64(state, addr);
+}
+
+// UX variants: Indexed with Update (ra = ra + rb)
+void PPUInterpreter::LBZUX(PPUState& state, PPUInstruction inst) {
+    uint64_t addr = state.gpr[inst.ra()] + state.gpr[inst.rb()];
+    state.gpr[inst.rd()] = ReadMemory8(state, addr);
+    state.gpr[inst.ra()] = addr;
+}
+
+void PPUInterpreter::LHZUX(PPUState& state, PPUInstruction inst) {
+    uint64_t addr = state.gpr[inst.ra()] + state.gpr[inst.rb()];
+    state.gpr[inst.rd()] = ReadMemory16(state, addr);
+    state.gpr[inst.ra()] = addr;
+}
+
+void PPUInterpreter::LHAUX(PPUState& state, PPUInstruction inst) {
+    uint64_t addr = state.gpr[inst.ra()] + state.gpr[inst.rb()];
+    state.gpr[inst.rd()] = static_cast<int16_t>(ReadMemory16(state, addr));
+    state.gpr[inst.ra()] = addr;
+}
+
+void PPUInterpreter::LWZUX(PPUState& state, PPUInstruction inst) {
+    uint64_t addr = state.gpr[inst.ra()] + state.gpr[inst.rb()];
+    state.gpr[inst.rd()] = ReadMemory32(state, addr);
+    state.gpr[inst.ra()] = addr;
+}
+
+void PPUInterpreter::LWAUX(PPUState& state, PPUInstruction inst) {
+    uint64_t addr = state.gpr[inst.ra()] + state.gpr[inst.rb()];
+    state.gpr[inst.rd()] = static_cast<int32_t>(ReadMemory32(state, addr));
+    state.gpr[inst.ra()] = addr;
+}
+
+void PPUInterpreter::LDUX(PPUState& state, PPUInstruction inst) {
+    uint64_t addr = state.gpr[inst.ra()] + state.gpr[inst.rb()];
+    state.gpr[inst.rd()] = ReadMemory64(state, addr);
+    state.gpr[inst.ra()] = addr;
+}
+
+void PPUInterpreter::STBUX(PPUState& state, PPUInstruction inst) {
+    uint64_t addr = state.gpr[inst.ra()] + state.gpr[inst.rb()];
+    WriteMemory8(state, addr, static_cast<uint8_t>(state.gpr[inst.rd()] & 0xFF));
+    state.gpr[inst.ra()] = addr;
+}
+
+void PPUInterpreter::STHUX(PPUState& state, PPUInstruction inst) {
+    uint64_t addr = state.gpr[inst.ra()] + state.gpr[inst.rb()];
+    WriteMemory16(state, addr, static_cast<uint16_t>(state.gpr[inst.rd()] & 0xFFFF));
+    state.gpr[inst.ra()] = addr;
+}
+
+void PPUInterpreter::STWUX(PPUState& state, PPUInstruction inst) {
+    uint64_t addr = state.gpr[inst.ra()] + state.gpr[inst.rb()];
+    WriteMemory32(state, addr, static_cast<uint32_t>(state.gpr[inst.rd()] & 0xFFFFFFFF));
+    state.gpr[inst.ra()] = addr;
+}
+
+void PPUInterpreter::STDUX(PPUState& state, PPUInstruction inst) {
+    uint64_t addr = state.gpr[inst.ra()] + state.gpr[inst.rb()];
+    WriteMemory64(state, addr, state.gpr[inst.rd()]);
+    state.gpr[inst.ra()] = addr;
 }
 
 void PPUInterpreter::STB(PPUState& state, PPUInstruction inst) {
