@@ -230,6 +230,7 @@ private:
     void ADDZE(PPUState& state, PPUInstruction inst);  // Add to Zero Extended
     void SUBF(PPUState& state, PPUInstruction inst);   // Subtract From
     void SUBFC(PPUState& state, PPUInstruction inst);  // Subtract From Carrying
+    void SUBFIC(PPUState& state, PPUInstruction inst); // Subtract From Immediate
     void SUBFE(PPUState& state, PPUInstruction inst);  // Subtract From Extended
     void SUBFME(PPUState& state, PPUInstruction inst);
     void SUBFZE(PPUState& state, PPUInstruction inst);
