@@ -201,6 +201,12 @@ private:
     void LWZ(PPUState& state, PPUInstruction inst);    // Load Word and Zero
     void LWZU(PPUState& state, PPUInstruction inst);
     void LWZX(PPUState& state, PPUInstruction inst);
+    void LBZUX(PPUState& state, PPUInstruction inst);
+    void LHZUX(PPUState& state, PPUInstruction inst);
+    void LHAUX(PPUState& state, PPUInstruction inst);
+    void LWZUX(PPUState& state, PPUInstruction inst);
+    void LWAUX(PPUState& state, PPUInstruction inst);
+    void LDUX(PPUState& state, PPUInstruction inst);
     void LWA(PPUState& state, PPUInstruction inst);    // Load Word Algebraic
     void LWAX(PPUState& state, PPUInstruction inst);
     void LD(PPUState& state, PPUInstruction inst);     // Load Doubleword
@@ -219,6 +225,10 @@ private:
     void STD(PPUState& state, PPUInstruction inst);    // Store Doubleword
     void STDU(PPUState& state, PPUInstruction inst);
     void STDX(PPUState& state, PPUInstruction inst);
+    void STBUX(PPUState& state, PPUInstruction inst);
+    void STHUX(PPUState& state, PPUInstruction inst);
+    void STWUX(PPUState& state, PPUInstruction inst);
+    void STDUX(PPUState& state, PPUInstruction inst);
     
     // Integer Arithmetic Instructions
     void ADDI(PPUState& state, PPUInstruction inst);   // Add Immediate
@@ -307,15 +317,19 @@ private:
     void LFS(PPUState& state, PPUInstruction inst);    // Load Floating-Point Single
     void LFSU(PPUState& state, PPUInstruction inst);
     void LFSX(PPUState& state, PPUInstruction inst);
+    void LFSUX(PPUState& state, PPUInstruction inst);
     void LFD(PPUState& state, PPUInstruction inst);    // Load Floating-Point Double
     void LFDU(PPUState& state, PPUInstruction inst);
     void LFDX(PPUState& state, PPUInstruction inst);
+    void LFDUX(PPUState& state, PPUInstruction inst);
     void STFS(PPUState& state, PPUInstruction inst);   // Store Floating-Point Single
     void STFSU(PPUState& state, PPUInstruction inst);
     void STFSX(PPUState& state, PPUInstruction inst);
+    void STFSUX(PPUState& state, PPUInstruction inst);
     void STFD(PPUState& state, PPUInstruction inst);   // Store Floating-Point Double
     void STFDU(PPUState& state, PPUInstruction inst);
     void STFDX(PPUState& state, PPUInstruction inst);
+    void STFDUX(PPUState& state, PPUInstruction inst);
     
     // Floating Point Arithmetic
     void FADD(PPUState& state, PPUInstruction inst);   // FP Add
