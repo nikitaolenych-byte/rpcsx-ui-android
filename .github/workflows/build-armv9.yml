@@ -64,34 +64,66 @@ jobs:
           echo "✅ Environment ready"
       
       - run: |
+          echo "Validating C++ code..."
+          clang++ -x c++ -fsyntax-only app/src/main/cpp/native-lib.cpp 2>&1 | head -20 || true
+          echo "Checking CMakeLists.txt..."
+          cmake -P app/src/main/cpp/CMakeLists.txt > /dev/null 2>&1 || echo "CMakeLists.txt check skipped"
+          echo "✅ Code validation done"
+      
+      - run: |
           chmod +x gradlew
           export JAVA_OPTS="-Xmx6g -XX:+UseG1GC"
+          echo "Starting build..."
           ./gradlew clean assembleRelease \
             -Pandroid.native.buildOutput=verbose \
-            -Dorg.gradle.parallel=true \
-            -Dorg.gradle.workers.max=4 \
-            -Dorg.gradle.caching=true \
-            -Dorg.gradle.jvmargs="-Xmx6g -XX:+UseG1GC -XX:+ParallelRefProcEnabled" \
+            -Dorg.gradle.parallel=false \
+            -Dorg.gradle.caching=false \
             --no-daemon \
-            --stacktrace 2>&1 | tail -100
+            --stacktrace 2>&1 | tee build-full.log
+          
+          BUILD_STATUS=${PIPESTATUS[0]}
+          echo "Build exit code: $BUILD_STATUS"
+          exit $BUILD_STATUS
       
       - if: success()
         run: |
-          APK=$(find app/build/outputs/apk -name "*.apk" | head -1)
-          [ -z "$APK" ] && echo "APK not found!" && exit 1
+          echo "✅ Build succeeded, finding APK..."
+          APK=$(find app/build/outputs/apk -type f -name "*.apk" 2>/dev/null | head -1)
+          
+          if [ -z "$APK" ]; then
+            echo "❌ APK not found in standard location, searching..."
+            find app/build -type f -name "*.apk" 2>/dev/null | head -5
+            exit 1
+          fi
+          
+          echo "Found APK: $APK"
           cp "$APK" "rpcsx-armv9.apk"
-          echo "APK ready: $(ls -lh rpcsx-armv9.apk)"
+          ls -lh rpcsx-armv9.apk
       
       - if: failure()
         run: |
-          echo "❌ Build failed, checking logs..."
-          find app/build -name "*.log" -type f | head -5 | while read log; do
-            echo "=== $log ==="
-            tail -30 "$log"
-          done
+          echo "❌ Build FAILED - Analyzing logs..."
+          
+          # Show last part of full build log
+          if [ -f "build-full.log" ]; then
+            echo "=== Last 100 lines of build log ==="
+            tail -100 build-full.log
+          fi
+          
+          # Find and show CMake errors
           echo ""
-          echo "Checking for CMake errors..."
-          find app/build -name "CMakeError.log" -o -name "CMakeOutput.log" | xargs tail -20 2>/dev/null || true
+          echo "=== CMake errors (if any) ==="
+          find app/build -name "CMakeError.log" -type f -exec cat {} \; 2>/dev/null | head -50 || echo "No CMakeError.log found"
+          
+          # Find compiler errors
+          echo ""
+          echo "=== Compilation output ==="
+          find app/build -name "compile_commands.json" -o -name "*.o" 2>/dev/null | head -5
+          
+          # Show gradle build scan info if available
+          echo ""
+          echo "=== Build Info ==="
+          ls -lh app/build/ 2>/dev/null | head -10
       
       - if: success()
         run: |

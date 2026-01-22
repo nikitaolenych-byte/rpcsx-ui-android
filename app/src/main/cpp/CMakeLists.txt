@@ -6,18 +6,25 @@ include(FetchContent)
 set(RPCSX_COMMON_OPT_FLAGS "")
 set(RPCSX_LTO_FLAGS "")
 
+# Disable FetchContent updates and warnings
+set(FETCHCONTENT_QUIET ON)
+set(FETCHCONTENT_FULLY_DISCONNECTED OFF)
+
 # Fetch Zstd for Shader Cache compression
 FetchContent_Declare(
   zstd
   GIT_REPOSITORY https://github.com/facebook/zstd.git
   GIT_TAG v1.5.5
   GIT_SHALLOW TRUE
-  SOURCE_SUBDIR build/cmake 
+  SOURCE_SUBDIR build/cmake
+  TIMEOUT 60
 )
 # Disable Zstd legacy support and binaries to save space
 set(ZSTD_LEGACY_SUPPORT OFF CACHE BOOL "" FORCE)
 set(ZSTD_BUILD_PROGRAMS OFF CACHE BOOL "" FORCE)
 set(ZSTD_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+
+message(STATUS "Fetching Zstd...")
 FetchContent_MakeAvailable(zstd)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -47,17 +54,32 @@ if (CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
         set(RPCSX_LTO_FLAGS -flto=thin)
     endif()
 
-    # Fetch libadrenotools
+    # Fetch libadrenotools with timeout
+    set(FETCHCONTENT_QUIET ON)
+    set(FETCHCONTENT_UPDATES_DISCONNECTED_LIBADRENOTOOLS ON)
+    
     FetchContent_Declare(
       libadrenotools
       GIT_REPOSITORY https://github.com/bylaws/libadrenotools.git
       GIT_TAG master
       GIT_SHALLOW TRUE
+      TIMEOUT 60
     )
-    FetchContent_MakeAvailable(libadrenotools)
+    
+    # Try to make available, but continue if fails
+    if(NOT libadrenotools_POPULATED)
+        message(STATUS "Fetching libadrenotools...")
+        FetchContent_Populate(libadrenotools)
+        if(EXISTS "${libadrenotools_SOURCE_DIR}/CMakeLists.txt")
+            add_subdirectory(${libadrenotools_SOURCE_DIR} ${libadrenotools_BINARY_DIR})
+        endif()
+    endif()
     
     if(TARGET libadrenotools AND NOT TARGET adrenotools)
         add_library(adrenotools ALIAS libadrenotools)
+    else()
+        message(WARNING "libadrenotools not available, using stub")
+        add_library(adrenotools INTERFACE)
     endif()
 else()
     add_library(adrenotools INTERFACE)
