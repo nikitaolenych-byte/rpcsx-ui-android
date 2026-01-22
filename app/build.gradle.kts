@@ -143,4 +143,6 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.coil.compose)
     implementation(libs.squareup.okhttp3)
-}
+    
+    // Adrenotools for GPU driver loading (already included in NDK)
+    // No explicit dependency needed - it's part of the system

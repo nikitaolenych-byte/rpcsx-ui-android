@@ -16,6 +16,16 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Android" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aar
     set(OPT_FLAGS "${OPT_FLAGS} -flto=thin")
 endif()
 
+# Try to find libadrenotools (driver loading)
+find_library(ADRENOTOOLS_LIB adrenotools)
+if(ADRENOTOOLS_LIB)
+    message(STATUS "Found libadrenotools: ${ADRENOTOOLS_LIB}")
+    set(HAVE_ADRENOTOOLS TRUE)
+else()
+    message(WARNING "libadrenotools not found, driver loading disabled")
+    set(HAVE_ADRENOTOOLS FALSE)
+endif()
+
 # Main library with minimal dependencies
 add_library(${CMAKE_PROJECT_NAME} SHARED
     native-lib.cpp
@@ -52,12 +62,17 @@ target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE
     $<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>>:${OPT_FLAGS}>
 )
 
-# Link with system libraries
+# Link with system libraries and optional libadrenotools
 target_link_libraries(${CMAKE_PROJECT_NAME}
     android
     log
     z
 )
+
+if(HAVE_ADRENOTOOLS)
+    target_link_libraries(${CMAKE_PROJECT_NAME} ${ADRENOTOOLS_LIB})
+    target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE HAVE_ADRENOTOOLS=1)
+endif()
 
 # Include directories
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
@@ -70,4 +85,5 @@ message(STATUS "==================================================")
 message(STATUS "C++ Standard: ${CMAKE_CXX_STANDARD}")
 message(STATUS "Processor: ${CMAKE_SYSTEM_PROCESSOR}")
 message(STATUS "Optimization: ${OPT_FLAGS}")
+message(STATUS "Adrenotools: ${HAVE_ADRENOTOOLS}")
 message(STATUS "==================================================")
