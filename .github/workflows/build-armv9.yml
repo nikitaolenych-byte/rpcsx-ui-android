@@ -87,33 +87,55 @@ jobs:
             cmake \
             git \
             wget \
+            curl \
             ninja-build \
             python3 \
             python3-dev \
             libssl-dev \
             libelf-dev
           
-          # Завантажити та встановити LLVM
-          LLVM_DOWNLOAD_URL="https://github.com/llvm/llvm-project/releases/download/llvmorg-${LLVM_VERSION}/clang+llvm-${LLVM_VERSION}-x86_64-linux-gnu-ubuntu-22.04.tar.xz"
-          
+          # Спробуємо завантажити LLVM з GitHub
           mkdir -p /opt/llvm
           cd /tmp
+          rm -f llvm.tar.xz
           
           echo "Downloading LLVM ${LLVM_VERSION}..."
-          if wget -q "${LLVM_DOWNLOAD_URL}" -O llvm.tar.xz 2>/dev/null; then
-            tar -xf llvm.tar.xz -C /opt/llvm --strip-components=1
-          else
-            echo "Warning: Could not download LLVM ${LLVM_VERSION}, using apt version"
-            sudo apt-get install -y clang llvm llvm-dev
-            LLVM_PATH="/usr"
-          fi
+          LLVM_DOWNLOAD_URL="https://github.com/llvm/llvm-project/releases/download/llvmorg-${LLVM_VERSION}/clang+llvm-${LLVM_VERSION}-x86_64-linux-gnu-ubuntu-22.04.tar.xz"
           
-          # Встановити змінні середовища
-          if [ -d "/opt/llvm/bin" ]; then
+          # Спробуємо декілька разів з timeout
+          for attempt in 1 2 3; do
+            echo "Attempt ${attempt}/3: Downloading from GitHub..."
+            if wget -q --timeout=60 "${LLVM_DOWNLOAD_URL}" -O llvm.tar.xz 2>/dev/null; then
+              echo "✓ Download successful"
+              if tar -xf llvm.tar.xz -C /opt/llvm --strip-components=1 2>/dev/null; then
+                echo "✓ Extraction successful"
+                break
+              fi
+            fi
+            
+            if [ $attempt -lt 3 ]; then
+              echo "✗ Attempt ${attempt} failed, retrying..."
+              rm -f llvm.tar.xz
+              sleep 10
+            fi
+          done
+          
+          # Fallback: встановити з apt якщо GitHub не працює
+          if [ ! -f "/opt/llvm/bin/clang" ]; then
+            echo "Falling back to apt-based LLVM installation..."
+            sudo apt-get install -y clang llvm llvm-dev
+            echo "LLVM_PATH=/usr" >> $GITHUB_ENV
+            echo "/usr/bin" >> $GITHUB_PATH
+          else
             echo "LLVM_PATH=/opt/llvm" >> $GITHUB_ENV
             echo "/opt/llvm/bin" >> $GITHUB_PATH
-            /opt/llvm/bin/clang --version
           fi
+          
+          # Перевірка встановлення
+          echo "Verifying LLVM installation..."
+          clang --version || echo "clang not found in PATH"
+          which clang || echo "clang not in PATH"
+          ls -la /opt/llvm/bin/clang* 2>/dev/null || echo "No clang in /opt/llvm/bin"
       
       - name: Setup JDK 17
         uses: actions/setup-java@v4
