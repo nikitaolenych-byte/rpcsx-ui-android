@@ -68,7 +68,7 @@ jobs:
               LLVM_VERSION="19.1.0"
             fi
           else
-            LLVM_VERSION="${{ github.event.inputs.llvm_version }}"
+            LLVM_VERSION="${github.event.inputs.llvm_version}"
           fi
           
           echo "version=${LLVM_VERSION}" >> $GITHUB_OUTPUT
@@ -77,7 +77,7 @@ jobs:
       - name: Setup LLVM v${{ steps.llvm-version.outputs.version }}
         run: |
           set -e
-          LLVM_VERSION="${{ steps.llvm-version.outputs.version }}"
+          LLVM_VERSION="${{steps.llvm-version.outputs.version}}"
           echo "Installing LLVM ${LLVM_VERSION}..."
           
           # Встановити залежності
