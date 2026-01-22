@@ -23,30 +23,27 @@ FetchContent_MakeAvailable(zstd)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_POSITION_INDEPENDENT_CODE on)
 
-# ARMv9 + SVE2 оптимізації для Snapdragon 8s Gen 3
+# ARMv9-A оптимізації для Snapdragon 8s Gen 3
+# Simplified for better compatibility and build stability
 if (CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
     set(RPCSX_COMMON_OPT_FLAGS
-        -Ofast
         -O3
+        -march=armv9-a
+        -mtune=cortex-x4
         -ffast-math
         -ftree-vectorize
         -funroll-loops
         -finline-functions
         -fdata-sections
         -ffunction-sections
-        -Wno-unused-command-line-argument
-        -mcpu=cortex-x4
-        -march=armv9-a+sve2
     )
 
-    # LTO (force, fallback to thin if needed)
+    # LTO: Use thin LTO for faster builds, falls back gracefully
     include(CheckCCompilerFlag)
     include(CheckCXXCompilerFlag)
-    check_c_compiler_flag("-flto" HAVE_C_FLTO)
-    check_cxx_compiler_flag("-flto" HAVE_CXX_FLTO)
-    if (HAVE_C_FLTO AND HAVE_CXX_FLTO)
-        set(RPCSX_LTO_FLAGS -flto)
-    else()
+    check_c_compiler_flag("-flto=thin" HAVE_C_FLTO_THIN)
+    check_cxx_compiler_flag("-flto=thin" HAVE_CXX_FLTO_THIN)
+    if (HAVE_C_FLTO_THIN AND HAVE_CXX_FLTO_THIN)
         set(RPCSX_LTO_FLAGS -flto=thin)
     endif()
 

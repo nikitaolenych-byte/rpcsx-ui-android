@@ -24,7 +24,7 @@ android {
         }
 
         buildConfigField("String", "Version", "\"v${versionName}\"")
-        buildConfigField("String", "OptimizationTarget", "\"Snapdragon 8s Gen 3 (ARMv9+SVE2)\"")
+        buildConfigField("String", "OptimizationTarget", "\"Snapdragon 8s Gen 3 (ARMv9-A)\"")
         buildConfigField("boolean", "EnableARMv9Optimizations", "true")
     }
 
@@ -77,6 +77,11 @@ android {
                 "proguard-rules.pro"
             )
             signingConfig = signingConfigs.getByName("custom-key") ?: signingConfigs.getByName("debug")
+            
+            // Optimize native compilation with full debug symbols
+            ndk {
+                debugSymbolLevel = "full"
+            }
         }
     }
 
@@ -94,6 +99,11 @@ android {
             path = file("src/main/cpp/CMakeLists.txt")
             version = "3.31.6"
         }
+    }
+    
+    // Parallel compilation configuration
+    ndkBuild {
+        path = "src/main/cpp/CMakeLists.txt"
     }
 
     buildFeatures {
