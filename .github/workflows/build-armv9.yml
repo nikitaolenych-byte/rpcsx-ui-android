@@ -57,11 +57,21 @@ jobs:
           fi
       
       - run: |
+          echo "Checking build environment..."
+          java -version
+          $ANDROID_HOME/ndk/29.0.13113456/toolchain/clang --version | head -1
+          cmake --version | head -1
+          echo "✅ Environment ready"
+      
+      - run: |
           chmod +x gradlew
-          ./gradlew assembleRelease \
+          export JAVA_OPTS="-Xmx6g -XX:+UseG1GC"
+          ./gradlew clean assembleRelease \
             -Pandroid.native.buildOutput=verbose \
+            -Dorg.gradle.parallel=true \
+            -Dorg.gradle.workers.max=4 \
             --no-daemon \
-            --stacktrace 2>&1 | tail -50
+            --stacktrace 2>&1 | tail -100
       
       - if: success()
         run: |
@@ -69,6 +79,17 @@ jobs:
           [ -z "$APK" ] && echo "APK not found!" && exit 1
           cp "$APK" "rpcsx-armv9.apk"
           echo "APK ready: $(ls -lh rpcsx-armv9.apk)"
+      
+      - if: failure()
+        run: |
+          echo "❌ Build failed, checking logs..."
+          find app/build -name "*.log" -type f | head -5 | while read log; do
+            echo "=== $log ==="
+            tail -30 "$log"
+          done
+          echo ""
+          echo "Checking for CMake errors..."
+          find app/build -name "CMakeError.log" -o -name "CMakeOutput.log" | xargs tail -20 2>/dev/null || true
       
       - if: success()
         run: |
