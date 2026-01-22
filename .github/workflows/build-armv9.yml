@@ -3,18 +3,9 @@ name: Build RPCSX ARMv9
 on:
   schedule:
     - cron: '0 0 * * 1'
-  
   push:
-    branches:
-      - master
-      - main
-  
+    branches: [master, main]
   workflow_dispatch:
-
-env:
-  ANDROID_HOME: /usr/local/lib/android/sdk
-  NDK_VERSION: 29.0.13113456
-  GRADLE_OPTS: -Xmx4g
 
 jobs:
   build:
@@ -22,13 +13,6 @@ jobs:
     
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 50
-      
-      - id: vars
-        run: |
-          echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-          echo "version=$(git describe --tags 2>/dev/null || echo armv9-$(date +%Y%m%d))" >> $GITHUB_OUTPUT
       
       - uses: actions/setup-java@v4
         with:
@@ -42,112 +26,52 @@ jobs:
           ndk-version: 29.0.13113456
           cmake-version: 3.28.0
       
-      - run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>&1 | tail -2 || true
+      - name: Accept licenses
+        run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
       
-      - run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y clang llvm llvm-dev 2>&1 | tail -3
-          clang --version | head -1
-      
-      - run: |
-          if [ -d "patches" ]; then
-            for p in patches/*.patch; do
-              [ -f "$p" ] && patch -p1 < "$p" 2>&1 | head -2 || true
-            done
-          fi
-      
-      - run: |
-          echo "Checking build environment..."
-          java -version
-          $ANDROID_HOME/ndk/29.0.13113456/toolchain/clang --version | head -1
-          cmake --version | head -1
-          echo "✅ Environment ready"
-      
-      - run: |
-          echo "Validating C++ code..."
-          clang++ -x c++ -fsyntax-only app/src/main/cpp/native-lib.cpp 2>&1 | head -20 || true
-          echo "Checking CMakeLists.txt..."
-          cmake -P app/src/main/cpp/CMakeLists.txt > /dev/null 2>&1 || echo "CMakeLists.txt check skipped"
-          echo "✅ Code validation done"
-      
-      - run: |
-          chmod +x gradlew
-          export JAVA_OPTS="-Xmx6g -XX:+UseG1GC"
-          echo "Starting build..."
-          ./gradlew clean assembleRelease \
-            -Pandroid.native.buildOutput=verbose \
-            -Dorg.gradle.parallel=false \
-            -Dorg.gradle.caching=false \
-            --no-daemon \
-            --stacktrace 2>&1 | tee build-full.log
-          
-          BUILD_STATUS=${PIPESTATUS[0]}
-          echo "Build exit code: $BUILD_STATUS"
-          exit $BUILD_STATUS
-      
-      - if: success()
+      - name: Build Release APK
         run: |
-          echo "✅ Build succeeded, finding APK..."
-          APK=$(find app/build/outputs/apk -type f -name "*.apk" 2>/dev/null | head -1)
-          
-          if [ -z "$APK" ]; then
-            echo "❌ APK not found in standard location, searching..."
-            find app/build -type f -name "*.apk" 2>/dev/null | head -5
-            exit 1
-          fi
-          
-          echo "Found APK: $APK"
-          cp "$APK" "rpcsx-armv9.apk"
+          chmod +x gradlew
+          ./gradlew assembleRelease \
+            -Pandroid.native.buildOutput=verbose \
+            --no-daemon 2>&1 | tail -100
+      
+      - name: Find APK
+        if: success()
+        run: |
+          APK=$(find app/build/outputs/apk -name "*.apk" | head -1)
+          [ -z "$APK" ] && echo "APK not found!" && exit 1
+          cp "$APK" rpcsx-armv9.apk
           ls -lh rpcsx-armv9.apk
       
-      - if: failure()
-        run: |
-          echo "❌ Build FAILED - Analyzing logs..."
-          
-          # Show last part of full build log
-          if [ -f "build-full.log" ]; then
-            echo "=== Last 100 lines of build log ==="
-            tail -100 build-full.log
-          fi
-          
-          # Find and show CMake errors
-          echo ""
-          echo "=== CMake errors (if any) ==="
-          find app/build -name "CMakeError.log" -type f -exec cat {} \; 2>/dev/null | head -50 || echo "No CMakeError.log found"
-          
-          # Find compiler errors
-          echo ""
-          echo "=== Compilation output ==="
-          find app/build -name "compile_commands.json" -o -name "*.o" 2>/dev/null | head -5
-          
-          # Show gradle build scan info if available
-          echo ""
-          echo "=== Build Info ==="
-          ls -lh app/build/ 2>/dev/null | head -10
-      
-      - if: success()
+      - name: Extract libs
+        if: success()
+        continue-on-error: true
         run: |
           mkdir -p native-libs
-          unzip -q "rpcsx-armv9.apk" "lib/arm64-v8a/*.so" -d native-libs 2>/dev/null || true
-          [ -d "native-libs/lib/arm64-v8a" ] && mv native-libs/lib/arm64-v8a/* native-libs/ && rmdir native-libs/lib/arm64-v8a 2>/dev/null || true
-          echo "Libraries: $(find native-libs -name "*.so" | wc -l)"
+          unzip -q rpcsx-armv9.apk "lib/arm64-v8a/*.so" -d native-libs || true
+          [ -d "native-libs/lib/arm64-v8a" ] && \
+            mv native-libs/lib/arm64-v8a/* native-libs/ && \
+            rmdir native-libs/lib/arm64-v8a || true
+          ls -lh native-libs/
       
-      - if: success()
+      - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: rpcsx-armv9
+          name: rpcsx-armv9-apk
           path: rpcsx-armv9.apk
           retention-days: 60
       
-      - if: success()
+      - name: Upload libs
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: native-libs
           path: native-libs/
           retention-days: 60
+          if-no-files-found: ignore
       
-      - if: always()
-        run: |
-          echo "Build: ${{ job.status }}"
-          echo "SHA: ${{ steps.vars.outputs.sha }}"
-          echo "Version: ${{ steps.vars.outputs.version }}"
+      - name: Build status
+        if: always()
+        run: echo "Build ${{ job.status }}"
