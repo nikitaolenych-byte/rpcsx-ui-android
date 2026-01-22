@@ -2,7 +2,6 @@ name: Build RPCSX ARMv9
 
 on:
   schedule:
-    # Щотижневої збірки о 00:00 UTC в понеділок
     - cron: '0 0 * * 1'
   
   push:
@@ -12,7 +11,6 @@ on:
     paths:
       - 'app/src/main/cpp/**'
       - 'app/build.gradle.kts'
-      - 'build_armv9.sh'
       - '.github/workflows/build-armv9.yml'
   
   workflow_dispatch:
@@ -25,554 +23,244 @@ on:
         options:
           - release
           - debug
-      llvm_version:
-        description: 'LLVM version (empty for latest stable)'
-        required: false
-        type: string
 
 env:
-  ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
   ANDROID_HOME: /usr/local/lib/android/sdk
   NDK_VERSION: 29.0.13113456
-  GRADLE_OPTS: -Xmx4g -XX:MaxMetaspaceSize=1g
+  GRADLE_OPTS: -Xmx4g
 
 jobs:
-  setup-and-build:
+  build:
     runs-on: ubuntu-24.04
     
     permissions:
       contents: read
       packages: write
-      
+    
     outputs:
-      build-version: ${{ steps.version.outputs.version }}
-      build-sha: ${{ steps.version.outputs.sha }}
-      so-file-path: ${{ steps.extract-libs.outputs.so-path }}
+      apk-path: ${{ steps.build.outputs.apk-path }}
+      version: ${{ steps.version.outputs.version }}
     
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 50
       
-      # ========== LLVM INSTALLATION ==========
-      - name: Get latest LLVM version
-        id: llvm-version
+      - name: Set version info
+        id: version
         run: |
-          if [ -z "${{ github.event.inputs.llvm_version }}" ]; then
-            # Отримати останню стабільну версію LLVM
-            LLVM_VERSION=$(curl -s https://api.github.com/repos/llvm/llvm-project/releases | \
-              grep '"tag_name":' | grep -oE 'llvmorg-[0-9]+\.[0-9]+\.[0-9]+' | head -1 | sed 's/llvmorg-//')
-            
-            if [ -z "$LLVM_VERSION" ]; then
-              LLVM_VERSION="19.1.0"
-            fi
-          else
-            LLVM_VERSION="${github.event.inputs.llvm_version}"
-          fi
-          
-          echo "version=${LLVM_VERSION}" >> $GITHUB_OUTPUT
-          echo "LLVM Version: ${LLVM_VERSION}"
+          VERSION=$(git describe --tags 2>/dev/null || echo "armv9-$(date +%Y%m%d)")
+          SHA=$(git rev-parse --short HEAD)
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "sha=${SHA}" >> $GITHUB_OUTPUT
+          echo "Build version: ${VERSION}-${SHA}"
       
-      - name: Setup LLVM v${{ steps.llvm-version.outputs.version }}
-        run: |
-          set -e
-          LLVM_VERSION="${{steps.llvm-version.outputs.version}}"
-          echo "Installing LLVM ${LLVM_VERSION}..."
-          
-          # Встановити залежності
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            cmake \
-            git \
-            wget \
-            curl \
-            ninja-build \
-            python3 \
-            python3-dev \
-            libssl-dev \
-            libelf-dev
-          
-          # Спробуємо завантажити LLVM з GitHub
-          mkdir -p /opt/llvm
-          cd /tmp
-          rm -f llvm.tar.xz
-          
-          echo "Downloading LLVM ${LLVM_VERSION}..."
-          LLVM_DOWNLOAD_URL="https://github.com/llvm/llvm-project/releases/download/llvmorg-${LLVM_VERSION}/clang+llvm-${LLVM_VERSION}-x86_64-linux-gnu-ubuntu-22.04.tar.xz"
-          
-          # Спробуємо декілька разів з timeout
-          for attempt in 1 2 3; do
-            echo "Attempt ${attempt}/3: Downloading from GitHub..."
-            if wget -q --timeout=60 "${LLVM_DOWNLOAD_URL}" -O llvm.tar.xz 2>/dev/null; then
-              echo "✓ Download successful"
-              if tar -xf llvm.tar.xz -C /opt/llvm --strip-components=1 2>/dev/null; then
-                echo "✓ Extraction successful"
-                break
-              fi
-            fi
-            
-            if [ $attempt -lt 3 ]; then
-              echo "✗ Attempt ${attempt} failed, retrying..."
-              rm -f llvm.tar.xz
-              sleep 10
-            fi
-          done
-          
-          # Fallback: встановити з apt якщо GitHub не працює
-          if [ ! -f "/opt/llvm/bin/clang" ]; then
-            echo "Falling back to apt-based LLVM installation..."
-            sudo apt-get install -y clang llvm llvm-dev
-            echo "LLVM_PATH=/usr" >> $GITHUB_ENV
-            echo "/usr/bin" >> $GITHUB_PATH
-          else
-            echo "LLVM_PATH=/opt/llvm" >> $GITHUB_ENV
-            echo "/opt/llvm/bin" >> $GITHUB_PATH
-          fi
-          
-          # Перевірка встановлення
-          echo "Verifying LLVM installation..."
-          clang --version || echo "clang not found in PATH"
-          which clang || echo "clang not in PATH"
-          ls -la /opt/llvm/bin/clang* 2>/dev/null || echo "No clang in /opt/llvm/bin"
-      
-      - name: Setup JDK 17
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
           cache: gradle
       
-      # ========== ANDROID SDK SETUP ==========
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
           api-level: 36
-          ndk-version: ${{ env.NDK_VERSION }}
+          ndk-version: 29.0.13113456
           cmake-version: 3.28.0
       
-      - name: Validate Android SDK
+      - name: Accept Android licenses
         run: |
-          echo "Android SDK Root: $ANDROID_HOME"
-          ls -la "$ANDROID_HOME/ndk/$NDK_VERSION/toolchains/" | head -20
-          
-          # Встановити необхідні пакети SDK
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
-            "platforms;android-36" \
-            "build-tools;36.0.0" \
-            --sdk_root="$ANDROID_HOME"
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
       
-      # ========== PATCH INTEGRATION ==========
-      - name: Download and apply patches
-        id: patches
+      - name: Install LLVM
         run: |
-          set -e
-          echo "Downloading latest patches..."
-          
-          PATCH_DIR="./patches"
-          mkdir -p "$PATCH_DIR"
-          
-          # Завантажити patch.yml (якщо доступний)
-          if [ -f "patches/rpcsx-nce-arm64-jit.patch" ]; then
-            echo "Found existing patch: rpcsx-nce-arm64-jit.patch"
-            PATCH_FILE="patches/rpcsx-nce-arm64-jit.patch"
-            
-            # Перевірити та застосувати патч
-            if patch -p1 --dry-run < "$PATCH_FILE" > /dev/null 2>&1; then
-              echo "Applying patch..."
-              patch -p1 < "$PATCH_FILE" || echo "warning: patch application encountered issues"
-              echo "status=applied" >> $GITHUB_OUTPUT
-            else
-              echo "warning: patch dry-run failed, skipping"
-              echo "status=skipped" >> $GITHUB_OUTPUT
-            fi
-          else
-            echo "No patches found to apply"
-            echo "status=none" >> $GITHUB_OUTPUT
+          sudo apt-get update -qq
+          sudo apt-get install -y clang llvm llvm-dev
+          clang --version
+      
+      - name: Apply patches
+        continue-on-error: true
+        run: |
+          if [ -d "patches" ]; then
+            for patch in patches/*.patch; do
+              if [ -f "$patch" ]; then
+                echo "Applying $(basename $patch)..."
+                patch -p1 < "$patch" || echo "Patch $(basename $patch) skipped"
+              fi
+            done
           fi
       
-      # ========== VERSION SETUP ==========
-      - name: Set version information
-        id: version
+      - name: Configure CMake optimization
         run: |
-          # Версія з тегу або timestamp
-          if git describe --tags --exact-match 2>/dev/null; then
-            VERSION=$(git describe --tags --exact-match)
-          else
-            VERSION="armv9-$(date +%Y%m%d-%H%M%S)"
-          fi
-          
-          SHA=$(git rev-parse --short HEAD)
-          
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "sha=${SHA}" >> $GITHUB_OUTPUT
-          echo "RX_VERSION=${VERSION}" >> $GITHUB_ENV
-          echo "RX_SHA=${SHA}" >> $GITHUB_ENV
-          
-          echo "Build Version: ${VERSION}-${SHA}"
+          mkdir -p app/build/cmake-config
+          cat > app/build/cmake-config/armv9.cmake << 'CMAKE_EOF'
+          # ARMv9-A Optimization Configuration
+          set(CMAKE_C_FLAGS_RELEASE "-O3 -march=armv9-a -mtune=cortex-x4 -ffast-math -ftree-vectorize -funroll-loops -flto=full")
+          set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=armv9-a -mtune=cortex-x4 -ffast-math -ftree-vectorize -funroll-loops -flto=full")
+          set(CMAKE_EXE_LINKER_FLAGS "-flto=full -fuse-linker-plugin -Wl,--gc-sections -Wl,--as-needed")
+          set(CMAKE_SHARED_LINKER_FLAGS "-flto=full -fuse-linker-plugin -Wl,--gc-sections -Wl,--as-needed")
+          CMAKE_EOF
+          echo "✅ CMake configuration ready"
       
-      # ========== BUILD CONFIGURATION ==========
-      - name: Configure build flags
-        id: flags
-        run: |
-          cat > build_flags.env << 'EOF'
-          # ARMv9 оптимізації
-          CFLAGS="-O3 -march=armv9-a -mtune=cortex-x4 -ffast-math -ftree-vectorize"
-          CXXFLAGS="-O3 -march=armv9-a -mtune=cortex-x4 -ffast-math -ftree-vectorize"
-          LDFLAGS="-Wl,--gc-sections -Wl,--as-needed"
-          
-          # LTO (Link Time Optimization)
-          LTO_FLAGS="-flto=full -fuse-linker-plugin"
-          
-          # Оптимізації рівня проекту
-          CMAKE_BUILD_TYPE="Release"
-          CMAKE_CXX_FLAGS_RELEASE="-O3 -march=armv9-a+sve2 -ffast-math -ftree-vectorize -funroll-loops"
-          
-          # Android-specific
-          ANDROID_ARM_NEON="ON"
-          ANDROID_STL="c++_shared"
-          ANDROID_NATIVE_API_LEVEL="29"
-          EOF
-          
-          source build_flags.env
-          echo "Build flags configured for ARMv9+SVE2"
-      
-      # ========== GRADLE BUILD ==========
-      - name: Build with Gradle (Release)
+      - name: Build APK (Release)
         if: github.event.inputs.build_type != 'debug'
+        id: build
         run: |
           chmod +x gradlew
-          LLVM_PATH="${LLVM_PATH:-/opt/llvm}"
           ./gradlew assembleRelease \
             -Pandroid.native.buildOutput=verbose \
             -DCMAKE_VERBOSE_MAKEFILE=ON \
             -Dorg.gradle.parallel=true \
-            -Dorg.gradle.workers.max=4 \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DLLVM_PATH="$LLVM_PATH" \
             --no-daemon \
-            --stacktrace
+            --stacktrace 2>&1 | tee build.log
+          
+          APK_PATH=$(find app/build/outputs/apk -name "*.apk" | head -1)
+          if [ -z "$APK_PATH" ]; then
+            echo "❌ APK not found!"
+            tail -50 build.log
+            exit 1
+          fi
+          
+          APK_NAME="rpcsx-armv9-release-${{ steps.version.outputs.sha }}.apk"
+          cp "$APK_PATH" "$APK_NAME"
+          
+          echo "apk-path=${APK_NAME}" >> $GITHUB_OUTPUT
+          echo "✅ Build successful: ${APK_NAME}"
       
-      - name: Build with Gradle (Debug)
+      - name: Build APK (Debug)
         if: github.event.inputs.build_type == 'debug'
+        id: build-debug
         run: |
           chmod +x gradlew
-          LLVM_PATH="${LLVM_PATH:-/opt/llvm}"
           ./gradlew assembleDebug \
             -Pandroid.native.buildOutput=verbose \
-            -DCMAKE_VERBOSE_MAKEFILE=ON \
-            -Dorg.gradle.parallel=true \
-            -Dorg.gradle.workers.max=4 \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DLLVM_PATH="$LLVM_PATH" \
             --no-daemon \
-            --stacktrace
-      
-      # ========== NATIVE LIBRARIES EXTRACTION ==========
-      - name: Extract native libraries (.so files)
-        id: extract-libs
-        run: |
-          set -e
-          echo "Extracting native libraries..."
+            --stacktrace 2>&1 | tee build.log
           
-          BUILD_TYPE="${{ github.event.inputs.build_type || 'release' }}"
-          
-          # Визначити шлях до APK
-          if [ "$BUILD_TYPE" = "debug" ]; then
-            APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
-          else
-            APK_PATH="app/build/outputs/apk/release/app-release.apk"
-          fi
-          
-          if [ ! -f "$APK_PATH" ]; then
-            echo "Error: APK not found at $APK_PATH"
-            ls -la app/build/outputs/apk/ || true
+          APK_PATH=$(find app/build/outputs/apk -name "*.apk" | head -1)
+          if [ -z "$APK_PATH" ]; then
+            echo "❌ APK not found!"
+            tail -50 build.log
             exit 1
           fi
           
-          # Створити директорію для вилучених файлів
-          EXTRACT_DIR="native-libs-armv9"
-          mkdir -p "$EXTRACT_DIR"
+          APK_NAME="rpcsx-armv9-debug-${{ steps.version.outputs.sha }}.apk"
+          cp "$APK_PATH" "$APK_NAME"
           
-          # Вилучити .so файли з APK
-          unzip -o "$APK_PATH" "lib/arm64-v8a/*.so" -d "$EXTRACT_DIR" || true
-          
-          # Перемістити .so файли на верхній рівень
-          if [ -d "$EXTRACT_DIR/lib/arm64-v8a" ]; then
-            mv "$EXTRACT_DIR/lib/arm64-v8a"/*.so "$EXTRACT_DIR/" 2>/dev/null || true
-            rm -rf "$EXTRACT_DIR/lib"
-          fi
-          
-          # Список вилучених файлів
-          echo "Extracted .so files:"
-          ls -lh "$EXTRACT_DIR"/*.so 2>/dev/null | awk '{print $9, "(" $5 ")"}'
-          
-          # Збереження інформації про вилучені файли
-          SO_COUNT=$(ls -1 "$EXTRACT_DIR"/*.so 2>/dev/null | wc -l)
-          echo "so-count=${SO_COUNT}" >> $GITHUB_OUTPUT
-          echo "so-path=${EXTRACT_DIR}" >> $GITHUB_OUTPUT
-          
-          # Цікавістю інформація про розміри
-          TOTAL_SIZE=$(du -sh "$EXTRACT_DIR" | cut -f1)
-          echo "total-size=${TOTAL_SIZE}" >> $GITHUB_OUTPUT
+          echo "apk-path=${APK_NAME}" >> $GITHUB_OUTPUT
+          echo "✅ Build successful: ${APK_NAME}"
       
-      # ========== APK PROCESSING ==========
-      - name: Process and sign APK
-        id: apk
+      - name: Extract native libraries
+        if: success()
         run: |
-          set -e
-          
           BUILD_TYPE="${{ github.event.inputs.build_type || 'release' }}"
-          
           if [ "$BUILD_TYPE" = "debug" ]; then
-            APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
-            APK_OUTPUT="rpcsx-armv9-debug-${{ steps.version.outputs.sha }}.apk"
+            APK_PATH=$(find app/build/outputs/apk/debug -name "*.apk" | head -1)
           else
-            APK_PATH="app/build/outputs/apk/release/app-release.apk"
-            APK_OUTPUT="rpcsx-armv9-release-${{ steps.version.outputs.sha }}.apk"
+            APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
           fi
           
           if [ ! -f "$APK_PATH" ]; then
-            echo "Error: APK not found"
-            exit 1
+            echo "APK not found, skipping library extraction"
+            exit 0
           fi
           
-          # Отримати інформацію про APK
-          APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
-          APK_SIZE_BYTES=$(du -b "$APK_PATH" | cut -f1)
+          mkdir -p native-libs
+          unzip -o "$APK_PATH" "lib/arm64-v8a/*.so" -d native-libs || true
           
-          echo "APK Size: $APK_SIZE"
-          echo "APK Path: $APK_PATH"
+          if [ -d "native-libs/lib/arm64-v8a" ]; then
+            mv native-libs/lib/arm64-v8a/* native-libs/ 2>/dev/null || true
+            rm -rf native-libs/lib
+          fi
           
-          # Скопіювати та перейменувати
-          cp "$APK_PATH" "$APK_OUTPUT"
-          
-          # Генерувати контрольні суми
-          sha256sum "$APK_OUTPUT" > "${APK_OUTPUT}.sha256"
-          md5sum "$APK_OUTPUT" > "${APK_OUTPUT}.md5"
-          
-          echo "apk-path=${APK_OUTPUT}" >> $GITHUB_OUTPUT
-          echo "apk-size=${APK_SIZE}" >> $GITHUB_OUTPUT
-          echo "apk-size-bytes=${APK_SIZE_BYTES}" >> $GITHUB_OUTPUT
-          
-          # Інформація про контрольні суми
-          echo "Checksums:"
-          cat "${APK_OUTPUT}.sha256"
-          cat "${APK_OUTPUT}.md5"
+          echo "✅ Extracted libraries:"
+          ls -lh native-libs/*.so 2>/dev/null || echo "No .so files found"
       
-      # ========== BUILD INFO GENERATION ==========
-      - name: Generate build information
-        id: build-info
+      - name: Generate build report
+        if: success()
         run: |
-          cat > build-info.txt << EOF
-          RPCSX ARMv9 Build Information
-          ============================
+          cat > build-report.txt << EOF
+          RPCSX ARMv9 Build Report
+          ========================
           
-          Build Date: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          Date: $(date -u)
           Version: ${{ steps.version.outputs.version }}
-          Commit SHA: ${{ steps.version.outputs.sha }}
+          Commit: ${{ steps.version.outputs.sha }}
           Build Type: ${{ github.event.inputs.build_type || 'release' }}
           
-          Compiler Information:
-          - LLVM Version: ${{ steps.llvm-version.outputs.version }}
-          - Java Version: $(java -version 2>&1 | head -1)
-          - Gradle Version: $(./gradlew --version | grep "Gradle" | head -1)
+          Environment:
+          - Java: $(java -version 2>&1 | head -1)
+          - Gradle: $(./gradlew --version | head -1)
+          - LLVM: $(clang --version | head -1)
+          - NDK: 29.0.13113456
           
-          Build Flags:
-          - Optimization: -O3
-          - Architecture: -march=armv9-a
-          - CPU Tuning: -mtune=cortex-x4
-          - Vectorization: -ftree-vectorize
-          - Math Optimization: -ffast-math
-          - Link Time Optimization: -flto=full
+          Optimization Flags:
+          - Architecture: arm64-v8a (ARMv9)
+          - Level: Release build
+          - C++ Standard: 20
           
-          Android Configuration:
-          - API Level: 36
-          - NDK Version: ${{ env.NDK_VERSION }}
-          - Min SDK: 29
-          - Target SDK: 35
-          - ABI: arm64-v8a (ARMv9)
-          
-          Output Files:
-          - APK: ${{ steps.apk.outputs.apk-path }}
-          - APK Size: ${{ steps.apk.outputs.apk-size }}
-          - Native Libraries: ${{ steps.extract-libs.outputs.so-count }} files
-          - Patch Status: ${{ steps.patches.outputs.status }}
-          
-          Build Runner:
-          - OS: Ubuntu 24.04 LTS
-          - Architecture: x86_64
-          - GitHub Actions Runner: ubuntu-24.04
-          
-          Optimization Profile:
-          - Target Device: Snapdragon 8s Gen 3 and newer
-          - SVE2 Support: Enabled
-          - Fastmem: Enabled
-          - FSR 3.1: Enabled
-          - Game Mode: Enabled
-          
-          Build Artifacts:
-          - .so Files Count: ${{ steps.extract-libs.outputs.so-count }}
-          - .so Files Size: ${{ steps.extract-libs.outputs.total-size }}
-          - Build Status: SUCCESS
+          Status: SUCCESS
           EOF
           
-          cat build-info.txt
+          cat build-report.txt
       
-      # ========== CREATE ARTIFACTS ARCHIVE ==========
-      - name: Create artifacts archive
-        id: artifacts
-        run: |
-          set -e
-          
-          ARCHIVE_NAME="rpcsx-armv9-${{ steps.version.outputs.version }}-${{ steps.version.outputs.sha }}.tar.gz"
-          
-          echo "Creating artifacts archive: $ARCHIVE_NAME"
-          
-          # Архівування APK, .so файлів та інформації про збірку
-          tar -czf "$ARCHIVE_NAME" \
-            ${{ steps.apk.outputs.apk-path }} \
-            ${{ steps.apk.outputs.apk-path }}.sha256 \
-            ${{ steps.apk.outputs.apk-path }}.md5 \
-            native-libs-armv9/*.so \
-            build-info.txt \
-            2>/dev/null || true
-          
-          if [ ! -f "$ARCHIVE_NAME" ]; then
-            echo "Warning: Archive creation failed, creating minimal archive"
-            tar -czf "$ARCHIVE_NAME" \
-              ${{ steps.apk.outputs.apk-path }} \
-              build-info.txt
-          fi
-          
-          ARCHIVE_SIZE=$(du -h "$ARCHIVE_NAME" | cut -f1)
-          echo "Archive size: $ARCHIVE_SIZE"
-          echo "archive-path=${ARCHIVE_NAME}" >> $GITHUB_OUTPUT
-          echo "archive-size=${ARCHIVE_SIZE}" >> $GITHUB_OUTPUT
-      
-      # ========== UPLOAD ARTIFACTS ==========
       - name: Upload APK artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: rpcsx-armv9-apk
-          path: ${{ steps.apk.outputs.apk-path }}
+          path: rpcsx-armv9-*.apk
           retention-days: 60
-          compression-level: 6
       
       - name: Upload native libraries
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: rpcsx-armv9-native-libs
-          path: native-libs-armv9/*.so
+          path: native-libs/*.so
           retention-days: 60
+          if-no-files-found: ignore
       
-      - name: Upload full archive
+      - name: Upload build report
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: rpcsx-armv9-complete-${{ steps.version.outputs.sha }}
-          path: ${{ steps.artifacts.outputs.archive-path }}
+          name: build-report
+          path: build-report.txt
           retention-days: 90
       
-      - name: Upload build info
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-info
-          path: build-info.txt
-          retention-days: 90
-      
-      # ========== CREATE RELEASE (on tags) ==========
-      - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref_name }}
-          release_name: RPCSX ARMv9 ${{ github.ref_name }}
-          body: |
-            # RPCSX ARMv9 Release
-            
-            **Version**: ${{ steps.version.outputs.version }}
-            **Commit**: ${{ steps.version.outputs.sha }}
-            **Build Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
-            
-            ## Build Information
-            - **APK**: ${{ steps.apk.outputs.apk-path }} (${{ steps.apk.outputs.apk-size }})
-            - **LLVM**: ${{ steps.llvm-version.outputs.version }}
-            - **NDK**: ${{ env.NDK_VERSION }}
-            - **API Level**: 36
-            
-            ## Optimizations
-            - ✅ ARMv9-A + SVE2 Support
-            - ✅ -O3 optimization
-            - ✅ Link Time Optimization (LTO)
-            - ✅ Fastmem (10GB)
-            - ✅ FSR 3.1 Upscaling
-            - ✅ Game Mode Integration
-            
-            ## Installation
-            ```bash
-            adb install -r ${{ steps.apk.outputs.apk-path }}
-            ```
-            
-            ## Checksums
-            ```
-            SHA256: $(cat ${{ steps.apk.outputs.apk-path }}.sha256)
-            ```
-          draft: false
-          prerelease: false
-      
-      # ========== UPLOAD TO RELEASE ==========
-      - name: Upload artifacts to release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            ${{ steps.apk.outputs.apk-path }}
-            ${{ steps.apk.outputs.apk-path }}.sha256
-            ${{ steps.apk.outputs.apk-path }}.md5
-            ${{ steps.artifacts.outputs.archive-path }}
-            build-info.txt
-            native-libs-armv9/*.so
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
-      # ========== BUILD NOTIFICATION ==========
-      - name: Generate summary
-        if: always()
+      - name: Create archive
+        if: success()
         run: |
-          echo "## 📱 RPCSX ARMv9 Build Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Build Status | ✅ SUCCESS |" >> $GITHUB_STEP_SUMMARY
-          echo "| Version | ${{ steps.version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Commit | ${{ steps.version.outputs.sha }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| LLVM Version | ${{ steps.llvm-version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| APK File | ${{ steps.apk.outputs.apk-path }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| APK Size | ${{ steps.apk.outputs.apk-size }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Native Libraries | ${{ steps.extract-libs.outputs.so-count }} files (${{ steps.extract-libs.outputs.total-size }}) |" >> $GITHUB_STEP_SUMMARY
-          echo "| Patches Applied | ${{ steps.patches.outputs.status }} |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 🎯 Optimization Flags" >> $GITHUB_STEP_SUMMARY
-          echo "- Architecture: \`-march=armv9-a\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Optimization: \`-O3 -Ofast\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Tuning: \`-mtune=cortex-x4\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Vectorization: \`-ftree-vectorize\`" >> $GITHUB_STEP_SUMMARY
-          echo "- LTO: \`-flto=full\`" >> $GITHUB_STEP_SUMMARY
+          ARCHIVE="rpcsx-armv9-${{ steps.version.outputs.version }}-${{ steps.version.outputs.sha }}.tar.gz"
+          tar -czf "$ARCHIVE" \
+            rpcsx-armv9-*.apk \
+            native-libs/*.so \
+            build-report.txt 2>/dev/null || true
+          
+          echo "✅ Archive created: $ARCHIVE"
+          ls -lh "$ARCHIVE" 2>/dev/null || echo "No archive"
+      
+      - name: Upload archive artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpcsx-armv9-complete
+          path: rpcsx-armv9-*.tar.gz
+          retention-days: 90
+          if-no-files-found: ignore
 
-  # ========== NOTIFY JOB ==========
   notify:
-    needs: setup-and-build
+    needs: build
     runs-on: ubuntu-24.04
     if: always()
     
     steps:
-      - name: Print build summary
+      - name: Build summary
         run: |
-          echo "=== Build Summary ==="
-          echo "Build Status: ${{ needs.setup-and-build.result }}"
-          echo "Version: ${{ needs.setup-and-build.outputs.build-version }}"
-          echo "SHA: ${{ needs.setup-and-build.outputs.build-sha }}"
-          echo "====================================="
+          echo "========================================="
+          echo "Build Status: ${{ needs.build.result }}"
+          echo "Version: ${{ needs.build.outputs.version }}"
+          echo "========================================="
