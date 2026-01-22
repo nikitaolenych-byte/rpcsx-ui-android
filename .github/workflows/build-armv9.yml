@@ -8,21 +8,8 @@ on:
     branches:
       - master
       - main
-    paths:
-      - 'app/src/main/cpp/**'
-      - 'app/build.gradle.kts'
-      - '.github/workflows/build-armv9.yml'
   
   workflow_dispatch:
-    inputs:
-      build_type:
-        description: 'Build type'
-        required: true
-        default: 'release'
-        type: choice
-        options:
-          - release
-          - debug
 
 env:
   ANDROID_HOME: /usr/local/lib/android/sdk
@@ -33,234 +20,79 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     
-    permissions:
-      contents: read
-      packages: write
-    
-    outputs:
-      apk-path: ${{ steps.build.outputs.apk-path }}
-      version: ${{ steps.version.outputs.version }}
-    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 50
       
-      - name: Set version info
-        id: version
+      - id: vars
         run: |
-          VERSION=$(git describe --tags 2>/dev/null || echo "armv9-$(date +%Y%m%d)")
-          SHA=$(git rev-parse --short HEAD)
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "sha=${SHA}" >> $GITHUB_OUTPUT
-          echo "Build version: ${VERSION}-${SHA}"
+          echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "version=$(git describe --tags 2>/dev/null || echo armv9-$(date +%Y%m%d))" >> $GITHUB_OUTPUT
       
-      - name: Setup Java
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
           cache: gradle
       
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v3
         with:
           api-level: 36
           ndk-version: 29.0.13113456
           cmake-version: 3.28.0
       
-      - name: Accept Android licenses
-        run: |
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+      - run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>&1 | tail -2 || true
       
-      - name: Install LLVM
-        run: |
+      - run: |
           sudo apt-get update -qq
-          sudo apt-get install -y clang llvm llvm-dev
-          clang --version
+          sudo apt-get install -y clang llvm llvm-dev 2>&1 | tail -3
+          clang --version | head -1
       
-      - name: Apply patches
-        continue-on-error: true
-        run: |
+      - run: |
           if [ -d "patches" ]; then
-            for patch in patches/*.patch; do
-              if [ -f "$patch" ]; then
-                echo "Applying $(basename $patch)..."
-                patch -p1 < "$patch" || echo "Patch $(basename $patch) skipped"
-              fi
+            for p in patches/*.patch; do
+              [ -f "$p" ] && patch -p1 < "$p" 2>&1 | head -2 || true
             done
           fi
       
-      - name: Configure CMake optimization
-        run: |
-          mkdir -p app/build/cmake-config
-          cat > app/build/cmake-config/armv9.cmake << 'CMAKE_EOF'
-          # ARMv9-A Optimization Configuration
-          set(CMAKE_C_FLAGS_RELEASE "-O3 -march=armv9-a -mtune=cortex-x4 -ffast-math -ftree-vectorize -funroll-loops -flto=full")
-          set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=armv9-a -mtune=cortex-x4 -ffast-math -ftree-vectorize -funroll-loops -flto=full")
-          set(CMAKE_EXE_LINKER_FLAGS "-flto=full -fuse-linker-plugin -Wl,--gc-sections -Wl,--as-needed")
-          set(CMAKE_SHARED_LINKER_FLAGS "-flto=full -fuse-linker-plugin -Wl,--gc-sections -Wl,--as-needed")
-          CMAKE_EOF
-          echo "✅ CMake configuration ready"
-      
-      - name: Build APK (Release)
-        if: github.event.inputs.build_type != 'debug'
-        id: build
-        run: |
+      - run: |
           chmod +x gradlew
           ./gradlew assembleRelease \
             -Pandroid.native.buildOutput=verbose \
-            -DCMAKE_VERBOSE_MAKEFILE=ON \
-            -Dorg.gradle.parallel=true \
             --no-daemon \
-            --stacktrace 2>&1 | tee build.log
-          
-          APK_PATH=$(find app/build/outputs/apk -name "*.apk" | head -1)
-          if [ -z "$APK_PATH" ]; then
-            echo "❌ APK not found!"
-            tail -50 build.log
-            exit 1
-          fi
-          
-          APK_NAME="rpcsx-armv9-release-${{ steps.version.outputs.sha }}.apk"
-          cp "$APK_PATH" "$APK_NAME"
-          
-          echo "apk-path=${APK_NAME}" >> $GITHUB_OUTPUT
-          echo "✅ Build successful: ${APK_NAME}"
+            --stacktrace 2>&1 | tail -50
       
-      - name: Build APK (Debug)
-        if: github.event.inputs.build_type == 'debug'
-        id: build-debug
+      - if: success()
         run: |
-          chmod +x gradlew
-          ./gradlew assembleDebug \
-            -Pandroid.native.buildOutput=verbose \
-            --no-daemon \
-            --stacktrace 2>&1 | tee build.log
-          
-          APK_PATH=$(find app/build/outputs/apk -name "*.apk" | head -1)
-          if [ -z "$APK_PATH" ]; then
-            echo "❌ APK not found!"
-            tail -50 build.log
-            exit 1
-          fi
-          
-          APK_NAME="rpcsx-armv9-debug-${{ steps.version.outputs.sha }}.apk"
-          cp "$APK_PATH" "$APK_NAME"
-          
-          echo "apk-path=${APK_NAME}" >> $GITHUB_OUTPUT
-          echo "✅ Build successful: ${APK_NAME}"
+          APK=$(find app/build/outputs/apk -name "*.apk" | head -1)
+          [ -z "$APK" ] && echo "APK not found!" && exit 1
+          cp "$APK" "rpcsx-armv9.apk"
+          echo "APK ready: $(ls -lh rpcsx-armv9.apk)"
       
-      - name: Extract native libraries
-        if: success()
+      - if: success()
         run: |
-          BUILD_TYPE="${{ github.event.inputs.build_type || 'release' }}"
-          if [ "$BUILD_TYPE" = "debug" ]; then
-            APK_PATH=$(find app/build/outputs/apk/debug -name "*.apk" | head -1)
-          else
-            APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
-          fi
-          
-          if [ ! -f "$APK_PATH" ]; then
-            echo "APK not found, skipping library extraction"
-            exit 0
-          fi
-          
           mkdir -p native-libs
-          unzip -o "$APK_PATH" "lib/arm64-v8a/*.so" -d native-libs || true
-          
-          if [ -d "native-libs/lib/arm64-v8a" ]; then
-            mv native-libs/lib/arm64-v8a/* native-libs/ 2>/dev/null || true
-            rm -rf native-libs/lib
-          fi
-          
-          echo "✅ Extracted libraries:"
-          ls -lh native-libs/*.so 2>/dev/null || echo "No .so files found"
+          unzip -q "rpcsx-armv9.apk" "lib/arm64-v8a/*.so" -d native-libs 2>/dev/null || true
+          [ -d "native-libs/lib/arm64-v8a" ] && mv native-libs/lib/arm64-v8a/* native-libs/ && rmdir native-libs/lib/arm64-v8a 2>/dev/null || true
+          echo "Libraries: $(find native-libs -name "*.so" | wc -l)"
       
-      - name: Generate build report
-        if: success()
-        run: |
-          cat > build-report.txt << EOF
-          RPCSX ARMv9 Build Report
-          ========================
-          
-          Date: $(date -u)
-          Version: ${{ steps.version.outputs.version }}
-          Commit: ${{ steps.version.outputs.sha }}
-          Build Type: ${{ github.event.inputs.build_type || 'release' }}
-          
-          Environment:
-          - Java: $(java -version 2>&1 | head -1)
-          - Gradle: $(./gradlew --version | head -1)
-          - LLVM: $(clang --version | head -1)
-          - NDK: 29.0.13113456
-          
-          Optimization Flags:
-          - Architecture: arm64-v8a (ARMv9)
-          - Level: Release build
-          - C++ Standard: 20
-          
-          Status: SUCCESS
-          EOF
-          
-          cat build-report.txt
-      
-      - name: Upload APK artifact
-        if: success()
+      - if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: rpcsx-armv9-apk
-          path: rpcsx-armv9-*.apk
+          name: rpcsx-armv9
+          path: rpcsx-armv9.apk
           retention-days: 60
       
-      - name: Upload native libraries
-        if: success()
+      - if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: rpcsx-armv9-native-libs
-          path: native-libs/*.so
+          name: native-libs
+          path: native-libs/
           retention-days: 60
-          if-no-files-found: ignore
       
-      - name: Upload build report
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-report
-          path: build-report.txt
-          retention-days: 90
-      
-      - name: Create archive
-        if: success()
+      - if: always()
         run: |
-          ARCHIVE="rpcsx-armv9-${{ steps.version.outputs.version }}-${{ steps.version.outputs.sha }}.tar.gz"
-          tar -czf "$ARCHIVE" \
-            rpcsx-armv9-*.apk \
-            native-libs/*.so \
-            build-report.txt 2>/dev/null || true
-          
-          echo "✅ Archive created: $ARCHIVE"
-          ls -lh "$ARCHIVE" 2>/dev/null || echo "No archive"
-      
-      - name: Upload archive artifact
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: rpcsx-armv9-complete
-          path: rpcsx-armv9-*.tar.gz
-          retention-days: 90
-          if-no-files-found: ignore
-
-  notify:
-    needs: build
-    runs-on: ubuntu-24.04
-    if: always()
-    
-    steps:
-      - name: Build summary
-        run: |
-          echo "========================================="
-          echo "Build Status: ${{ needs.build.result }}"
-          echo "Version: ${{ needs.build.outputs.version }}"
-          echo "========================================="
+          echo "Build: ${{ job.status }}"
+          echo "SHA: ${{ steps.vars.outputs.sha }}"
+          echo "Version: ${{ steps.vars.outputs.version }}"
