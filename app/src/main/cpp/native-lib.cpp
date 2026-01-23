@@ -210,7 +210,11 @@ extern "C" JNIEXPORT jboolean JNICALL Java_net_rpcsx_RPCSX_initialize(
   std::string shaderCacheDir = userDir + "/shader_cache";
   rpcsx::shaders::InitializeShaderCache(shaderCacheDir.c_str());
   
-  LOGI("RPCSX Optimized Modules Initialized: NCE, Scheduler, ShaderCache");
+  // Initialize PS3 RSX Graphics Engine with worker threads on Cortex-X4
+  // Use 3 worker threads for graphics command processing (leave 1 core for game logic)
+  // rpcsx::vulkan::InitializeRSXEngine(nullptr, nullptr, 3);
+  
+  LOGI("RPCSX Optimized Modules Initialized: NCE, Scheduler, ShaderCache, RSX Graphics Engine");
 
   // Install crash handlers early; helps with SIGSEGV/SIGBUS on some kernels/devices.
   rpcsx::crash::InstallSignalHandlers();
@@ -247,6 +251,9 @@ extern "C" JNIEXPORT jboolean JNICALL Java_net_rpcsx_RPCSX_collectGameInfo(
 
 extern "C" JNIEXPORT void JNICALL Java_net_rpcsx_RPCSX_shutdown(JNIEnv *env,
                                                                 jobject) {
+  // Shutdown RSX Graphics Engine
+  rpcsx::vulkan::ShutdownRSXEngine();
+  
   // Shutdown PPU Interceptor first
   if (rpcsx::ppu::IsInterceptorActive()) {
     LOGI("Shutting down PPU Interceptor...");
@@ -533,12 +540,13 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* /* reserved */) {
 }
 
 /**
- * Очищення всіх оптимізацій при виході
+ * Shutdown all optimizations on exit
  */
 extern "C" JNIEXPORT void JNICALL
 Java_net_rpcsx_RPCSX_shutdownARMv9Optimizations(JNIEnv *env, jobject) {
   LOGI("Shutting down ARMv9 optimizations...");
   
+  rpcsx::vulkan::ShutdownRSXEngine();  // Shutdown graphics engine first
   rpcsx::fsr::ShutdownFSR();
   rpcsx::scheduler::ShutdownScheduler();
   rpcsx::shaders::ShutdownShaderCache();
