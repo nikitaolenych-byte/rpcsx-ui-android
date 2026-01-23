@@ -341,8 +341,8 @@ fun AdvancedSettingsScreen(
                                             safeSetNCEMode(3)
                                             // Save NCE mode (use cached setter for performance)
                                             net.rpcsx.utils.GeneralSettings.nceMode = 3
-                                            itemObject.put("value", value)
-                                            itemValue = value
+                                            itemObject.put("value", "LLVM Recompiler (Legacy)")
+                                            itemValue = "LLVM Recompiler (Legacy)"
                                             
                                             // Log NCE Native activation
                                             android.util.Log.i("RPCSX-NCE", "╔════════════════════════════════════════╗")
@@ -356,6 +356,7 @@ fun AdvancedSettingsScreen(
                                         // Map display names back to internal values
                                         val internalValue = when (value) {
                                             "LLVM 19" -> "LLVM Recompiler (Legacy)"
+                                            "Interpreter" -> "Interpreter (Legacy)"
                                             else -> value
                                         }
                                         
@@ -596,6 +597,12 @@ fun AdvancedSettingsScreen(
                                 } catch (e: Exception) {
                                     Log.e("Settings", "Failed to save NCE mode: ${e.message}")
                                 }
+
+                                // LLVM performance tweaks
+                                safeSettingsSet("Core@@PPU LLVM Greedy Mode", "true")
+                                safeSettingsSet("Core@@LLVM Precompilation", "true")
+                                safeSettingsSet("Core@@Set DAZ and FTZ", "true")
+                                safeSettingsSet("Core@@Max LLVM Compile Threads", "16")
 
                                 // RSX engine
                                 if (!rsxEnabled) {

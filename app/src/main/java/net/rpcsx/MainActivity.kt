@@ -226,8 +226,23 @@ class MainActivity : ComponentActivity() {
             } catch (e: Exception) {
                 Log.e("RPCSX", "Failed to set RSX thread count", e)
             }
+
+            // LLVM performance tweaks
+            safeSettingsSet("Core@@PPU LLVM Greedy Mode", "true")
+            safeSettingsSet("Core@@LLVM Precompilation", "true")
+            safeSettingsSet("Core@@Set DAZ and FTZ", "true")
+            safeSettingsSet("Core@@Max LLVM Compile Threads", "16")
         } catch (e: Exception) {
             Log.e("RPCSX", "Failed to apply max performance defaults", e)
+        }
+    }
+
+    private fun safeSettingsSet(path: String, value: String): Boolean {
+        return try {
+            RPCSX.instance.settingsSet(path, value)
+        } catch (e: Exception) {
+            Log.e("RPCSX", "Error setting $path to $value", e)
+            false
         }
     }
 
