@@ -790,6 +790,107 @@ public:
     }
     
     // ============================================
+    // Immediate variants for JIT compiler
+    // ============================================
+    
+    // MOVi - move immediate (handles sign extension for negative)
+    void MOVi(GpReg rd, int64_t imm) {
+        if (imm >= 0 && imm <= 0xFFFF) {
+            MOVZ(rd, static_cast<uint16_t>(imm), 0);
+        } else if (imm < 0 && imm >= -0x10000) {
+            // Use MOVN for negative
+            buf_.Emit(0x92800000 | ((~imm & 0xFFFF) << 5) | static_cast<uint32_t>(rd));
+        } else {
+            MOV_IMM64(rd, static_cast<uint64_t>(imm));
+        }
+    }
+    
+    // ADDi - add immediate (signed)
+    void ADDi(GpReg rd, GpReg rn, int64_t imm) {
+        if (imm >= 0 && imm < 4096) {
+            ADD_IMM(rd, rn, static_cast<uint16_t>(imm));
+        } else if (imm < 0 && imm > -4096) {
+            SUB_IMM(rd, rn, static_cast<uint16_t>(-imm));
+        } else {
+            // Large immediate - load into temp and add
+            MOVi(REG_TMP1, imm);
+            ADD(rd, rn, REG_TMP1);
+        }
+    }
+    
+    // ORRi - or immediate 
+    void ORRi(GpReg rd, GpReg rn, uint64_t imm) {
+        if (imm == 0) {
+            if (rd != rn) MOV(rd, rn);
+            return;
+        }
+        // Load imm to temp and ORR
+        MOVi(REG_TMP1, static_cast<int64_t>(imm));
+        ORR(rd, rn, REG_TMP1);
+    }
+    
+    // LDRWi - load 32-bit word with signed offset
+    void LDRWi(GpReg rt, GpReg rn, int32_t offset) {
+        if (offset >= 0 && offset < 16380 && (offset & 3) == 0) {
+            LDR_W(rt, rn, offset);
+        } else if (offset >= -256 && offset < 256) {
+            // LDUR for unscaled offset
+            buf_.Emit(0xB8400000 | ((offset & 0x1FF) << 12) | 
+                     (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rt));
+        } else {
+            ADDi(REG_TMP1, rn, offset);
+            LDR_W(rt, REG_TMP1, 0);
+        }
+    }
+    
+    // STRWi - store 32-bit word with signed offset  
+    void STRWi(GpReg rt, GpReg rn, int32_t offset) {
+        if (offset >= 0 && offset < 16380 && (offset & 3) == 0) {
+            STR_W(rt, rn, offset);
+        } else if (offset >= -256 && offset < 256) {
+            // STUR for unscaled offset
+            buf_.Emit(0xB8000000 | ((offset & 0x1FF) << 12) | 
+                     (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rt));
+        } else {
+            ADDi(REG_TMP1, rn, offset);
+            STR_W(rt, REG_TMP1, 0);
+        }
+    }
+    
+    // LDRB register indexed
+    void LDRB(GpReg rt, GpReg rn, GpReg rm) {
+        buf_.Emit(0x38606800 | (static_cast<uint32_t>(rm) << 16) |
+                 (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rt));
+    }
+    
+    // STRW register indexed
+    void STRW(GpReg rt, GpReg rn, GpReg rm) {
+        buf_.Emit(0xB8206800 | (static_cast<uint32_t>(rm) << 16) |
+                 (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rt));
+    }
+    
+    // CMP Xn, Xm (SUBS XZR, Xn, Xm)
+    void CMP(GpReg rn, GpReg rm) {
+        SUBS(GpReg::ZR, rn, rm);
+    }
+    
+    // ============================================
+    // Branches for JIT
+    // ============================================
+    
+    // B offset (relative branch)
+    void B(int32_t offset) {
+        int32_t imm26 = (offset >> 2) & 0x3FFFFFF;
+        buf_.Emit(0x14000000 | imm26);
+    }
+    
+    // Bcond - conditional branch
+    void Bcond(Cond cond, int32_t offset) {
+        int32_t imm19 = (offset >> 2) & 0x7FFFF;
+        buf_.Emit(0x54000000 | (imm19 << 5) | static_cast<uint32_t>(cond));
+    }
+    
+    // ============================================
     // System
     // ============================================
     

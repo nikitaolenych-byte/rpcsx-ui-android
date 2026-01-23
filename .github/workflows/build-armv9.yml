@@ -150,9 +150,15 @@ jobs:
         run: |
           chmod +x gradlew
           echo "Starting Gradle build..."
+          echo "=== Pre-build check ==="
+          echo "ANDROID_HOME: $ANDROID_HOME"
+          echo "JAVA_HOME: $JAVA_HOME"
+          ls -la $ANDROID_HOME/cmake/ 2>/dev/null | head -5 || echo "CMake listing failed"
+          
           ./gradlew assembleRelease \
             -Pandroid.native.buildOutput=verbose \
-            --no-daemon 2>&1 | tee gradle-build.log
+            --no-daemon \
+            --info 2>&1 | tee gradle-build.log
           
           BUILD_EXIT=${PIPESTATUS[0]}
           echo "Build exit code: $BUILD_EXIT"
@@ -162,25 +168,41 @@ jobs:
             tail -200 gradle-build.log
             exit $BUILD_EXIT
           fi
+          
+          echo "=== Post-build outputs ==="
+          find app/build -type f -name "*.apk" 2>/dev/null | head -10
           echo "✅ Build succeeded"
       
       - name: Find APK
         if: success()
         run: |
-          echo "Searching for APK..."
-          find app/build -type f -name "*.apk" 2>/dev/null | head -10 || echo "No APK files found"
+          echo "=== Searching for APK ==="
+          echo "Build outputs structure:"
+          ls -laR app/build/outputs/ 2>/dev/null | head -50 || echo "No outputs directory"
           
+          # Try standard release location first
           APK=$(find app/build/outputs/apk -type f -name "*.apk" 2>/dev/null | head -1)
+          
+          # Fallback: search entire build directory
           if [ -z "$APK" ]; then
-            echo "❌ APK not found in standard location"
-            echo "Build outputs directory structure:"
-            ls -la app/build/outputs/ 2>/dev/null || echo "outputs/ directory not found"
+            echo "Trying fallback search..."
+            APK=$(find app/build -type f -name "*.apk" 2>/dev/null | head -1)
+          fi
+          
+          if [ -z "$APK" ]; then
+            echo "❌ APK not found!"
+            echo "Gradle log tail:"
+            tail -100 gradle-build.log 2>/dev/null || true
             exit 1
           fi
           
           echo "✅ Found APK: $APK"
           cp "$APK" rpcsx-armv9.apk
           ls -lh rpcsx-armv9.apk
+          
+          # Verify APK is valid
+          file rpcsx-armv9.apk
+          unzip -l rpcsx-armv9.apk | head -20
       
       - name: Extract libs
         if: success()

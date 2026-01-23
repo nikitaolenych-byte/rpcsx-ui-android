@@ -315,6 +315,7 @@ inline CompiledBlock* JitCompiler::CompileBlock(const uint8_t* guest_code,
     
     // Check if already compiled
     if (auto* existing = LookupBlock(guest_addr)) {
+        existing->entry_count++;
         return existing;
     }
     
@@ -322,24 +323,148 @@ inline CompiledBlock* JitCompiler::CompileBlock(const uint8_t* guest_code,
     void* code_start = static_cast<uint8_t*>(code_cache_) + code_cache_used_;
     size_t remaining = code_cache_size_ - code_cache_used_;
     
-    if (remaining < 4096) {
+    if (remaining < 8192) {
         // Cache full - flush and restart
         FlushCache();
         code_start = code_cache_;
         remaining = code_cache_size_;
     }
     
-    // Create a minimal compiled block (stub - doesn't translate actual code)
-    // In a full implementation, this would translate PowerPC to ARM64
+    // Create code buffer and emitter
+    CodeBuffer codebuf(code_start, std::min(remaining, config_.max_block_size * 4));
+    Emitter emit(codebuf);
+    PPCTranslator translator;
+    
+    size_t guest_offset = 0;
+    size_t instr_count = 0;
+    bool block_end = false;
+    
+    // Compile PowerPC instructions until block end
+    while (!block_end && guest_offset < config_.max_block_size && 
+           codebuf.GetRemaining() > 256) {
+        
+        // Decode PowerPC instruction (big-endian on PS3)
+        const uint8_t* instr_ptr = guest_code + guest_offset;
+        uint32_t raw_instr;
+        if (config_.big_endian_memory) {
+            raw_instr = (static_cast<uint32_t>(instr_ptr[0]) << 24) |
+                       (static_cast<uint32_t>(instr_ptr[1]) << 16) |
+                       (static_cast<uint32_t>(instr_ptr[2]) << 8) |
+                       static_cast<uint32_t>(instr_ptr[3]);
+        } else {
+            memcpy(&raw_instr, instr_ptr, 4);
+        }
+        
+        // Decode the instruction
+        ppc::DecodedInstr instr = ppc::Decode(raw_instr);
+        uint64_t current_addr = guest_addr + guest_offset;
+        uint64_t next_addr = current_addr + 4;
+        
+        // Translate based on primary opcode
+        switch (instr.primary) {
+            case ppc::PrimaryOp::ADDI:
+                // addi rD, rA, SIMM → add xD, xA, #imm (or mov if rA=0)
+                if (instr.rA == 0) {
+                    emit.MOVi(static_cast<GpReg>(instr.rD), instr.simm);
+                } else {
+                    emit.ADDi(static_cast<GpReg>(instr.rD), 
+                             static_cast<GpReg>(instr.rA), instr.simm);
+                }
+                break;
+                
+            case ppc::PrimaryOp::ADDIS:
+                // addis rD, rA, SIMM → add xD, xA, #(imm << 16)
+                if (instr.rA == 0) {
+                    emit.MOVi(static_cast<GpReg>(instr.rD), 
+                             static_cast<int64_t>(instr.simm) << 16);
+                } else {
+                    emit.ADDi(static_cast<GpReg>(instr.rD), 
+                             static_cast<GpReg>(instr.rA), 
+                             static_cast<int64_t>(instr.simm) << 16);
+                }
+                break;
+                
+            case ppc::PrimaryOp::ORI:
+                // ori rA, rS, UIMM → orr xA, xS, #imm
+                if (instr.uimm == 0 && instr.rA == instr.rS) {
+                    // NOP (ori r0, r0, 0)
+                    emit.NOP();
+                } else {
+                    emit.ORRi(static_cast<GpReg>(instr.rA),
+                             static_cast<GpReg>(instr.rS), instr.uimm);
+                }
+                break;
+                
+            case ppc::PrimaryOp::ORIS:
+                emit.ORRi(static_cast<GpReg>(instr.rA),
+                         static_cast<GpReg>(instr.rS), 
+                         static_cast<uint64_t>(instr.uimm) << 16);
+                break;
+                
+            case ppc::PrimaryOp::LWZ:
+                // lwz rD, d(rA) → ldr wD, [xA, #d]
+                emit.LDRWi(static_cast<GpReg>(instr.rD),
+                          instr.rA == 0 ? GpReg::ZR : static_cast<GpReg>(instr.rA),
+                          instr.simm);
+                break;
+                
+            case ppc::PrimaryOp::STW:
+                // stw rS, d(rA) → str wS, [xA, #d]
+                emit.STRWi(static_cast<GpReg>(instr.rS),
+                          instr.rA == 0 ? GpReg::ZR : static_cast<GpReg>(instr.rA),
+                          instr.simm);
+                break;
+                
+            case ppc::PrimaryOp::B:
+                // Branch - end of block
+                emit.B(instr.li);
+                block_end = true;
+                break;
+                
+            case ppc::PrimaryOp::BC:
+                // Branch conditional
+                emit.Bcond(TranslatePPCCondition(instr.bi, (instr.bo & 8) != 0), 
+                          instr.bd);
+                if (instr.bo == 20) { // Unconditional
+                    block_end = true;
+                }
+                break;
+                
+            case ppc::PrimaryOp::OP31:
+                // Extended ALU operations
+                TranslateOp31(emit, instr);
+                break;
+                
+            default:
+                // Unsupported - emit breakpoint or interpreter call
+                emit.BRK(static_cast<uint16_t>(instr.primary));
+                break;
+        }
+        
+        guest_offset += 4;
+        instr_count++;
+        total_instructions_++;
+    }
+    
+    // Emit block epilogue - return to dispatcher
+    emit.RET();
+    
+    // Finalize block
+    size_t code_size = codebuf.GetOffset();
+    
+    // Make code executable
+    __builtin___clear_cache(static_cast<char*>(code_start),
+                            static_cast<char*>(code_start) + code_size);
+    
     auto block = std::make_unique<CompiledBlock>();
     block->code = code_start;
-    block->code_size = 8;  // Minimal code size
+    block->code_size = code_size;
     block->guest_addr = guest_addr;
-    block->guest_size = 32;  // 8 PowerPC instructions
-    block->entry_count = 0;
+    block->guest_size = guest_offset;
+    block->entry_count = 1;
     
-    // Update cache usage
-    code_cache_used_ += (8 + 15) & ~15;
+    // Update cache usage (align to 16 bytes)
+    code_cache_used_ += (code_size + 15) & ~15;
     
     CompiledBlock* result = block.get();
     block_cache_[guest_addr] = std::move(block);
@@ -347,14 +472,64 @@ inline CompiledBlock* JitCompiler::CompileBlock(const uint8_t* guest_code,
     return result;
 }
 
+// Translate OP31 extended ALU instructions
+inline void TranslateOp31(Emitter& emit, const ppc::DecodedInstr& instr) {
+    switch (static_cast<ppc::ExtOp31>(instr.xo)) {
+        case ppc::ExtOp31::ADD:
+            emit.ADD(static_cast<GpReg>(instr.rD),
+                    static_cast<GpReg>(instr.rA),
+                    static_cast<GpReg>(instr.rB));
+            break;
+        case ppc::ExtOp31::SUBF:
+            emit.SUB(static_cast<GpReg>(instr.rD),
+                    static_cast<GpReg>(instr.rB),  // Note: sub rD, rB, rA
+                    static_cast<GpReg>(instr.rA));
+            break;
+        case ppc::ExtOp31::AND:
+            emit.AND(static_cast<GpReg>(instr.rA),
+                    static_cast<GpReg>(instr.rS),
+                    static_cast<GpReg>(instr.rB));
+            break;
+        case ppc::ExtOp31::OR:
+            emit.ORR(static_cast<GpReg>(instr.rA),
+                    static_cast<GpReg>(instr.rS),
+                    static_cast<GpReg>(instr.rB));
+            break;
+        case ppc::ExtOp31::XOR:
+            emit.EOR(static_cast<GpReg>(instr.rA),
+                    static_cast<GpReg>(instr.rS),
+                    static_cast<GpReg>(instr.rB));
+            break;
+        case ppc::ExtOp31::CMP:
+            emit.CMP(static_cast<GpReg>(instr.rA),
+                    static_cast<GpReg>(instr.rB));
+            break;
+        case ppc::ExtOp31::LBZX:
+            emit.LDRB(static_cast<GpReg>(instr.rD),
+                     static_cast<GpReg>(instr.rA),
+                     static_cast<GpReg>(instr.rB));
+            break;
+        case ppc::ExtOp31::STWX:
+            emit.STRW(static_cast<GpReg>(instr.rS),
+                     static_cast<GpReg>(instr.rA),
+                     static_cast<GpReg>(instr.rB));
+            break;
+        default:
+            emit.BRK(static_cast<uint16_t>(instr.xo));
+            break;
+    }
+}
+
 inline bool JitCompiler::TranslateInstruction(const ppc::DecodedInstr& instr,
                                                PPCTranslator& translator,
                                                uint64_t guest_addr,
                                                uint64_t next_addr) {
-    // Stub implementation - just return success
-    // Full implementation would use PPCTranslator to emit ARM64 code
+    // This is now handled inline in CompileBlock for better performance
     return true;
 }
+
+// Function pointer type for JIT compiled code
+typedef void (*JitCodePtr)(PPCState*);
 
 inline void JitCompiler::Execute(PPCState* state, CompiledBlock* block) {
     if (!state || !block || !block->code) return;
@@ -362,11 +537,16 @@ inline void JitCompiler::Execute(PPCState* state, CompiledBlock* block) {
     block->entry_count++;
     total_executions_++;
     
-    // Stub implementation - doesn't actually execute code
-    // Full implementation would:
-    // 1. Setup registers from state
-    // 2. Call the generated ARM64 code
-    // 3. Restore state from registers
+    // Cast compiled code to function pointer and execute
+    // The generated code expects PPCState* in X0
+    JitCodePtr code_fn = reinterpret_cast<JitCodePtr>(block->code);
+    
+    // Execute the compiled ARM64 code
+    // This will modify state->gpr, state->pc, etc.
+    code_fn(state);
+    
+    // Update PC to next instruction after the block
+    state->pc = block->guest_addr + block->guest_size;
 }
 
 } // namespace rpcsx::nce

@@ -291,18 +291,20 @@ struct DecodedInstr {
     uint32_t raw;           // Raw instruction
     
     // Decoded fields
-    uint8_t opcode;         // Primary opcode (bits 0-5)
+    PrimaryOp primary;      // Primary opcode (bits 0-5)
     uint16_t xo;            // Extended opcode
     
-    // Register operands
-    GPR rd;                 // Destination register
-    GPR ra;                 // Source register A
-    GPR rb;                 // Source register B
+    // Register operands (using uint8_t for direct ARM mapping)
+    uint8_t rD;             // Destination register
+    uint8_t rA;             // Source register A
+    uint8_t rB;             // Source register B
+    uint8_t rS;             // Source register S (for store ops)
     
     // Immediate values
     int16_t simm;           // Signed immediate (D-form)
     uint16_t uimm;          // Unsigned immediate
     int32_t li;             // Branch offset (I-form)
+    int32_t bd;             // Branch displacement (B-form)
     
     // Branch fields
     uint8_t bo;             // Branch options
@@ -331,6 +333,56 @@ struct DecodedInstr {
  * @return Декодована інструкція
  */
 DecodedInstr DecodeInstruction(const uint8_t* code, uint64_t pc);
+
+/**
+ * Декодувати raw PowerPC інструкцію (convenience function)
+ * @param raw 32-bit instruction (already byte-swapped if needed)
+ * @return Декодована інструкція
+ */
+inline DecodedInstr Decode(uint32_t raw) {
+    DecodedInstr instr{};
+    instr.raw = raw;
+    
+    // Primary opcode (bits 0-5)
+    instr.primary = static_cast<PrimaryOp>((raw >> 26) & 0x3F);
+    
+    // D-form: rD/rS (6-10), rA (11-15), D (16-31)
+    instr.rD = (raw >> 21) & 0x1F;
+    instr.rS = instr.rD;  // Same field for stores
+    instr.rA = (raw >> 16) & 0x1F;
+    instr.simm = static_cast<int16_t>(raw & 0xFFFF);
+    instr.uimm = raw & 0xFFFF;
+    
+    // X-form: rD (6-10), rA (11-15), rB (16-20), XO (21-30), Rc (31)
+    instr.rB = (raw >> 11) & 0x1F;
+    instr.xo = (raw >> 1) & 0x3FF;
+    instr.rc = raw & 1;
+    instr.oe = (raw >> 10) & 1;
+    
+    // I-form (branch): LI (6-29), AA (30), LK (31)
+    int32_t li_raw = (raw >> 2) & 0xFFFFFF;
+    instr.li = (li_raw & 0x800000) ? (li_raw | 0xFF000000) : li_raw;
+    instr.li <<= 2;
+    instr.aa = (raw >> 1) & 1;
+    instr.lk = raw & 1;
+    
+    // B-form (conditional branch): BO (6-10), BI (11-15), BD (16-29), AA (30), LK (31)
+    instr.bo = (raw >> 21) & 0x1F;
+    instr.bi = (raw >> 16) & 0x1F;
+    int32_t bd_raw = (raw >> 2) & 0x3FFF;
+    instr.bd = (bd_raw & 0x2000) ? (bd_raw | 0xFFFFC000) : bd_raw;
+    instr.bd <<= 2;
+    
+    // M-form (rotate/mask): rS (6-10), rA (11-15), SH (16-20), MB (21-25), ME (26-30), Rc (31)
+    instr.sh = (raw >> 11) & 0x1F;
+    instr.mb = (raw >> 6) & 0x1F;
+    instr.me = (raw >> 1) & 0x1F;
+    
+    // SPR field (for mtspr/mfspr)
+    instr.spr = ((raw >> 16) & 0x1F) | (((raw >> 11) & 0x1F) << 5);
+    
+    return instr;
+}
 
 /**
  * Отримати ім'я інструкції для логування

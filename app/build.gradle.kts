@@ -107,7 +107,7 @@ android {
     externalNativeBuild {
         cmake {
             path = file("src/main/cpp/CMakeLists.txt")
-            version = "3.31.6"
+            version = "3.28.0"  // Match GitHub Actions CMake version
         }
     }
 
