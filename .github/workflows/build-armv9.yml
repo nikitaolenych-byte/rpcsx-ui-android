@@ -105,30 +105,57 @@ jobs:
           echo "Installing NDK 29.0.13113456..."
           sdkmanager "ndk;29.0.13113456" 2>&1 | tail -5
           
-          # Install CMake
-          echo "Installing CMake 3.28.0..."
-          sdkmanager "cmake;3.28.0" 2>&1 | tail -5
+          # List available CMake versions
+          echo "Available CMake versions in SDK:"
+          sdkmanager --list 2>&1 | grep -i cmake | head -10
+          
+          # Install CMake (try 3.22.1 which is commonly available)
+          echo "Installing CMake 3.22.1..."
+          sdkmanager "cmake;3.22.1" 2>&1 | tail -5 || true
+          
+          # Also try newer version
+          echo "Installing CMake 3.31.4..."
+          sdkmanager "cmake;3.31.4" 2>&1 | tail -5 || true
+          
+          # Find installed CMake version
+          CMAKE_VERSION=""
+          for ver in 3.31.4 3.28.0 3.22.1; do
+            if [ -d "$ANDROID_HOME/cmake/$ver" ]; then
+              CMAKE_VERSION="$ver"
+              break
+            fi
+          done
+          
+          if [ -z "$CMAKE_VERSION" ]; then
+            echo "No CMake found in SDK, listing cmake directory:"
+            ls -la $ANDROID_HOME/cmake/ 2>/dev/null || true
+            # Get first available version
+            CMAKE_VERSION=$(ls $ANDROID_HOME/cmake/ 2>/dev/null | head -1)
+          fi
+          
+          echo "Using CMake version: $CMAKE_VERSION"
           
           # Set environment variables
           echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
           echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> $GITHUB_ENV
+          echo "CMAKE_VERSION=$CMAKE_VERSION" >> $GITHUB_ENV
           echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
-          echo "$ANDROID_HOME/cmake/3.28.0/bin" >> $GITHUB_PATH
+          echo "$ANDROID_HOME/cmake/$CMAKE_VERSION/bin" >> $GITHUB_PATH
           
           # Create local.properties with cmake.dir
           echo "sdk.dir=$ANDROID_HOME" > $GITHUB_WORKSPACE/local.properties
-          echo "cmake.dir=$ANDROID_HOME/cmake/3.28.0" >> $GITHUB_WORKSPACE/local.properties
+          echo "cmake.dir=$ANDROID_HOME/cmake/$CMAKE_VERSION" >> $GITHUB_WORKSPACE/local.properties
           echo "ndk.dir=$ANDROID_HOME/ndk/29.0.13113456" >> $GITHUB_WORKSPACE/local.properties
           
           echo "✅ Android SDK setup complete"
-          echo "CMake path: $ANDROID_HOME/cmake/3.28.0/bin"
+          echo "CMake path: $ANDROID_HOME/cmake/$CMAKE_VERSION/bin"
           ls -la $ANDROID_HOME/
           ls -la $ANDROID_HOME/cmake/ 2>/dev/null || echo "CMake directory contents pending..."
       
       - name: Verify CMake installation
         run: |
           echo "=== CMake Verification ==="
-          CMAKE_PATH="$ANDROID_HOME/cmake/3.28.0/bin/cmake"
+          CMAKE_PATH="$ANDROID_HOME/cmake/$CMAKE_VERSION/bin/cmake"
           if [ -f "$CMAKE_PATH" ]; then
             echo "✅ CMake found at: $CMAKE_PATH"
             $CMAKE_PATH --version
