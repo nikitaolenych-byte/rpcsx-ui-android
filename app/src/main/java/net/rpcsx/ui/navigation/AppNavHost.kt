@@ -97,6 +97,7 @@ import net.rpcsx.ui.drivers.GpuDriversScreen
 import net.rpcsx.ui.games.GamesScreen
 import net.rpcsx.ui.settings.AdvancedSettingsScreen
 import net.rpcsx.ui.settings.ControllerSettings
+import net.rpcsx.ui.settings.RSXVideoSettingsScreen
 import net.rpcsx.ui.settings.SettingsScreen
 import net.rpcsx.ui.user.UsersScreen
 import net.rpcsx.utils.FileUtil
@@ -253,6 +254,14 @@ fun AppNavHost() {
             route = "controls"
         ) {
             ControllerSettings(
+                navigateBack = navController::navigateUp
+            )
+        }
+
+        composable(
+            route = "rsx_video"
+        ) {
+            RSXVideoSettingsScreen(
                 navigateBack = navController::navigateUp
             )
         }

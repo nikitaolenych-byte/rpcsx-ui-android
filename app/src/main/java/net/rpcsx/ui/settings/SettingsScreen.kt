@@ -634,6 +634,17 @@ fun SettingsScreen(
                     }
                 )
             }
+            
+            item(key = "rsx_video_settings") {
+                HomePreference(
+                    title = stringResource(R.string.rsx_video_settings),
+                    icon = { Icon(painterResource(R.drawable.ic_rsx_engine), null) },
+                    description = stringResource(R.string.rsx_video_description),
+                    onClick = {
+                        navigateTo("rsx_video")
+                    }
+                )
+            }
 
             item(
                 key = "custom_driver"

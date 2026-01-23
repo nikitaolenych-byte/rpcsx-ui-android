@@ -98,6 +98,18 @@
     <string name="ask_if_reset_key">"Do you want to reset '%1$s' to its default value?"</string>
     <string name="controls">Controls</string>
     <string name="controls_description">Configure controller</string>
+    
+    <!-- RSX Video Settings -->
+    <string name="rsx_video_settings">RSX Video</string>
+    <string name="rsx_video_description">RSX Graphics Engine settings (multithreaded)</string>
+    <string name="rsx_enabled">RSX Engine Enabled</string>
+    <string name="rsx_enabled_description">Enable multithreaded RSX graphics processing</string>
+    <string name="rsx_thread_count">RSX Thread Count</string>
+    <string name="rsx_thread_count_description">Number of worker threads for RSX (1-8)</string>
+    <string name="rsx_stats">RSX Statistics</string>
+    <string name="rsx_fps">FPS: %1$d</string>
+    <string name="rsx_status_on">RSX: ON</string>
+    <string name="rsx_status_off">RSX: OFF</string>
     <string name="custom_driver">Custom GPU Driver</string>
     <string name="custom_driver_description">Install alternative drivers for potentially better performance or accuracy</string>
     <string name="custom_driver_not_supported">Custom Driver Not Supported</string>
