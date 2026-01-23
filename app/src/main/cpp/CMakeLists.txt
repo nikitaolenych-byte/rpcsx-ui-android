@@ -6,14 +6,21 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-# ARMv9-A optimization flags (simple and stable)
-set(COMMON_FLAGS "-O3 -march=armv9-a -mtune=cortex-x4 -ffast-math")
-set(OPT_FLAGS "${COMMON_FLAGS} -ftree-vectorize -funroll-loops -finline-functions")
+# ARMv9-A optimization flags - as separate list items
+set(OPT_FLAGS
+    -O3
+    -march=armv9-a
+    -mtune=cortex-x4
+    -ffast-math
+    -ftree-vectorize
+    -funroll-loops
+    -finline-functions
+)
 
 # Platform-specific settings
 if(CMAKE_SYSTEM_NAME STREQUAL "Android" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
     message(STATUS "Building for Android ARMv9-A")
-    set(OPT_FLAGS "${OPT_FLAGS} -flto=thin")
+    list(APPEND OPT_FLAGS -flto=thin)
 endif()
 
 # Try to find libadrenotools (driver loading)
