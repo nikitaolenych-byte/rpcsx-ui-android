@@ -1012,6 +1012,23 @@ inline GpReg MapPPCGPR(ppc::GPR reg) {
     }
 }
 
+// Overload for uint8_t register index
+inline GpReg MapPPCGPR(uint8_t idx) {
+    // Direct mapping for r0-r27
+    if (idx <= 27) {
+        return static_cast<GpReg>(idx);
+    }
+    
+    // Special mappings for r28-r31
+    switch (idx) {
+        case 28: return GpReg::X28;
+        case 29: return GpReg::X19;
+        case 30: return GpReg::X20;
+        case 31: return GpReg::X21;
+        default: return GpReg::X0;
+    }
+}
+
 // Map PowerPC FPR to ARM64 SIMD register
 inline VecReg MapPPCFPR(ppc::FPR reg) {
     return static_cast<VecReg>(static_cast<uint8_t>(reg));
