@@ -988,5 +988,58 @@ bool nce_is_running(void) {
 
 }
 
+// ============================================================================
+// RSXExecutionEngine Implementation
+// ============================================================================
+
+RSXExecutionEngine::RSXExecutionEngine() {
+    LOGI("RSXExecutionEngine created");
+}
+
+RSXExecutionEngine::~RSXExecutionEngine() {
+    Shutdown();
+    LOGI("RSXExecutionEngine destroyed");
+}
+
+bool RSXExecutionEngine::Initialize(const NCEConfig& config, void* vulkan_instance, void* vulkan_device) {
+    config_ = config;
+    vk_instance_ = vulkan_instance;
+    vk_device_ = vulkan_device;
+    
+    LOGI("RSXExecutionEngine initialized");
+    return true;
+}
+
+void RSXExecutionEngine::Shutdown() {
+    vk_instance_ = nullptr;
+    vk_device_ = nullptr;
+    vk_queue_ = nullptr;
+    vk_command_pool_ = nullptr;
+    vk_command_buffer_ = nullptr;
+    LOGI("RSXExecutionEngine shutdown");
+}
+
+void RSXExecutionEngine::ProcessCommandBuffer(uint64_t address, size_t size) {
+    // TODO: Implement RSX command buffer processing
+    (void)address;
+    (void)size;
+}
+
+void RSXExecutionEngine::Flip() {
+    // TODO: Implement frame flip/present
+}
+
+void* RSXExecutionEngine::MapVideoMemory(uint64_t ps3_addr, size_t size) {
+    // TODO: Implement video memory mapping
+    (void)ps3_addr;
+    (void)size;
+    return nullptr;
+}
+
+void RSXExecutionEngine::UnmapVideoMemory(uint64_t ps3_addr) {
+    // TODO: Implement video memory unmapping
+    (void)ps3_addr;
+}
+
 }  // namespace nce
 }  // namespace rpcsx

@@ -56,6 +56,9 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
     nce_core/ppu_jit_compiler.cpp
     nce_core/spu_interpreter.cpp
     nce_core/spu_jit_compiler.cpp
+    nce_core/profiler.cpp
+    nce_core/simd_utils.cpp
+    nce_core/rsx_emulator.cpp
     nce_v8/nce_v8.cpp
     nce_v8/tiered_jit.cpp
     nce_v8/llvm_backend.cpp
@@ -69,11 +72,21 @@ target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE
     $<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>>:${OPT_FLAGS}>
 )
 
+# Find Vulkan library
+find_library(VULKAN_LIB vulkan)
+if(VULKAN_LIB)
+    message(STATUS "Found Vulkan: ${VULKAN_LIB}")
+else()
+    message(WARNING "Vulkan not found, will try to link with system vulkan")
+    set(VULKAN_LIB vulkan)
+endif()
+
 # Link with system libraries and optional libadrenotools
 target_link_libraries(${CMAKE_PROJECT_NAME}
     android
     log
     z
+    ${VULKAN_LIB}
 )
 
 if(HAVE_ADRENOTOOLS)
