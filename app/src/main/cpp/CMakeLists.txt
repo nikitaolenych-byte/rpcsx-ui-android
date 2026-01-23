@@ -56,9 +56,7 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
     nce_core/ppu_jit_compiler.cpp
     nce_core/spu_interpreter.cpp
     nce_core/spu_jit_compiler.cpp
-    nce_core/profiler.cpp
-    nce_core/simd_utils.cpp
-    nce_core/rsx_emulator.cpp
+    nce_core/stubs.cpp
     nce_v8/nce_v8.cpp
     nce_v8/tiered_jit.cpp
     nce_v8/llvm_backend.cpp
