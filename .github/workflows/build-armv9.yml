@@ -40,6 +40,13 @@ jobs:
             cmake;3.28.0
             build-tools;36.0.0
       
+      - name: Wait for Android SDK setup
+        run: |
+          echo "Waiting for Android SDK setup to complete..."
+          sleep 5
+          echo "ANDROID_HOME: $ANDROID_HOME"
+          ls -la "$ANDROID_HOME" | head -10
+      
       - name: Install build dependencies
         run: |
           sudo apt-get update -qq
@@ -48,12 +55,24 @@ jobs:
       
       - name: Setup NDK environment
         run: |
-          export NDK_ROOT=$ANDROID_HOME/ndk/29.0.13113456
-          export CMAKE_TOOLCHAIN_FILE=$NDK_ROOT/build/cmake/android.toolchain.cmake
+          NDK_PATH="$ANDROID_HOME/ndk/29.0.13113456"
+          echo "Looking for NDK at: $NDK_PATH"
+          
+          if [ ! -d "$NDK_PATH" ]; then
+            echo "❌ NDK not found at expected location!"
+            echo "Checking what's in ANDROID_HOME/ndk:"
+            ls -la "$ANDROID_HOME/ndk/" 2>/dev/null || echo "ndk/ directory doesn't exist"
+            echo ""
+            echo "Checking all Android SDK directories:"
+            ls -la "$ANDROID_HOME/" 2>/dev/null | head -20
+            exit 1
+          fi
+          
+          export NDK_ROOT="$NDK_PATH"
+          export CMAKE_TOOLCHAIN_FILE="$NDK_PATH/build/cmake/android.toolchain.cmake"
           echo "NDK_ROOT=$NDK_ROOT" >> $GITHUB_ENV
           echo "CMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN_FILE" >> $GITHUB_ENV
-          echo "Toolchain: $CMAKE_TOOLCHAIN_FILE"
-          [ -f "$CMAKE_TOOLCHAIN_FILE" ] && echo "✅ Toolchain found" || echo "❌ Toolchain not found!"
+          echo "✅ NDK environment configured"
       
       - name: Accept licenses
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
