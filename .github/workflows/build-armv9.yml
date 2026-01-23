@@ -6,10 +6,53 @@ on:
   push:
     branches: [master, main]
   workflow_dispatch:
+    inputs:
+      force_update:
+        description: 'Force update all components'
+        required: false
+        default: 'false'
+        type: boolean
 
+env:
+  LLVM_VERSION: "19"
+  NDK_VERSION: "29.0.13113456"
+  CMAKE_VERSION: "3.28.0"
+  
 jobs:
+  # ============================================================================
+  # Check for component updates (like RPCS3)
+  # ============================================================================
+  check-updates:
+    runs-on: ubuntu-24.04
+    outputs:
+      needs_update: ${{ steps.check.outputs.needs_update }}
+      llvm_latest: ${{ steps.check.outputs.llvm_latest }}
+    steps:
+      - name: Check for LLVM updates
+        id: check
+        run: |
+          echo "Checking for component updates..."
+          
+          # Check latest LLVM version from GitHub
+          LLVM_LATEST=$(curl -s https://api.github.com/repos/llvm/llvm-project/releases/latest | jq -r '.tag_name' | grep -oP '\d+' | head -1)
+          echo "Latest LLVM: $LLVM_LATEST (Current: ${{ env.LLVM_VERSION }})"
+          echo "llvm_latest=$LLVM_LATEST" >> $GITHUB_OUTPUT
+          
+          # Check if update needed
+          if [ "${{ github.event.inputs.force_update }}" = "true" ]; then
+            echo "needs_update=true" >> $GITHUB_OUTPUT
+            echo "Force update requested"
+          elif [ "$LLVM_LATEST" -gt "${{ env.LLVM_VERSION }}" ] 2>/dev/null; then
+            echo "needs_update=true" >> $GITHUB_OUTPUT
+            echo "New LLVM version available"
+          else
+            echo "needs_update=false" >> $GITHUB_OUTPUT
+            echo "All components up to date"
+          fi
+
   build:
     runs-on: ubuntu-24.04
+    needs: check-updates
     
     steps:
       - uses: actions/checkout@v4
@@ -234,4 +277,31 @@ jobs:
       
       - name: Build status
         if: always()
-        run: echo "Build ${{ job.status }}"
+        run: |
+          echo "Build ${{ job.status }}"
+          echo ""
+          echo "=== Component Versions ==="
+          echo "LLVM: ${{ env.LLVM_VERSION }}"
+          echo "NDK: ${{ env.NDK_VERSION }}"
+          echo "CMake: ${{ env.CMAKE_VERSION }}"
+          echo "Update needed: ${{ needs.check-updates.outputs.needs_update }}"
+          
+  # ============================================================================
+  # Auto-update job (runs when new versions detected)
+  # ============================================================================
+  notify-update:
+    runs-on: ubuntu-24.04
+    needs: [check-updates, build]
+    if: needs.check-updates.outputs.needs_update == 'true' && success()
+    steps:
+      - name: Notify about available updates
+        run: |
+          echo "╔════════════════════════════════════════════════════════════╗"
+          echo "║  Component Updates Available                               ║"
+          echo "╚════════════════════════════════════════════════════════════╝"
+          echo ""
+          echo "Latest LLVM: ${{ needs.check-updates.outputs.llvm_latest }}"
+          echo "Current LLVM: ${{ env.LLVM_VERSION }}"
+          echo ""
+          echo "To update, modify env.LLVM_VERSION in workflow file"
+          echo "or trigger workflow with force_update=true"

@@ -121,6 +121,15 @@ class RPCSX {
     // JIT statistics
     external fun getJITStats(): String
     external fun runJITTest(): Boolean
+    
+    // RSX Graphics Engine (Multithreaded)
+    external fun rsxStart(): Boolean
+    external fun rsxStop(): Boolean
+    external fun rsxIsRunning(): Boolean
+    external fun rsxGetStats(): String
+    external fun getRSXFPS(): Int
+    external fun rsxSetThreadCount(count: Int)
+    external fun rsxGetThreadCount(): Int
 
 
     companion object {

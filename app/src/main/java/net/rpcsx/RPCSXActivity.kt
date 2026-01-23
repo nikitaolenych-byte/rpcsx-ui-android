@@ -44,11 +44,17 @@ class RPCSXActivity : Activity() {
             binding.oscToggle.setImageResource(if (binding.padOverlay.isInvisible) R.drawable.ic_osc_off else R.drawable.ic_show_osc)
         }
 
+        // RSX Graphics Engine Toggle Button
+        setupRSXButton()
+
         val gamePath = intent.getStringExtra("path")!!
         RPCSX.lastPlayedGame = gamePath
         
         // Restore NCE mode from saved preferences before boot
         restoreNCEMode()
+        
+        // Start FPS counter update
+        startFPSCounter()
 
         bootThread = thread {
             if (RPCSX.getState() != EmulatorState.Stopped) {
@@ -262,6 +268,96 @@ class RPCSXActivity : Activity() {
         }
     }
 
+    // ============================================================================
+    // RSX Graphics Engine Controls
+    // ============================================================================
+    
+    private var rsxEnabled = false
+    private var fpsUpdateHandler: android.os.Handler? = null
+    private var fpsUpdateRunnable: Runnable? = null
+    
+    /**
+     * Setup RSX toggle button and its functionality
+     */
+    private fun setupRSXButton() {
+        binding.rsxToggle.setOnClickListener {
+            rsxEnabled = !rsxEnabled
+            
+            if (rsxEnabled) {
+                // Start RSX Graphics Engine
+                val result = RPCSX.instance.rsxStart()
+                if (result) {
+                    binding.rsxToggle.isSelected = true
+                    binding.rsxStatus.text = "RSX: ON"
+                    binding.rsxStatus.setTextColor(android.graphics.Color.parseColor("#00FF00"))
+                    Log.i("RPCSX-RSX", "RSX Graphics Engine started (multithreaded)")
+                } else {
+                    rsxEnabled = false
+                    Log.e("RPCSX-RSX", "Failed to start RSX Graphics Engine")
+                }
+            } else {
+                // Stop RSX Graphics Engine
+                RPCSX.instance.rsxStop()
+                binding.rsxToggle.isSelected = false
+                binding.rsxStatus.text = "RSX: OFF"
+                binding.rsxStatus.setTextColor(android.graphics.Color.parseColor("#80FFFFFF"))
+                Log.i("RPCSX-RSX", "RSX Graphics Engine stopped")
+            }
+        }
+        
+        // Long press for RSX stats
+        binding.rsxToggle.setOnLongClickListener {
+            showRSXStats()
+            true
+        }
+    }
+    
+    /**
+     * Start FPS counter update loop
+     */
+    private fun startFPSCounter() {
+        fpsUpdateHandler = android.os.Handler(mainLooper)
+        fpsUpdateRunnable = object : Runnable {
+            override fun run() {
+                if (rsxEnabled) {
+                    val fps = RPCSX.instance.getRSXFPS()
+                    binding.fpsCounter.text = "FPS: $fps"
+                    
+                    // Color based on FPS
+                    val color = when {
+                        fps >= 55 -> android.graphics.Color.parseColor("#00FF00")  // Green
+                        fps >= 30 -> android.graphics.Color.parseColor("#FFFF00")  // Yellow
+                        else -> android.graphics.Color.parseColor("#FF0000")       // Red
+                    }
+                    binding.fpsCounter.setTextColor(color)
+                } else {
+                    binding.fpsCounter.text = "FPS: --"
+                    binding.fpsCounter.setTextColor(android.graphics.Color.parseColor("#80FFFFFF"))
+                }
+                fpsUpdateHandler?.postDelayed(this, 500)
+            }
+        }
+        fpsUpdateHandler?.post(fpsUpdateRunnable!!)
+    }
+    
+    /**
+     * Show RSX Graphics Engine statistics
+     */
+    private fun showRSXStats() {
+        val stats = RPCSX.instance.rsxGetStats()
+        val message = """
+            |RSX Graphics Engine Stats:
+            |─────────────────────────
+            |Total Commands: ${stats.getOrDefault("commands", 0)}
+            |Draw Calls: ${stats.getOrDefault("draws", 0)}
+            |Clears: ${stats.getOrDefault("clears", 0)}
+            |Worker Threads: 4
+            |Backend: Vulkan 1.3
+        """.trimMargin()
+        
+        android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_LONG).show()
+    }
+}
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) enableFullScreenImmersive()

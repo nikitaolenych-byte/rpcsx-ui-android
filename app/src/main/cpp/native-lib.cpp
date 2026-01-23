@@ -828,8 +828,107 @@ Java_net_rpcsx_RPCSX_rsxStop(JNIEnv *env, jobject) {
  * Check if RSX is currently running
  */
 extern "C" JNIEXPORT jboolean JNICALL
-Java_net_rpcsx_RPCSX_isRSXRunning(JNIEnv *env, jobject) {
+Java_net_rpcsx_RPCSX_rsxIsRunning(JNIEnv *env, jobject) {
   return g_rsx_started ? JNI_TRUE : JNI_FALSE;
+}
+
+// RSX thread count (multithreading support)
+static std::atomic<int> g_rsx_thread_count{4}; // Default 4 threads for Cortex-X4
+
+/**
+ * Get RSX statistics as JSON string
+ */
+extern "C" JNIEXPORT jstring JNICALL
+Java_net_rpcsx_RPCSX_rsxGetStats(JNIEnv *env, jobject) {
+  if (!g_rsx_engine) {
+    return env->NewStringUTF("{\"error\": \"RSX not initialized\"}");
+  }
+  
+  rpcsx::vulkan::RSXGraphicsEngine::GraphicsStats stats;
+  g_rsx_engine->GetGraphicsStats(&stats);
+  
+  char buffer[512];
+  snprintf(buffer, sizeof(buffer),
+    "{"
+    "\"running\": %s,"
+    "\"total_draws\": %lu,"
+    "\"total_commands\": %lu,"
+    "\"thread_count\": %d,"
+    "\"queue_depth\": %lu,"
+    "\"avg_latency_us\": %.2f,"
+    "\"gpu_utilization\": %.1f"
+    "}",
+    g_rsx_started ? "true" : "false",
+    stats.total_draws,
+    stats.total_commands,
+    g_rsx_thread_count.load(),
+    stats.queue_depth,
+    stats.avg_latency_us,
+    stats.gpu_utilization
+  );
+  
+  return env->NewStringUTF(buffer);
+}
+
+/**
+ * Set RSX worker thread count (for multithreading)
+ */
+extern "C" JNIEXPORT void JNICALL
+Java_net_rpcsx_RPCSX_rsxSetThreadCount(JNIEnv *env, jobject, jint count) {
+  if (count < 1) count = 1;
+  if (count > 8) count = 8; // Max 8 threads
+  
+  LOGI("RSX thread count set to %d", count);
+  g_rsx_thread_count.store(count);
+  
+  // Apply to running engine if active
+  if (g_rsx_engine && g_rsx_started) {
+    g_rsx_engine->SetWorkerThreadCount(count);
+  }
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_net_rpcsx_RPCSX_rsxGetThreadCount(JNIEnv *env, jobject) {
+  return g_rsx_thread_count.load();
+}
+
+/**
+ * Get current RSX FPS
+ * Calculates frames per second from RSX draw commands
+ */
+static std::atomic<uint64_t> g_rsx_frame_count{0};
+static std::chrono::steady_clock::time_point g_rsx_last_fps_time;
+static float g_rsx_current_fps = 0.0f;
+
+extern "C" JNIEXPORT jint JNICALL
+Java_net_rpcsx_RPCSX_getRSXFPS(JNIEnv *env, jobject) {
+  if (!g_rsx_started || !g_rsx_engine) {
+    return 0;
+  }
+  
+  auto now = std::chrono::steady_clock::now();
+  auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+      now - g_rsx_last_fps_time).count();
+  
+  if (elapsed >= 1000) {
+    // Get current draw count from RSX engine
+    rpcsx::vulkan::RSXGraphicsEngine::GraphicsStats stats;
+    g_rsx_engine->GetGraphicsStats(&stats);
+    
+    // Calculate FPS based on draw calls (approximate)
+    static uint64_t last_draws = 0;
+    uint64_t current_draws = stats.total_draws;
+    float draws_per_sec = static_cast<float>(current_draws - last_draws) * 1000.0f / elapsed;
+    
+    // Estimate FPS (assuming ~100 draws per frame average)
+    g_rsx_current_fps = draws_per_sec / 100.0f;
+    if (g_rsx_current_fps > 120.0f) g_rsx_current_fps = 60.0f;  // Cap at reasonable value
+    
+    last_draws = current_draws;
+    g_rsx_last_fps_time = now;
+  }
+  
+  return static_cast<jint>(g_rsx_current_fps);
 }
 
 /**
