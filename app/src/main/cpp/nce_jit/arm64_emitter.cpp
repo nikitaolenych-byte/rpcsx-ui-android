@@ -84,9 +84,9 @@ bool PPCTranslator::Translate(const ppc::DecodedInstr& instr) {
         return true;
         
     case ppc::InstrType::NEG:
-        emit_.NEG(MapPPCGPR(instr.rd), MapPPCGPR(instr.ra));
+        emit_.NEG(MapPPCGPR(instr.rD), MapPPCGPR(instr.rA));
         if (instr.rc) {
-            EmitCR0Update(MapPPCGPR(instr.rd));
+            EmitCR0Update(MapPPCGPR(instr.rD));
         }
         return true;
         
@@ -163,24 +163,24 @@ bool PPCTranslator::Translate(const ppc::DecodedInstr& instr) {
         
     // ================== Sign Extend ==================
     case ppc::InstrType::EXTSB:
-        emit_.SXTB(MapPPCGPR(instr.ra), MapPPCGPR(static_cast<ppc::GPR>(instr.rd)));
-        if (instr.rc) EmitCR0Update(MapPPCGPR(instr.ra));
+        emit_.SXTB(MapPPCGPR(instr.rA), MapPPCGPR(static_cast<ppc::GPR>(instr.rD)));
+        if (instr.rc) EmitCR0Update(MapPPCGPR(instr.rA));
         return true;
         
     case ppc::InstrType::EXTSH:
-        emit_.SXTH(MapPPCGPR(instr.ra), MapPPCGPR(static_cast<ppc::GPR>(instr.rd)));
-        if (instr.rc) EmitCR0Update(MapPPCGPR(instr.ra));
+        emit_.SXTH(MapPPCGPR(instr.rA), MapPPCGPR(static_cast<ppc::GPR>(instr.rD)));
+        if (instr.rc) EmitCR0Update(MapPPCGPR(instr.rA));
         return true;
         
     case ppc::InstrType::EXTSW:
-        emit_.SXTW(MapPPCGPR(instr.ra), MapPPCGPR(static_cast<ppc::GPR>(instr.rd)));
-        if (instr.rc) EmitCR0Update(MapPPCGPR(instr.ra));
+        emit_.SXTW(MapPPCGPR(instr.rA), MapPPCGPR(static_cast<ppc::GPR>(instr.rD)));
+        if (instr.rc) EmitCR0Update(MapPPCGPR(instr.rA));
         return true;
     
     // ================== Count Leading Zeros ==================
     case ppc::InstrType::CNTLZW:
-        emit_.CLZ_W(MapPPCGPR(instr.ra), MapPPCGPR(static_cast<ppc::GPR>(instr.rd)));
-        if (instr.rc) EmitCR0Update(MapPPCGPR(instr.ra));
+        emit_.CLZ_W(MapPPCGPR(instr.rA), MapPPCGPR(static_cast<ppc::GPR>(instr.rD)));
+        if (instr.rc) EmitCR0Update(MapPPCGPR(instr.rA));
         return true;
         
     // ================== System ==================
@@ -283,12 +283,12 @@ void PPCTranslator::EmitCR0Update(GpReg result) {
 }
 
 void PPCTranslator::EmitLoad(const ppc::DecodedInstr& instr) {
-    GpReg rd = MapPPCGPR(instr.rd);
-    GpReg ra = MapPPCGPR(instr.ra);
+    GpReg rd = MapPPCGPR(instr.rD);
+    GpReg ra = MapPPCGPR(instr.rA);
     int32_t offset = instr.simm;
     
     // Handle ra=0 case (use 0 instead of r0)
-    if (static_cast<uint8_t>(instr.ra) == 0) {
+    if (static_cast<uint8_t>(instr.rA) == 0) {
         // Load from absolute address
         emit_.MOV_IMM64(REG_TMP1, offset);
         ra = REG_TMP1;
@@ -325,12 +325,12 @@ void PPCTranslator::EmitLoad(const ppc::DecodedInstr& instr) {
 }
 
 void PPCTranslator::EmitStore(const ppc::DecodedInstr& instr) {
-    GpReg rs = MapPPCGPR(static_cast<ppc::GPR>(instr.rd));  // Source register
-    GpReg ra = MapPPCGPR(instr.ra);
+    GpReg rs = MapPPCGPR(static_cast<ppc::GPR>(instr.rD));  // Source register
+    GpReg ra = MapPPCGPR(instr.rA);
     int32_t offset = instr.simm;
     
     // Handle ra=0 case
-    if (static_cast<uint8_t>(instr.ra) == 0) {
+    if (static_cast<uint8_t>(instr.rA) == 0) {
         emit_.MOV_IMM64(REG_TMP1, offset);
         ra = REG_TMP1;
         offset = 0;
@@ -365,12 +365,12 @@ void PPCTranslator::EmitStore(const ppc::DecodedInstr& instr) {
 void PPCTranslator::EmitLoadMultiple(const ppc::DecodedInstr& instr) {
     // lmw rD, d(rA) - Load Multiple Word
     // Loads (32-rD) consecutive words starting at EA
-    GpReg ra = MapPPCGPR(instr.ra);
+    GpReg ra = MapPPCGPR(instr.rA);
     int32_t offset = instr.simm;
-    uint8_t start_reg = static_cast<uint8_t>(instr.rd);
+    uint8_t start_reg = static_cast<uint8_t>(instr.rD);
     
     // Calculate effective address
-    if (static_cast<uint8_t>(instr.ra) == 0) {
+    if (static_cast<uint8_t>(instr.rA) == 0) {
         emit_.MOV_IMM64(REG_TMP1, offset);
     } else {
         emit_.ADD_IMM(REG_TMP1, ra, offset);
@@ -389,12 +389,12 @@ void PPCTranslator::EmitLoadMultiple(const ppc::DecodedInstr& instr) {
 void PPCTranslator::EmitStoreMultiple(const ppc::DecodedInstr& instr) {
     // stmw rS, d(rA) - Store Multiple Word
     // Stores (32-rS) consecutive words starting at EA
-    GpReg ra = MapPPCGPR(instr.ra);
+    GpReg ra = MapPPCGPR(instr.rA);
     int32_t offset = instr.simm;
-    uint8_t start_reg = static_cast<uint8_t>(instr.rd);
+    uint8_t start_reg = static_cast<uint8_t>(instr.rD);
     
     // Calculate effective address
-    if (static_cast<uint8_t>(instr.ra) == 0) {
+    if (static_cast<uint8_t>(instr.rA) == 0) {
         emit_.MOV_IMM64(REG_TMP1, offset);
     } else {
         emit_.ADD_IMM(REG_TMP1, ra, offset);
@@ -411,13 +411,13 @@ void PPCTranslator::EmitStoreMultiple(const ppc::DecodedInstr& instr) {
 }
 
 void PPCTranslator::EmitAdd(const ppc::DecodedInstr& instr) {
-    GpReg rd = MapPPCGPR(instr.rd);
-    GpReg ra = MapPPCGPR(instr.ra);
+    GpReg rd = MapPPCGPR(instr.rD);
+    GpReg ra = MapPPCGPR(instr.rA);
     
     switch (instr.type) {
     case ppc::InstrType::ADDI:
         // addi rd, ra, simm (ra=0 means load immediate)
-        if (static_cast<uint8_t>(instr.ra) == 0) {
+        if (static_cast<uint8_t>(instr.rA) == 0) {
             // li rd, simm
             if (instr.simm >= 0) {
                 emit_.MOVZ(rd, instr.simm, 0);
@@ -437,7 +437,7 @@ void PPCTranslator::EmitAdd(const ppc::DecodedInstr& instr) {
         // addis rd, ra, simm (simm shifted left 16)
         {
             int32_t shifted = static_cast<int32_t>(instr.simm) << 16;
-            if (static_cast<uint8_t>(instr.ra) == 0) {
+            if (static_cast<uint8_t>(instr.rA) == 0) {
                 // lis rd, simm
                 emit_.MOV_IMM64(rd, shifted);
             } else {
@@ -450,7 +450,7 @@ void PPCTranslator::EmitAdd(const ppc::DecodedInstr& instr) {
     case ppc::InstrType::ADD:
     case ppc::InstrType::ADDC:
         {
-            GpReg rb = MapPPCGPR(instr.rb);
+            GpReg rb = MapPPCGPR(instr.rB);
             if (instr.rc) {
                 emit_.ADDS(rd, ra, rb);
                 // Update CR0 based on result
@@ -466,8 +466,8 @@ void PPCTranslator::EmitAdd(const ppc::DecodedInstr& instr) {
 }
 
 void PPCTranslator::EmitSub(const ppc::DecodedInstr& instr) {
-    GpReg rd = MapPPCGPR(instr.rd);
-    GpReg ra = MapPPCGPR(instr.ra);
+    GpReg rd = MapPPCGPR(instr.rD);
+    GpReg ra = MapPPCGPR(instr.rA);
     
     switch (instr.type) {
     case ppc::InstrType::SUBFIC:
@@ -480,7 +480,7 @@ void PPCTranslator::EmitSub(const ppc::DecodedInstr& instr) {
     case ppc::InstrType::SUB:
         {
             // subf rd, ra, rb: rd = rb - ra
-            GpReg rb = MapPPCGPR(instr.rb);
+            GpReg rb = MapPPCGPR(instr.rB);
             if (instr.rc) {
                 emit_.SUBS(rd, rb, ra);
             } else {
@@ -495,8 +495,8 @@ void PPCTranslator::EmitSub(const ppc::DecodedInstr& instr) {
 }
 
 void PPCTranslator::EmitMul(const ppc::DecodedInstr& instr) {
-    GpReg rd = MapPPCGPR(instr.rd);
-    GpReg ra = MapPPCGPR(instr.ra);
+    GpReg rd = MapPPCGPR(instr.rD);
+    GpReg ra = MapPPCGPR(instr.rA);
     
     switch (instr.type) {
     case ppc::InstrType::MULLI:
@@ -506,7 +506,7 @@ void PPCTranslator::EmitMul(const ppc::DecodedInstr& instr) {
         
     case ppc::InstrType::MULLW:
         {
-            GpReg rb = MapPPCGPR(instr.rb);
+            GpReg rb = MapPPCGPR(instr.rB);
             emit_.MUL(rd, ra, rb);
         }
         break;
@@ -517,9 +517,9 @@ void PPCTranslator::EmitMul(const ppc::DecodedInstr& instr) {
 }
 
 void PPCTranslator::EmitDiv(const ppc::DecodedInstr& instr) {
-    GpReg rd = MapPPCGPR(instr.rd);
-    GpReg ra = MapPPCGPR(instr.ra);
-    GpReg rb = MapPPCGPR(instr.rb);
+    GpReg rd = MapPPCGPR(instr.rD);
+    GpReg ra = MapPPCGPR(instr.rA);
+    GpReg rb = MapPPCGPR(instr.rB);
     
     if (instr.type == ppc::InstrType::DIVWU) {
         emit_.UDIV(rd, ra, rb);
@@ -529,9 +529,9 @@ void PPCTranslator::EmitDiv(const ppc::DecodedInstr& instr) {
 }
 
 void PPCTranslator::EmitLogic(const ppc::DecodedInstr& instr) {
-    GpReg ra = MapPPCGPR(instr.ra);
-    GpReg rs = MapPPCGPR(static_cast<ppc::GPR>(instr.rd));  // Source
-    GpReg rb = MapPPCGPR(instr.rb);
+    GpReg ra = MapPPCGPR(instr.rA);
+    GpReg rs = MapPPCGPR(static_cast<ppc::GPR>(instr.rD));  // Source
+    GpReg rb = MapPPCGPR(instr.rB);
     
     switch (instr.type) {
     case ppc::InstrType::AND:
@@ -615,9 +615,9 @@ void PPCTranslator::EmitLogic(const ppc::DecodedInstr& instr) {
 }
 
 void PPCTranslator::EmitShift(const ppc::DecodedInstr& instr) {
-    GpReg ra = MapPPCGPR(instr.ra);
-    GpReg rs = MapPPCGPR(static_cast<ppc::GPR>(instr.rd));
-    GpReg rb = MapPPCGPR(instr.rb);
+    GpReg ra = MapPPCGPR(instr.rA);
+    GpReg rs = MapPPCGPR(static_cast<ppc::GPR>(instr.rD));
+    GpReg rb = MapPPCGPR(instr.rB);
     
     switch (instr.type) {
     case ppc::InstrType::SLW:
@@ -642,8 +642,8 @@ void PPCTranslator::EmitShift(const ppc::DecodedInstr& instr) {
 }
 
 void PPCTranslator::EmitRotate(const ppc::DecodedInstr& instr) {
-    GpReg ra = MapPPCGPR(instr.ra);
-    GpReg rs = MapPPCGPR(static_cast<ppc::GPR>(instr.rd));
+    GpReg ra = MapPPCGPR(instr.rA);
+    GpReg rs = MapPPCGPR(static_cast<ppc::GPR>(instr.rD));
     
     // rlwinm ra, rs, sh, mb, me
     // Rotate left, then mask bits [mb:me]
@@ -672,7 +672,7 @@ void PPCTranslator::EmitRotate(const ppc::DecodedInstr& instr) {
 }
 
 void PPCTranslator::EmitCompare(const ppc::DecodedInstr& instr) {
-    GpReg ra = MapPPCGPR(instr.ra);
+    GpReg ra = MapPPCGPR(instr.rA);
     
     switch (instr.type) {
     case ppc::InstrType::CMPI:
@@ -689,14 +689,14 @@ void PPCTranslator::EmitCompare(const ppc::DecodedInstr& instr) {
         
     case ppc::InstrType::CMP:
         {
-            GpReg rb = MapPPCGPR(instr.rb);
+            GpReg rb = MapPPCGPR(instr.rB);
             emit_.CMP(ra, rb);
         }
         break;
         
     case ppc::InstrType::CMPL:
         {
-            GpReg rb = MapPPCGPR(instr.rb);
+            GpReg rb = MapPPCGPR(instr.rB);
             emit_.CMP(ra, rb);  // Same encoding, flags indicate unsigned
         }
         break;
@@ -781,7 +781,7 @@ void PPCTranslator::EmitSystem(const ppc::DecodedInstr& instr) {
 }
 
 void PPCTranslator::EmitSPR(const ppc::DecodedInstr& instr) {
-    GpReg rd = MapPPCGPR(instr.rd);
+    GpReg rd = MapPPCGPR(instr.rD);
     
     switch (instr.type) {
     case ppc::InstrType::MFSPR:
@@ -851,7 +851,7 @@ void PPCTranslator::EmitTrap(const ppc::DecodedInstr& instr) {
     // tw/twi - Trap Word
     // Compares values and traps if condition met
     
-    GpReg ra = MapPPCGPR(instr.ra);
+    GpReg ra = MapPPCGPR(instr.rA);
     uint8_t to = instr.bo;  // TO field stored in bo
     
     if (instr.type == ppc::InstrType::TWI) {
@@ -859,7 +859,7 @@ void PPCTranslator::EmitTrap(const ppc::DecodedInstr& instr) {
         emit_.MOV_IMM64(REG_TMP1, instr.simm);
     } else {
         // tw TO, rA, rB
-        emit_.MOV(REG_TMP1, MapPPCGPR(instr.rb));
+        emit_.MOV(REG_TMP1, MapPPCGPR(instr.rB));
     }
     
     // Compare rA with rB/SIMM
@@ -900,9 +900,9 @@ void PPCTranslator::EmitCRLogic(const ppc::DecodedInstr& instr) {
     // crand, cror, crxor, etc.
     
     // Extract bit positions from instruction
-    uint8_t bt = static_cast<uint8_t>(instr.rd);  // Target bit
-    uint8_t ba = static_cast<uint8_t>(instr.ra);  // Source bit A
-    uint8_t bb = static_cast<uint8_t>(instr.rb);  // Source bit B
+    uint8_t bt = static_cast<uint8_t>(instr.rD);  // Target bit
+    uint8_t ba = static_cast<uint8_t>(instr.rA);  // Source bit A
+    uint8_t bb = static_cast<uint8_t>(instr.rB);  // Source bit B
     
     // Extract CR bits to temp registers
     // CR bit N is at position (31-N) in the CR register
@@ -991,12 +991,12 @@ void PPCTranslator::EmitCRLogic(const ppc::DecodedInstr& instr) {
 
 void PPCTranslator::EmitFPLoad(const ppc::DecodedInstr& instr) {
     // lfs/lfd - Load Floating Single/Double
-    GpReg ra = MapPPCGPR(instr.ra);
+    GpReg ra = MapPPCGPR(instr.rA);
     int32_t offset = instr.simm;
-    VecReg frd = static_cast<VecReg>(static_cast<uint8_t>(instr.rd));
+    VecReg frd = static_cast<VecReg>(static_cast<uint8_t>(instr.rD));
     
     // Calculate effective address
-    if (static_cast<uint8_t>(instr.ra) == 0) {
+    if (static_cast<uint8_t>(instr.rA) == 0) {
         emit_.MOV_IMM64(REG_TMP1, offset);
     } else if (offset != 0) {
         emit_.ADD_IMM(REG_TMP1, ra, offset);
@@ -1022,12 +1022,12 @@ void PPCTranslator::EmitFPLoad(const ppc::DecodedInstr& instr) {
 
 void PPCTranslator::EmitFPStore(const ppc::DecodedInstr& instr) {
     // stfs/stfd - Store Floating Single/Double
-    GpReg ra = MapPPCGPR(instr.ra);
+    GpReg ra = MapPPCGPR(instr.rA);
     int32_t offset = instr.simm;
-    VecReg frs = static_cast<VecReg>(static_cast<uint8_t>(instr.rd));
+    VecReg frs = static_cast<VecReg>(static_cast<uint8_t>(instr.rD));
     
     // Calculate effective address
-    if (static_cast<uint8_t>(instr.ra) == 0) {
+    if (static_cast<uint8_t>(instr.rA) == 0) {
         emit_.MOV_IMM64(REG_TMP1, offset);
     } else if (offset != 0) {
         emit_.ADD_IMM(REG_TMP1, ra, offset);
@@ -1055,9 +1055,9 @@ void PPCTranslator::EmitFPArith(const ppc::DecodedInstr& instr) {
     // FP arithmetic instructions (fadd, fsub, fmul, fdiv, etc.)
     // The specific operation is encoded in the extended opcode
     
-    VecReg frd = static_cast<VecReg>(static_cast<uint8_t>(instr.rd));
-    VecReg fra = static_cast<VecReg>(static_cast<uint8_t>(instr.ra));
-    VecReg frb = static_cast<VecReg>(static_cast<uint8_t>(instr.rb));
+    VecReg frd = static_cast<VecReg>(static_cast<uint8_t>(instr.rD));
+    VecReg fra = static_cast<VecReg>(static_cast<uint8_t>(instr.rA));
+    VecReg frb = static_cast<VecReg>(static_cast<uint8_t>(instr.rB));
     
     uint16_t xo = instr.xo & 0x1F;  // Lower 5 bits for A-form instructions
     
@@ -1081,7 +1081,7 @@ void PPCTranslator::EmitFPArith(const ppc::DecodedInstr& instr) {
         // FMUL Dd, Dn, Dm
         // Note: PPC fmul uses FRC field (bits 21-25) for second operand
         {
-            VecReg frc = static_cast<VecReg>((instr.raw >> 6) & 0x1F);
+            VecReg frc = static_cast<VecReg>((instr.rAw >> 6) & 0x1F);
             emit_.Emit(0x1E600800 | (static_cast<uint32_t>(frc) << 16) |
                        (static_cast<uint32_t>(fra) << 5) | static_cast<uint32_t>(frd));
         }
