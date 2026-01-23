@@ -39,19 +39,28 @@ jobs:
           mkdir -p ~/android-sdk/cmdline-tools
           cd ~/android-sdk/cmdline-tools
           
-          # Download and extract cmdline-tools
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline.zip
+          # Download and extract cmdline-tools using curl
+          echo "Downloading cmdline-tools..."
+          curl -L -o cmdline.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          
+          if [ ! -f cmdline.zip ]; then
+            echo "❌ Failed to download cmdline-tools"
+            exit 1
+          fi
+          
+          echo "Extracting cmdline-tools..."
           unzip -q cmdline.zip
           mv cmdline-tools latest
           
           export ANDROID_HOME=~/android-sdk
           export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
           
-          # Accept licenses
-          yes | sdkmanager --licenses
+          echo "Accepting licenses..."
+          yes | sdkmanager --licenses 2>/dev/null || true
           
-          # Install required packages
-          sdkmanager "platforms;android-36" "ndk;29.0.13113456" "cmake;3.28.0" "build-tools;36.0.0"
+          echo "Installing Android SDK packages..."
+          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+          sdkmanager "ndk;29.0.13113456" "cmake;3.28.0"
           
           # Save to environment
           echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
