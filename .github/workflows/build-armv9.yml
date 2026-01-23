@@ -32,6 +32,15 @@ jobs:
           sudo apt-get install -y pkg-config libadrenotools-dev 2>&1 | tail -3 || echo "libadrenotools-dev not in repo"
           echo "Build tools ready"
       
+      - name: Setup NDK environment
+        run: |
+          export NDK_ROOT=$ANDROID_HOME/ndk/29.0.13113456
+          export CMAKE_TOOLCHAIN_FILE=$NDK_ROOT/build/cmake/android.toolchain.cmake
+          echo "NDK_ROOT=$NDK_ROOT" >> $GITHUB_ENV
+          echo "CMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN_FILE" >> $GITHUB_ENV
+          echo "Toolchain: $CMAKE_TOOLCHAIN_FILE"
+          [ -f "$CMAKE_TOOLCHAIN_FILE" ] && echo "✅ Toolchain found" || echo "❌ Toolchain not found!"
+      
       - name: Accept licenses
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
       
@@ -42,9 +51,35 @@ jobs:
           cmake --version | head -1
           clang --version 2>/dev/null | head -1 || echo "clang: OK (in NDK)"
           echo "ANDROID_HOME: $ANDROID_HOME"
-          ls -la $ANDROID_HOME/ndk/29.0.13113456/toolchain/clang 2>/dev/null | head -1 || echo "NDK clang: checking..."
+          echo ""
+          echo "=== NDK Check ==="
+          if [ -d "$ANDROID_HOME/ndk" ]; then
+            echo "NDK directory exists, contents:"
+            ls -la "$ANDROID_HOME/ndk/" | head -10
+          else
+            echo "❌ NDK directory not found!"
+          fi
+          
+          NDK_PATH="$ANDROID_HOME/ndk/29.0.13113456"
+          if [ -d "$NDK_PATH" ]; then
+            echo "✅ NDK 29.0.13113456 found at $NDK_PATH"
+            echo "NDK bin tools:"
+            ls -la "$NDK_PATH/toolchains/llvm/prebuilt/linux-x86_64/bin/" 2>/dev/null | grep -E "clang|aarch64" | head -5
+            
+            TOOLCHAIN="$NDK_PATH/build/cmake/android.toolchain.cmake"
+            if [ -f "$TOOLCHAIN" ]; then
+              echo "✅ CMake toolchain found: $TOOLCHAIN"
+            else
+              echo "❌ CMake toolchain not found!"
+            fi
+          else
+            echo "❌ NDK 29.0.13113456 not found!"
+            echo "Available NDK versions:"
+            ls -la "$ANDROID_HOME/ndk/" 2>/dev/null || echo "No NDKs found"
+          fi
+          echo ""
           echo "=== Gradle wrapper ==="
-          ./gradlew --version | head -3
+          ./gradlew --version 2>&1 | head -3
       
       - name: Build Release APK
         run: |
