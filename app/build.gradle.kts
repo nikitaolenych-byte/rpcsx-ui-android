@@ -8,6 +8,9 @@ if (javaMajorVersion > 17) {
     logger.warn("    Recommended: Use Java 17 for this build")
 }
 
+// Check if we should use prebuilt native libraries
+val usePrebuiltNativeLibs = project.findProperty("rpcsx.usePrebuiltNativeLibs")?.toString()?.toBoolean() ?: false
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -104,10 +107,22 @@ android {
         jvmTarget = "17"
     }
 
-    externalNativeBuild {
-        cmake {
-            path = file("src/main/cpp/CMakeLists.txt")
-            version = "3.22.1+"  // Minimum CMake version, allows newer
+    // Only use CMake build if not using prebuilt native libraries
+    if (!usePrebuiltNativeLibs) {
+        externalNativeBuild {
+            cmake {
+                path = file("src/main/cpp/CMakeLists.txt")
+                version = "3.22.1+"  // Minimum CMake version, allows newer
+            }
+        }
+    } else {
+        logger.lifecycle("📦 Using prebuilt native libraries from jniLibs/")
+    }
+
+    // Configure jniLibs source set for prebuilt libraries
+    sourceSets {
+        getByName("main") {
+            jniLibs.srcDirs("src/main/jniLibs")
         }
     }
 
