@@ -667,187 +667,175 @@ fun AdvancedSettingsScreen(
                                    path == "@@$" ||  // Root of advanced settings
                                    path.isEmpty()    // Also show at root
             if (showRsxSettings) {
-                var rsxEnabled by remember { 
-                    mutableStateOf(
-                        try { RPCSX.instance.rsxIsRunning() } catch (e: Exception) { true }
-                    ) 
-                }
-                var rsxThreadCount by remember {
-                    mutableStateOf(
-                        try { RPCSX.instance.rsxGetThreadCount().toFloat() } catch (e: Exception) { 8f }
-                    )
-                }
-                var rsxResolutionScale by remember {
-                    mutableStateOf((GeneralSettings["rsx_resolution_scale"] as? Int ?: 50).toFloat())
-                }
-                var rsxVsyncEnabled by remember { mutableStateOf(GeneralSettings["rsx_vsync"] as? Boolean ?: false) }
-                var rsxFrameLimitEnabled by remember { mutableStateOf(GeneralSettings["rsx_frame_limit"] as? Boolean ?: false) }
+                item(key = "rsx_settings_block") {
+                    var rsxEnabled by remember { 
+                        mutableStateOf(
+                            try { RPCSX.instance.rsxIsRunning() } catch (e: Exception) { true }
+                        ) 
+                    }
+                    var rsxThreadCount by remember {
+                        mutableStateOf(
+                            try { RPCSX.instance.rsxGetThreadCount().toFloat() } catch (e: Exception) { 8f }
+                        )
+                    }
+                    var rsxResolutionScale by remember {
+                        mutableStateOf((GeneralSettings["rsx_resolution_scale"] as? Int ?: 50).toFloat())
+                    }
+                    var rsxVsyncEnabled by remember { mutableStateOf(GeneralSettings["rsx_vsync"] as? Boolean ?: false) }
+                    var rsxFrameLimitEnabled by remember { mutableStateOf(GeneralSettings["rsx_frame_limit"] as? Boolean ?: false) }
 
-                item(key = "rsx_header") {
-                    PreferenceHeader(text = stringResource(R.string.rsx_video_settings))
-                }
+                    Column {
+                        PreferenceHeader(text = stringResource(R.string.rsx_video_settings))
 
-                item(key = "rsx_max_performance") {
-                    RegularPreference(
-                        title = "Max Performance",
-                        subtitle = { Text("Enables NCE, max RSX threads, no VSync/limit, 50% resolution") },
-                        onClick = {
-                            try {
-                                // PPU Decoder + NCE
-                                safeSettingsSet("Core@@PPU Decoder", "\"LLVM Recompiler (Legacy)\"")
-                                safeSetNCEMode(3)
+                        RegularPreference(
+                            title = "Max Performance",
+                            subtitle = { Text("Enables NCE, max RSX threads, no VSync/limit, 50% resolution") },
+                            onClick = {
                                 try {
-                                    GeneralSettings.nceMode = 3
-                                } catch (e: Exception) {
-                                    Log.e("Settings", "Failed to save NCE mode: ${e.message}")
-                                }
-
-                                // LLVM performance tweaks
-                                safeSettingsSet("Core@@PPU LLVM Greedy Mode", "true")
-                                safeSettingsSet("Core@@LLVM Precompilation", "true")
-                                safeSettingsSet("Core@@Set DAZ and FTZ", "true")
-                                safeSettingsSet("Core@@Max LLVM Compile Threads", "16")
-
-                                // RSX engine
-                                if (!rsxEnabled) {
+                                    // PPU Decoder + NCE
+                                    safeSettingsSet("Core@@PPU Decoder", "\"LLVM Recompiler (Legacy)\"")
+                                    safeSetNCEMode(3)
                                     try {
-                                        if (RPCSX.instance.rsxStart()) {
-                                            rsxEnabled = true
-                                        }
+                                        GeneralSettings.nceMode = 3
                                     } catch (e: Exception) {
-                                        Log.e("RSX", "Failed to start RSX: ${e.message}")
+                                        Log.e("Settings", "Failed to save NCE mode: ${e.message}")
                                     }
-                                }
 
-                                val maxThreads = 8
+                                    // LLVM performance tweaks
+                                    safeSettingsSet("Core@@PPU LLVM Greedy Mode", "true")
+                                    safeSettingsSet("Core@@LLVM Precompilation", "true")
+                                    safeSettingsSet("Core@@Set DAZ and FTZ", "true")
+                                    safeSettingsSet("Core@@Max LLVM Compile Threads", "16")
+
+                                    // RSX engine
+                                    if (!rsxEnabled) {
+                                        try {
+                                            if (RPCSX.instance.rsxStart()) {
+                                                rsxEnabled = true
+                                            }
+                                        } catch (e: Exception) {
+                                            Log.e("RSX", "Failed to start RSX: ${e.message}")
+                                        }
+                                    }
+
+                                    val maxThreads = 8
+                                    try {
+                                        RPCSX.instance.rsxSetThreadCount(maxThreads)
+                                        rsxThreadCount = maxThreads.toFloat()
+                                        GeneralSettings.setValue("rsx_thread_count", maxThreads)
+                                    } catch (e: Exception) {
+                                        Log.e("RSX", "Failed to set thread count: ${e.message}")
+                                    }
+
+                                    rsxResolutionScale = 50f
+                                    GeneralSettings.setValue("rsx_resolution_scale", 50)
+                                    rsxVsyncEnabled = false
+                                    GeneralSettings.setValue("rsx_vsync", false)
+                                    rsxFrameLimitEnabled = false
+                                    GeneralSettings.setValue("rsx_frame_limit", false)
+                                    GeneralSettings.setValue("auto_max_performance", true)
+                                    GeneralSettings.setValue("max_perf_defaults_applied", true)
+
+                                    Toast.makeText(context, "Max performance enabled", Toast.LENGTH_SHORT).show()
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "Failed to apply performance mode", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        )
+
+                        SwitchPreference(
+                            checked = rsxEnabled,
+                            title = stringResource(R.string.rsx_enabled),
+                            subtitle = { Text(stringResource(R.string.rsx_enabled_description)) },
+                            onClick = { enabled ->
                                 try {
-                                    RPCSX.instance.rsxSetThreadCount(maxThreads)
-                                    rsxThreadCount = maxThreads.toFloat()
-                                    GeneralSettings.setValue("rsx_thread_count", maxThreads)
+                                    if (enabled) {
+                                        val success = RPCSX.instance.rsxStart()
+                                        if (success) {
+                                            rsxEnabled = true
+                                            Toast.makeText(context, context.getString(R.string.rsx_status_on), Toast.LENGTH_SHORT).show()
+                                        }
+                                    } else {
+                                        RPCSX.instance.rsxStop()
+                                        rsxEnabled = false
+                                        Toast.makeText(context, context.getString(R.string.rsx_status_off), Toast.LENGTH_SHORT).show()
+                                    }
+                                    GeneralSettings.setValue("rsx_enabled", enabled)
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "RSX not available: ${e.message}", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        )
+                        
+                        SliderPreference(
+                            value = rsxThreadCount,
+                            valueRange = 1f..8f,
+                            title = stringResource(R.string.rsx_thread_count),
+                            steps = 6,
+                            onValueChange = { value ->
+                                try {
+                                    val count = value.toInt()
+                                    RPCSX.instance.rsxSetThreadCount(count)
+                                    rsxThreadCount = value
+                                    GeneralSettings.setValue("rsx_thread_count", count)
                                 } catch (e: Exception) {
                                     Log.e("RSX", "Failed to set thread count: ${e.message}")
                                 }
-
-                                rsxResolutionScale = 50f
-                                GeneralSettings.setValue("rsx_resolution_scale", 50)
-                                rsxVsyncEnabled = false
-                                GeneralSettings.setValue("rsx_vsync", false)
-                                rsxFrameLimitEnabled = false
-                                GeneralSettings.setValue("rsx_frame_limit", false)
-                                GeneralSettings.setValue("auto_max_performance", true)
-                                GeneralSettings.setValue("max_perf_defaults_applied", true)
-
-                                Toast.makeText(context, "Max performance enabled", Toast.LENGTH_SHORT).show()
-                            } catch (e: Exception) {
-                                Toast.makeText(context, "Failed to apply performance mode", Toast.LENGTH_SHORT).show()
+                            },
+                            valueContent = {
+                                Text(text = "${rsxThreadCount.toInt()} threads")
                             }
-                        }
-                    )
-                }
-
-                item(key = "rsx_enabled") {
-                    SwitchPreference(
-                        checked = rsxEnabled,
-                        title = stringResource(R.string.rsx_enabled),
-                        subtitle = { Text(stringResource(R.string.rsx_enabled_description)) },
-                        onClick = { enabled ->
-                            try {
-                                if (enabled) {
-                                    val success = RPCSX.instance.rsxStart()
-                                    if (success) {
-                                        rsxEnabled = true
-                                        Toast.makeText(context, context.getString(R.string.rsx_status_on), Toast.LENGTH_SHORT).show()
-                                    }
-                                } else {
-                                    RPCSX.instance.rsxStop()
-                                    rsxEnabled = false
-                                    Toast.makeText(context, context.getString(R.string.rsx_status_off), Toast.LENGTH_SHORT).show()
+                        )
+                        
+                        val rsxRunning = try { RPCSX.instance.rsxIsRunning() } catch (e: Exception) { false }
+                        val fps = if (rsxRunning) { try { RPCSX.instance.getRSXFPS() } catch (e: Exception) { 0 } } else 0
+                        RegularPreference(
+                            title = stringResource(R.string.rsx_stats),
+                            subtitle = { Text(if (rsxRunning) "FPS: $fps" else stringResource(R.string.rsx_status_off)) },
+                            onClick = {
+                                try {
+                                    val stats = RPCSX.instance.rsxGetStats()
+                                    Toast.makeText(context, stats, Toast.LENGTH_LONG).show()
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "RSX stats not available", Toast.LENGTH_SHORT).show()
                                 }
-                                GeneralSettings.setValue("rsx_enabled", enabled)
-                            } catch (e: Exception) {
-                                Toast.makeText(context, "RSX not available: ${e.message}", Toast.LENGTH_SHORT).show()
                             }
-                        }
-                    )
-                }
-                
-                item(key = "rsx_thread_count") {
-                    SliderPreference(
-                        value = rsxThreadCount,
-                        valueRange = 1f..8f,
-                        title = stringResource(R.string.rsx_thread_count),
-                        steps = 6,
-                        onValueChange = { value ->
-                            try {
-                                val count = value.toInt()
-                                RPCSX.instance.rsxSetThreadCount(count)
-                                rsxThreadCount = value
-                                GeneralSettings.setValue("rsx_thread_count", count)
-                            } catch (e: Exception) {
-                                Log.e("RSX", "Failed to set thread count: ${e.message}")
+                        )
+                        
+                        SliderPreference(
+                            value = rsxResolutionScale,
+                            valueRange = 50f..200f,
+                            title = "Resolution Scale",
+                            steps = 5,
+                            onValueChange = { value ->
+                                rsxResolutionScale = value
+                                GeneralSettings.setValue("rsx_resolution_scale", value.toInt())
+                            },
+                            valueContent = {
+                                Text(text = "${rsxResolutionScale.toInt()}%")
                             }
-                        },
-                        valueContent = {
-                            Text(text = "${rsxThreadCount.toInt()} threads")
-                        }
-                    )
-                }
-                
-                item(key = "rsx_fps_stats") {
-                    val rsxRunning = try { RPCSX.instance.rsxIsRunning() } catch (e: Exception) { false }
-                    val fps = if (rsxRunning) { try { RPCSX.instance.getRSXFPS() } catch (e: Exception) { 0 } } else 0
-                    RegularPreference(
-                        title = stringResource(R.string.rsx_stats),
-                        subtitle = { Text(if (rsxRunning) "FPS: $fps" else stringResource(R.string.rsx_status_off)) },
-                        onClick = {
-                            try {
-                                val stats = RPCSX.instance.rsxGetStats()
-                                Toast.makeText(context, stats, Toast.LENGTH_LONG).show()
-                            } catch (e: Exception) {
-                                Toast.makeText(context, "RSX stats not available", Toast.LENGTH_SHORT).show()
+                        )
+                        
+                        SwitchPreference(
+                            checked = rsxVsyncEnabled,
+                            title = "VSync",
+                            subtitle = { Text("Synchronize frame rate with display refresh") },
+                            onClick = { enabled ->
+                                rsxVsyncEnabled = enabled
+                                GeneralSettings.setValue("rsx_vsync", enabled)
                             }
-                        }
-                    )
-                }
-                
-                item(key = "rsx_resolution_scale") {
-                    SliderPreference(
-                        value = rsxResolutionScale,
-                        valueRange = 50f..200f,
-                        title = "Resolution Scale",
-                        steps = 5,
-                        onValueChange = { value ->
-                            rsxResolutionScale = value
-                            GeneralSettings.setValue("rsx_resolution_scale", value.toInt())
-                        },
-                        valueContent = {
-                            Text(text = "${rsxResolutionScale.toInt()}%")
-                        }
-                    )
-                }
-                
-                item(key = "rsx_vsync") {
-                    SwitchPreference(
-                        checked = rsxVsyncEnabled,
-                        title = "VSync",
-                        subtitle = { Text("Synchronize frame rate with display refresh") },
-                        onClick = { enabled ->
-                            rsxVsyncEnabled = enabled
-                            GeneralSettings.setValue("rsx_vsync", enabled)
-                        }
-                    )
-                }
-                
-                item(key = "rsx_frame_limit") {
-                    SwitchPreference(
-                        checked = rsxFrameLimitEnabled,
-                        title = "Frame Limit",
-                        subtitle = { Text("Limit frame rate to 60 FPS") },
-                        onClick = { enabled ->
-                            rsxFrameLimitEnabled = enabled
-                            GeneralSettings.setValue("rsx_frame_limit", enabled)
-                        }
-                    )
+                        )
+                        
+                        SwitchPreference(
+                            checked = rsxFrameLimitEnabled,
+                            title = "Frame Limit",
+                            subtitle = { Text("Limit frame rate to 60 FPS") },
+                            onClick = { enabled ->
+                                rsxFrameLimitEnabled = enabled
+                                GeneralSettings.setValue("rsx_frame_limit", enabled)
+                            }
+                        )
+                    }
                 }
             }
         }
