@@ -212,17 +212,18 @@ fun AdvancedSettingsScreen(
             filteredKeys.forEach { key ->
                 val itemPath = "$path@@$key"
                 item(key = key) {
-                    val itemObject = settingValue.value[key] as? JSONObject
+                    try {
+                        val itemObject = settingValue.value[key] as? JSONObject
 
-                    if (itemObject != null) {
-                        when (val type =
-                            if (itemObject.has("type")) itemObject.getString("type") else null) {
-                            null -> {
-                                RegularPreference(
-                                    title = key, leadingIcon = null, onClick = {
-                                        Log.e(
-                                            "Main",
-                                            "Navigate to settings$itemPath, object $itemObject"
+                        if (itemObject != null) {
+                            when (val type =
+                                if (itemObject.has("type")) itemObject.getString("type") else null) {
+                                null -> {
+                                    RegularPreference(
+                                        title = key, leadingIcon = null, onClick = {
+                                            Log.e(
+                                                "Main",
+                                                "Navigate to settings$itemPath, object $itemObject"
                                         )
                                         navigateTo("settings$itemPath")
                                     })
@@ -512,6 +513,10 @@ fun AdvancedSettingsScreen(
                             }
                         }
                     }
+                    } catch (e: Exception) {
+                        Log.e("Settings", "Error rendering setting $key: ${e.message}")
+                        Text("Error loading setting: $key")
+                    }
                 }
             }
 
@@ -782,18 +787,6 @@ fun SettingsScreen(
                 )
             }
 
-            // RSX Graphics Engine Settings
-            item(key = "rsx_settings") {
-                HomePreference(
-                    title = stringResource(R.string.rsx_video_settings),
-                    icon = { Icon(painterResource(R.drawable.memory), contentDescription = null) },
-                    description = stringResource(R.string.rsx_enabled_description),
-                    onClick = {
-                        navigateTo("rsx_settings")
-                    }
-                )
-            }
-
             item(
                 key = "custom_driver"
             ) {
@@ -802,12 +795,21 @@ fun SettingsScreen(
                     icon = { Icon(painterResource(R.drawable.memory), contentDescription = null) },
                     description = stringResource(R.string.custom_driver_description),
                     onClick = {
-                        if (RPCSX.instance.supportsCustomDriverLoading()) {
-                            navigateTo("drivers")
-                        } else {
+                        try {
+                            if (RPCSX.instance.supportsCustomDriverLoading()) {
+                                navigateTo("drivers")
+                            } else {
+                                AlertDialogQueue.showDialog(
+                                    title = context.getString(R.string.custom_driver_not_supported),
+                                    message = context.getString(R.string.custom_driver_not_supported_description),
+                                    confirmText = context.getString(R.string.close),
+                                    dismissText = ""
+                                )
+                            }
+                        } catch (e: Exception) {
                             AlertDialogQueue.showDialog(
                                 title = context.getString(R.string.custom_driver_not_supported),
-                                message = context.getString(R.string.custom_driver_not_supported_description),
+                                message = "Error: ${e.message}",
                                 confirmText = context.getString(R.string.close),
                                 dismissText = ""
                             )
