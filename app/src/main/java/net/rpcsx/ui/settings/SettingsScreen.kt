@@ -528,47 +528,66 @@ fun AdvancedSettingsScreen(
                 }
             }
             
-            // RSX Video Settings - show when in Video section
-            if (path.contains("Video", ignoreCase = true)) {
+            // RSX Video Settings - show when in Video section or GPU section
+            val showRsxSettings = path.contains("Video", ignoreCase = true) || 
+                                   path.contains("GPU", ignoreCase = true) ||
+                                   path.contains("Graphics", ignoreCase = true)
+            if (showRsxSettings) {
                 item(key = "rsx_header") {
                     PreferenceHeader(text = stringResource(R.string.rsx_video_settings))
                 }
                 
                 item(key = "rsx_enabled") {
-                    var rsxEnabled by remember { mutableStateOf(RPCSX.instance.rsxIsRunning()) }
+                    var rsxEnabled by remember { 
+                        mutableStateOf(
+                            try { RPCSX.instance.rsxIsRunning() } catch (e: Exception) { false }
+                        ) 
+                    }
                     SwitchPreference(
                         checked = rsxEnabled,
                         title = stringResource(R.string.rsx_enabled),
                         subtitle = { Text(stringResource(R.string.rsx_enabled_description)) },
                         onClick = { enabled ->
-                            if (enabled) {
-                                val success = RPCSX.instance.rsxStart()
-                                if (success) {
-                                    rsxEnabled = true
-                                    Toast.makeText(context, context.getString(R.string.rsx_status_on), Toast.LENGTH_SHORT).show()
+                            try {
+                                if (enabled) {
+                                    val success = RPCSX.instance.rsxStart()
+                                    if (success) {
+                                        rsxEnabled = true
+                                        Toast.makeText(context, context.getString(R.string.rsx_status_on), Toast.LENGTH_SHORT).show()
+                                    }
+                                } else {
+                                    RPCSX.instance.rsxStop()
+                                    rsxEnabled = false
+                                    Toast.makeText(context, context.getString(R.string.rsx_status_off), Toast.LENGTH_SHORT).show()
                                 }
-                            } else {
-                                RPCSX.instance.rsxStop()
-                                rsxEnabled = false
-                                Toast.makeText(context, context.getString(R.string.rsx_status_off), Toast.LENGTH_SHORT).show()
+                                GeneralSettings.setValue("rsx_enabled", enabled)
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "RSX not available: ${e.message}", Toast.LENGTH_SHORT).show()
                             }
-                            GeneralSettings.setValue("rsx_enabled", enabled)
                         }
                     )
                 }
                 
                 item(key = "rsx_thread_count") {
-                    var threadCount by remember { mutableStateOf(RPCSX.instance.rsxGetThreadCount().toFloat()) }
+                    var threadCount by remember { 
+                        mutableStateOf(
+                            try { RPCSX.instance.rsxGetThreadCount().toFloat() } catch (e: Exception) { 4f }
+                        ) 
+                    }
                     SliderPreference(
                         value = threadCount,
                         valueRange = 1f..8f,
                         title = stringResource(R.string.rsx_thread_count),
                         steps = 6,
                         onValueChange = { value ->
-                            val count = value.toInt()
-                            RPCSX.instance.rsxSetThreadCount(count)
-                            threadCount = value
-                            GeneralSettings.setValue("rsx_thread_count", count)
+                            try {
+                                val count = value.toInt()
+                                RPCSX.instance.rsxSetThreadCount(count)
+                                threadCount = value
+                                GeneralSettings.setValue("rsx_thread_count", count)
+                            } catch (e: Exception) {
+                                Log.e("RSX", "Failed to set thread count: ${e.message}")
+                            }
                         },
                         valueContent = {
                             Text(text = "${threadCount.toInt()} threads")
@@ -577,14 +596,18 @@ fun AdvancedSettingsScreen(
                 }
                 
                 item(key = "rsx_fps_stats") {
-                    val rsxRunning = RPCSX.instance.rsxIsRunning()
-                    val fps = if (rsxRunning) RPCSX.instance.getRSXFPS() else 0
+                    val rsxRunning = try { RPCSX.instance.rsxIsRunning() } catch (e: Exception) { false }
+                    val fps = if (rsxRunning) { try { RPCSX.instance.getRSXFPS() } catch (e: Exception) { 0 } } else 0
                     RegularPreference(
                         title = stringResource(R.string.rsx_stats),
                         subtitle = { Text(if (rsxRunning) "FPS: $fps" else stringResource(R.string.rsx_status_off)) },
                         onClick = {
-                            val stats = RPCSX.instance.rsxGetStats()
-                            Toast.makeText(context, stats, Toast.LENGTH_LONG).show()
+                            try {
+                                val stats = RPCSX.instance.rsxGetStats()
+                                Toast.makeText(context, stats, Toast.LENGTH_LONG).show()
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "RSX stats not available", Toast.LENGTH_SHORT).show()
+                            }
                         }
                     )
                 }
