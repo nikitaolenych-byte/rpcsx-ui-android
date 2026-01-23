@@ -531,7 +531,7 @@ fun AdvancedSettingsScreen(
             // RSX Video Settings - show when in Video section
             if (path.contains("Video", ignoreCase = true)) {
                 item(key = "rsx_header") {
-                    PreferenceHeader(title = stringResource(R.string.rsx_video_settings))
+                    PreferenceHeader(text = stringResource(R.string.rsx_video_settings))
                 }
                 
                 item(key = "rsx_enabled") {
@@ -539,10 +539,7 @@ fun AdvancedSettingsScreen(
                     SwitchPreference(
                         checked = rsxEnabled,
                         title = stringResource(R.string.rsx_enabled),
-                        description = stringResource(R.string.rsx_enabled_description),
-                        leadingIcon = {
-                            PreferenceIcon(icon = painterResource(R.drawable.ic_rsx_engine))
-                        },
+                        subtitle = { Text(stringResource(R.string.rsx_enabled_description)) },
                         onClick = { enabled ->
                             if (enabled) {
                                 val success = RPCSX.instance.rsxStart()
@@ -574,7 +571,7 @@ fun AdvancedSettingsScreen(
                             GeneralSettings.setValue("rsx_thread_count", count)
                         },
                         valueContent = {
-                            PreferenceValue(text = "${threadCount.toInt()} threads")
+                            Text(text = "${threadCount.toInt()} threads")
                         }
                     )
                 }
@@ -584,8 +581,7 @@ fun AdvancedSettingsScreen(
                     val fps = if (rsxRunning) RPCSX.instance.getRSXFPS() else 0
                     RegularPreference(
                         title = stringResource(R.string.rsx_stats),
-                        description = if (rsxRunning) "FPS: $fps" else stringResource(R.string.rsx_status_off),
-                        leadingIcon = null,
+                        subtitle = { Text(if (rsxRunning) "FPS: $fps" else stringResource(R.string.rsx_status_off)) },
                         onClick = {
                             val stats = RPCSX.instance.rsxGetStats()
                             Toast.makeText(context, stats, Toast.LENGTH_LONG).show()
@@ -605,7 +601,7 @@ fun AdvancedSettingsScreen(
                             GeneralSettings.setValue("rsx_resolution_scale", value.toInt())
                         },
                         valueContent = {
-                            PreferenceValue(text = "${scale.toInt()}%")
+                            Text(text = "${scale.toInt()}%")
                         }
                     )
                 }
@@ -615,8 +611,7 @@ fun AdvancedSettingsScreen(
                     SwitchPreference(
                         checked = vsyncEnabled,
                         title = "VSync",
-                        description = "Synchronize frame rate with display refresh",
-                        leadingIcon = null,
+                        subtitle = { Text("Synchronize frame rate with display refresh") },
                         onClick = { enabled ->
                             vsyncEnabled = enabled
                             GeneralSettings.setValue("rsx_vsync", enabled)
@@ -629,8 +624,7 @@ fun AdvancedSettingsScreen(
                     SwitchPreference(
                         checked = frameLimitEnabled,
                         title = "Frame Limit",
-                        description = "Limit frame rate to 60 FPS",
-                        leadingIcon = null,
+                        subtitle = { Text("Limit frame rate to 60 FPS") },
                         onClick = { enabled ->
                             frameLimitEnabled = enabled
                             GeneralSettings.setValue("rsx_frame_limit", enabled)

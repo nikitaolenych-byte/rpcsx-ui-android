@@ -348,9 +348,7 @@ class RPCSXActivity : Activity() {
         val message = """
             |RSX Graphics Engine Stats:
             |─────────────────────────
-            |Total Commands: ${stats.getOrDefault("commands", 0)}
-            |Draw Calls: ${stats.getOrDefault("draws", 0)}
-            |Clears: ${stats.getOrDefault("clears", 0)}
+            |$stats
             |Worker Threads: 4
             |Backend: Vulkan 1.3
         """.trimMargin()
