@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- RPCSX Performance Benchmark Configuration -->
+<benchmark xmlns="http://rpcsx.net/benchmark/1.0">
+    
+    <!-- Benchmark Metadata -->
+    <metadata>
+        <version>1.0</version>
+        <name>RPCSX PS3 Emulation Benchmark</name>
+        <description>
+            AnTuTu-compatible performance benchmark for PS3 emulation on Android.
+            Tests GPU (RSX), Memory, CPU (Cortex-X4), and JIT (NCE) performance.
+        </description>
+        <author>RPCSX Development Team</author>
+    </metadata>
+    
+    <!-- Test Suites -->
+    <test-suites>
+        
+        <!-- GPU Graphics Test -->
+        <test-suite name="gpu_graphics">
+            <title>RSX Graphics Engine Test</title>
+            <description>Measures GPU command throughput and draw call performance</description>
+            <duration_ms>30000</duration_ms>
+            <parameters>
+                <draw_calls>5000</draw_calls>
+                <polygon_count>1000</polygon_count>
+                <resolution>1920x1080</resolution>
+                <texture_size>512</texture_size>
+            </parameters>
+            <expected_baseline>
+                <!-- Reference: Snapdragon 8 Gen 3 with Adreno 735 -->
+                <min_fps>30</min_fps>
+                <target_fps>60</target_fps>
+                <max_fps>120</max_fps>
+            </expected_baseline>
+        </test-suite>
+        
+        <!-- Memory Bandwidth Test -->
+        <test-suite name="memory_bandwidth">
+            <title>Memory Bandwidth Test</title>
+            <description>
+                Measures DDR5/LPDDR5X sequential access bandwidth.
+                Tests L1/L2 cache and main memory performance.
+            </description>
+            <duration_ms>5000</duration_ms>
+            <parameters>
+                <test_size_mb>16</test_size_mb>
+                <cache_line_size>64</cache_line_size>
+                <access_pattern>sequential</access_pattern>
+            </parameters>
+            <expected_baseline>
+                <!-- Reference: LPDDR5X on Snapdragon 8 Gen 3 -->
+                <min_bandwidth_gbps>60</min_bandwidth_gbps>
+                <target_bandwidth_gbps>100</target_bandwidth_gbps>
+                <max_bandwidth_gbps>120</max_bandwidth_gbps>
+            </expected_baseline>
+        </test-suite>
+        
+        <!-- CPU Performance Test -->
+        <test-suite name="cpu_flops">
+            <title>CPU Floating Point Test</title>
+            <description>
+                Measures Cortex-X4 floating point performance (GFLOPS).
+                Tests single-threaded sustained computation.
+            </description>
+            <duration_ms>10000</duration_ms>
+            <parameters>
+                <workload>sincos</workload>
+                <iterations>1000000</iterations>
+                <precision>float32</precision>
+            </parameters>
+            <expected_baseline>
+                <!-- Reference: Cortex-X4 @ 3.2 GHz -->
+                <min_gflops>6</min_gflops>
+                <target_gflops>10</target_gflops>
+                <max_gflops>15</max_gflops>
+            </expected_baseline>
+        </test-suite>
+        
+        <!-- NCE JIT Performance Test -->
+        <test-suite name="nce_jit">
+            <title>NCE (Native Code Execution) JIT Test</title>
+            <description>
+                Measures PowerPC to ARM64 JIT translation and execution.
+                Tests PS3 PPU emulation performance.
+            </description>
+            <duration_ms>15000</duration_ms>
+            <parameters>
+                <code_blocks>100</code_blocks>
+                <block_size_bytes>256</block_size_bytes>
+                <optimization_level>3</optimization_level>
+            </parameters>
+            <expected_baseline>
+                <!-- Reference: NCE on Snapdragon 8 Gen 3 -->
+                <min_iterations_per_sec>50</min_iterations_per_sec>
+                <target_iterations_per_sec>100</target_iterations_per_sec>
+                <max_iterations_per_sec>200</max_iterations_per_sec>
+            </expected_baseline>
+        </test-suite>
+        
+    </test-suites>
+    
+    <!-- Scoring System -->
+    <scoring>
+        <version>1</version>
+        <description>
+            AnTuTu-style scoring system normalized to 0-100 scale.
+            Final score is weighted average of all tests.
+        </description>
+        
+        <weights>
+            <gpu_graphics>0.30</gpu_graphics>
+            <memory_bandwidth>0.25</memory_bandwidth>
+            <cpu_flops>0.25</cpu_flops>
+            <nce_jit>0.20</nce_jit>
+        </weights>
+        
+        <!-- Normalization factors -->
+        <normalization>
+            <gpu_graphics_reference_fps>60</gpu_graphics_reference_fps>
+            <memory_bandwidth_reference_gbps>100</memory_bandwidth_reference_gbps>
+            <cpu_flops_reference_gflops>10</cpu_flops_reference_gflops>
+            <nce_jit_reference_iter_sec>100</nce_jit_reference_iter_sec>
+        </normalization>
+    </scoring>
+    
+    <!-- Device Classification -->
+    <device-classes>
+        <flagship>
+            <!-- Snapdragon 8 Gen 3, Dimensity 9300 -->
+            <min_score>80</min_score>
+            <max_score>100</max_score>
+        </flagship>
+        <high-end>
+            <!-- Snapdragon 8 Gen 2, Dimensity 9200 -->
+            <min_score>70</min_score>
+            <max_score>79</max_score>
+        </high-end>
+        <mid-range>
+            <!-- Snapdragon 7 Gen 2, Dimensity 8200 -->
+            <min_score>50</min_score>
+            <max_score>69</max_score>
+        </mid-range>
+        <budget>
+            <!-- Snapdragon 6 Gen 1, Helio G99 -->
+            <min_score>0</min_score>
+            <max_score>49</max_score>
+        </budget>
+    </device-classes>
+    
+    <!-- Compatibility Requirements -->
+    <requirements>
+        <min_api_level>29</min_api_level>
+        <min_ram_gb>4</min_ram_gb>
+        <cpu_architectures>arm64-v8a</cpu_architectures>
+        <vulkan_version>1.3</vulkan_version>
+        <features>
+            <sve2>optional</sve2>
+            <neon>required</neon>
+        </features>
+    </requirements>
+    
+</benchmark>
