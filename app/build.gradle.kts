@@ -1,3 +1,13 @@
+// Check Java version compatibility
+val javaVersion = System.getProperty("java.version") ?: "unknown"
+val javaMajorVersion = javaVersion.split(".")[0].toIntOrNull() ?: 0
+
+if (javaMajorVersion > 17) {
+    logger.warn("⚠️  Java version $javaVersion detected (major: $javaMajorVersion)")
+    logger.warn("    Kotlin compiler may have issues with Java versions > 17")
+    logger.warn("    Recommended: Use Java 17 for this build")
+}
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)

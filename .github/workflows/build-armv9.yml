@@ -20,6 +20,18 @@ jobs:
           distribution: 'temurin'
           cache: gradle
       
+      - name: Verify Java version
+        run: |
+          echo "Java version check:"
+          java -version 2>&1
+          JAVA_VER=$(java -version 2>&1 | head -1 | grep -oP 'version "\K[0-9]+' | head -1)
+          if [ "$JAVA_VER" != "17" ]; then
+            echo "❌ ERROR: Java version $JAVA_VER found, but Java 17 is required!"
+            echo "JAVA_HOME: $JAVA_HOME"
+            exit 1
+          fi
+          echo "✅ Java 17 verified"
+      
       - uses: android-actions/setup-android@v3
         with:
           api-level: 36
