@@ -543,10 +543,16 @@ fun AdvancedSettingsScreen(
                 }
             }
             
-            // RSX Video Settings - show when in Video section or GPU section
+            // RSX Video Settings - show when in Video, GPU, Graphics section or root level
+            // Debug log to see actual path
+            Log.d("RSX_Settings", "Current path: '$path'")
             val showRsxSettings = path.contains("Video", ignoreCase = true) || 
                                    path.contains("GPU", ignoreCase = true) ||
-                                   path.contains("Graphics", ignoreCase = true)
+                                   path.contains("Graphics", ignoreCase = true) ||
+                                   path.contains("Render", ignoreCase = true) ||
+                                   path.contains("Display", ignoreCase = true) ||
+                                   path == "@@$" ||  // Root of advanced settings
+                                   path.isEmpty()    // Also show at root
             if (showRsxSettings) {
                 item(key = "rsx_header") {
                     PreferenceHeader(text = stringResource(R.string.rsx_video_settings))
