@@ -723,7 +723,7 @@ fun AdvancedSettingsScreen(
                                         RPCSX.instance.rsxSetThreadCount(maxThreads)
                                         rsxThreadCount = maxThreads.toFloat()
                                         GeneralSettings.setValue("rsx_thread_count", maxThreads)
-                                    } catch (e: Exception) {
+                                    } catch (e: Throwable) {
                                         Log.e("RSX", "Failed to set thread count: ${e.message}")
                                     }
 
@@ -778,7 +778,7 @@ fun AdvancedSettingsScreen(
                                     RPCSX.instance.rsxSetThreadCount(count)
                                     rsxThreadCount = value
                                     GeneralSettings.setValue("rsx_thread_count", count)
-                                } catch (e: Exception) {
+                                } catch (e: Throwable) {
                                     Log.e("RSX", "Failed to set thread count: ${e.message}")
                                 }
                             },

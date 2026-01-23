@@ -114,7 +114,7 @@ fun RSXSettingsScreen(
                             RPCSX.instance.rsxSetThreadCount(count)
                             threadCount = value
                             GeneralSettings.setValue("rsx_thread_count", count)
-                        } catch (e: Exception) {
+                        } catch (e: Throwable) {
                             Log.e("RSX", "Failed to set thread count: ${e.message}")
                         }
                     },

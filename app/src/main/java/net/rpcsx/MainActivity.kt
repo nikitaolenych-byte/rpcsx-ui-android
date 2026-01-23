@@ -37,7 +37,7 @@ class MainActivity : ComponentActivity() {
                     "rpcsx-progress",
                     getString(R.string.installation_progress),
                     NotificationManager.IMPORTANCE_DEFAULT
-                try {
+                ).apply {
                     setShowBadge(false)
                     lockscreenVisibility = Notification.VISIBILITY_PUBLIC
                 }
@@ -48,17 +48,8 @@ class MainActivity : ComponentActivity() {
             RPCSX.rootDirectory = applicationContext.getExternalFilesDir(null).toString()
             if (!RPCSX.rootDirectory.endsWith("/")) {
                 RPCSX.rootDirectory += "/"
-                    if (RPCSX.activeLibrary.value != null) {
-                        try {
-                            RPCSX.instance.rsxSetThreadCount(8)
-                        } catch (e: Throwable) {
-                            Log.e("RPCSX", "Failed to set RSX thread count", e)
-                        }
-                    } else {
-                        Log.w("RPCSX", "Skipping rsxSetThreadCount: native library not loaded")
-                    }
-                } catch (e: Throwable) {
-                    Log.e("RPCSX", "Failed to apply max performance defaults", e)
+            }
+
             GitHub.initialize(this)
 
             var rpcsxLibrary = GeneralSettings["rpcsx_library"] as? String
