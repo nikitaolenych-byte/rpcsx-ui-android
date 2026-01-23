@@ -115,6 +115,44 @@ private fun safeSetNCEMode(mode: Int) {
     }
 }
 
+private fun applyPpuLLVMTurbo(): Boolean {
+    val updates = listOf(
+        "Core@@PPU LLVM Greedy Mode" to "true",
+        "Core@@LLVM Precompilation" to "true",
+        "Core@@Set DAZ and FTZ" to "true",
+        "Core@@Thread Scheduler Mode" to "\"alt\"",
+        "Core@@PPU LLVM Java Mode Handling" to "true",
+        "Core@@PPU Accurate Non-Java Mode" to "false",
+        "Core@@PPU Set Saturation Bit" to "false",
+        "Core@@PPU Set FPCC Bits" to "false",
+        "Core@@PPU Fixup Vector NaN Values" to "false",
+        "Core@@PPU Accurate Vector NaN Values" to "false",
+        "Core@@Accurate Cache Line Stores" to "false",
+        "Core@@Accurate PPU 128-byte Reservation Op Max Length" to "0",
+        "Core@@Use Accurate DFMA" to "false"
+    )
+
+    return updates.all { (path, value) -> safeSettingsSet(path, value) }
+}
+
+private fun applySpuLLVMTurbo(): Boolean {
+    val updates = listOf(
+        "Core@@SPU Cache" to "true",
+        "Core@@SPU Verification" to "false",
+        "Core@@Precise SPU Verification" to "false",
+        "Core@@SPU Accurate DMA" to "false",
+        "Core@@SPU Accurate Reservations" to "false",
+        "Core@@SPU Block Size" to "\"giga\"",
+        "Core@@Preferred SPU Threads" to "6",
+        "Core@@Max SPURS Threads" to "6",
+        "Core@@SPU loop detection" to "true",
+        "Core@@SPU delay penalty" to "0",
+        "Core@@XFloat Accuracy" to "\"approximate\""
+    )
+
+    return updates.all { (path, value) -> safeSettingsSet(path, value) }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdvancedSettingsScreen(
@@ -298,6 +336,9 @@ fun AdvancedSettingsScreen(
                                 val isPpuDecoder = key == "PPU Decoder" || 
                                                    itemPath.contains("PPU Decoder") ||
                                                    key.contains("PPU")
+                                val isSpuDecoder = key == "SPU Decoder" ||
+                                                   itemPath.contains("SPU Decoder") ||
+                                                   key.contains("SPU")
                                 
                                 // Replace legacy LLVM names with LLVM 19
                                 val updatedVariants = ArrayList<String>()
@@ -326,91 +367,154 @@ fun AdvancedSettingsScreen(
                                     else -> itemValue
                                 }
 
-                                SingleSelectionDialog(
-                                    currentValue = if (displayValue in variants) displayValue else variants[0],
-                                    values = variants,
-                                    icon = null,
-                                    title = key + if (itemValue == def) "" else " *",
-                                    onValueChange = { value ->
-                                        // Special handling for NCE - activates NCE Native!
-                                        if (isPpuDecoder && value == "NCE") {
-                                            // IMPORTANT: Must use LLVM 19 to compile PPU modules!
-                                            // Interpreter skips PPU compilation entirely.
-                                            safeSettingsSet(itemPath, "\"LLVM Recompiler (Legacy)\"")
-                                            // Activate NCE Native - Your phone IS PlayStation 3!
-                                            safeSetNCEMode(3)
-                                            // Save NCE mode (use cached setter for performance)
-                                            net.rpcsx.utils.GeneralSettings.nceMode = 3
-                                            itemObject.put("value", "LLVM Recompiler (Legacy)")
-                                            itemValue = "LLVM Recompiler (Legacy)"
-                                            
-                                            // Log NCE Native activation
-                                            android.util.Log.i("RPCSX-NCE", "╔════════════════════════════════════════╗")
-                                            android.util.Log.i("RPCSX-NCE", "║   NCE Native Activated!                ║")
-                                            android.util.Log.i("RPCSX-NCE", "║   Your phone IS now PlayStation 3!    ║")
-                                            android.util.Log.i("RPCSX-NCE", "║   Using LLVM 19 Backend                ║")
-                                            android.util.Log.i("RPCSX-NCE", "╚════════════════════════════════════════╝")
-                                            return@SingleSelectionDialog
-                                        }
-                                        
-                                        // Map display names back to internal values
-                                        val internalValue = when (value) {
-                                            "LLVM 19" -> "LLVM Recompiler (Legacy)"
-                                            "Interpreter" -> "Interpreter (Legacy)"
-                                            else -> value
-                                        }
-                                        
-                                        if (!safeSettingsSet(
-                                                itemPath, "\"" + internalValue + "\""
-                                            )
-                                        ) {
-                                            AlertDialogQueue.showDialog(
-                                                context.getString(R.string.error),
-                                                context.getString(R.string.failed_to_assign_value, value, itemPath)
-                                            )
-                                        } else {
-                                            try {
-                                                itemObject.put("value", internalValue)
-                                                itemValue = internalValue  // Use internalValue not value
+                                val isPpuLLVMSelected = isPpuDecoder && itemValue == "LLVM Recompiler (Legacy)"
+                                val isSpuLLVMSelected = isSpuDecoder && itemValue.contains("LLVM", ignoreCase = true)
+                                val ppuTurboKey = "ppu_llvm_turbo"
+                                val spuTurboKey = "spu_llvm_turbo"
+                                var ppuTurboEnabled by remember {
+                                    mutableStateOf(GeneralSettings[ppuTurboKey] as? Boolean ?: false)
+                                }
+                                var spuTurboEnabled by remember {
+                                    mutableStateOf(GeneralSettings[spuTurboKey] as? Boolean ?: false)
+                                }
+
+                                Column {
+                                    SingleSelectionDialog(
+                                        currentValue = if (displayValue in variants) displayValue else variants[0],
+                                        values = variants,
+                                        icon = null,
+                                        title = key + if (itemValue == def) "" else " *",
+                                        onValueChange = { value ->
+                                            // Special handling for NCE - activates NCE Native!
+                                            if (isPpuDecoder && value == "NCE") {
+                                                // IMPORTANT: Must use LLVM 19 to compile PPU modules!
+                                                // Interpreter skips PPU compilation entirely.
+                                                safeSettingsSet(itemPath, "\"LLVM Recompiler (Legacy)\"")
+                                                // Activate NCE Native - Your phone IS PlayStation 3!
+                                                safeSetNCEMode(3)
+                                                // Save NCE mode (use cached setter for performance)
+                                                net.rpcsx.utils.GeneralSettings.nceMode = 3
+                                                itemObject.put("value", "LLVM Recompiler (Legacy)")
+                                                itemValue = "LLVM Recompiler (Legacy)"
                                                 
-                                                // Sync NCE mode when PPU Decoder changes
-                                                if (isPpuDecoder) {
-                                                    val nceMode = when (internalValue) {
-                                                        "LLVM Recompiler (Legacy)" -> 2  // LLVM 19
-                                                        "Interpreter (Legacy)", "Interpreter" -> 1
-                                                        else -> 0
-                                                    }
-                                                    safeSetNCEMode(nceMode)
-                                                    try {
-                                                        net.rpcsx.utils.GeneralSettings.nceMode = nceMode
-                                                    } catch (e: Exception) {
-                                                        android.util.Log.e("Settings", "Failed to save NCE mode: ${e.message}")
-                                                    }
-                                                }
-                                            } catch (e: Exception) {
-                                                android.util.Log.e("Settings", "Error updating PPU decoder: ${e.message}")
+                                                // Log NCE Native activation
+                                                android.util.Log.i("RPCSX-NCE", "╔════════════════════════════════════════╗")
+                                                android.util.Log.i("RPCSX-NCE", "║   NCE Native Activated!                ║")
+                                                android.util.Log.i("RPCSX-NCE", "║   Your phone IS now PlayStation 3!    ║")
+                                                android.util.Log.i("RPCSX-NCE", "║   Using LLVM 19 Backend                ║")
+                                                android.util.Log.i("RPCSX-NCE", "╚════════════════════════════════════════╝")
+                                                return@SingleSelectionDialog
                                             }
-                                        }
-                                    },
-                                    onLongClick = {
-                                        AlertDialogQueue.showDialog(
-                                            title = context.getString(R.string.reset_setting),
-                                            message = context.getString(R.string.ask_if_reset_key, key),
-                                            onConfirm = {
-                                                if (safeSettingsSet(
-                                                        itemPath, "\"" + def + "\""
-                                                    )
-                                                ) {
-                                                    itemObject.put("value", def)
-                                                    itemValue = def
-                                                } else {
-                                                    AlertDialogQueue.showDialog(
-                                                        context.getString(R.string.error),
-                                                        context.getString(R.string.failed_to_reset_key, key)
-                                                    )
+                                            
+                                            // Map display names back to internal values
+                                            val internalValue = when (value) {
+                                                "LLVM 19" -> "LLVM Recompiler (Legacy)"
+                                                "Interpreter" -> "Interpreter (Legacy)"
+                                                else -> value
+                                            }
+                                            
+                                            if (!safeSettingsSet(
+                                                    itemPath, "\"" + internalValue + "\""
+                                                )
+                                            ) {
+                                                AlertDialogQueue.showDialog(
+                                                    context.getString(R.string.error),
+                                                    context.getString(R.string.failed_to_assign_value, value, itemPath)
+                                                )
+                                            } else {
+                                                try {
+                                                    itemObject.put("value", internalValue)
+                                                    itemValue = internalValue  // Use internalValue not value
+                                                    
+                                                    // Sync NCE mode when PPU Decoder changes
+                                                    if (isPpuDecoder) {
+                                                        val nceMode = when (internalValue) {
+                                                            "LLVM Recompiler (Legacy)" -> 2  // LLVM 19
+                                                            "Interpreter (Legacy)", "Interpreter" -> 1
+                                                            else -> 0
+                                                        }
+                                                        safeSetNCEMode(nceMode)
+                                                        try {
+                                                            net.rpcsx.utils.GeneralSettings.nceMode = nceMode
+                                                        } catch (e: Exception) {
+                                                            android.util.Log.e("Settings", "Failed to save NCE mode: ${e.message}")
+                                                        }
+                                                    }
+                                                } catch (e: Exception) {
+                                                    android.util.Log.e("Settings", "Error updating PPU decoder: ${e.message}")
                                                 }
-                                            })
-                                    })
+                                            }
+                                        },
+                                        onLongClick = {
+                                            AlertDialogQueue.showDialog(
+                                                title = context.getString(R.string.reset_setting),
+                                                message = context.getString(R.string.ask_if_reset_key, key),
+                                                onConfirm = {
+                                                    if (safeSettingsSet(
+                                                            itemPath, "\"" + def + "\""
+                                                        )
+                                                    ) {
+                                                        itemObject.put("value", def)
+                                                        itemValue = def
+                                                    } else {
+                                                        AlertDialogQueue.showDialog(
+                                                            context.getString(R.string.error),
+                                                            context.getString(R.string.failed_to_reset_key, key)
+                                                        )
+                                                    }
+                                                })
+                                        })
+
+                                    if (isPpuDecoder && isPpuLLVMSelected) {
+                                        SwitchPreference(
+                                            checked = ppuTurboEnabled,
+                                            title = "PPU LLVM Turbo",
+                                            subtitle = {
+                                                Text("Aggressive JIT, NEON fusion, speculative execution, hot-path locking, unsafe fast-math, unrolling, prefetch")
+                                            },
+                                            onClick = { enabled ->
+                                                if (enabled) {
+                                                    if (!applyPpuLLVMTurbo()) {
+                                                        Toast.makeText(context, "Failed to apply PPU LLVM Turbo", Toast.LENGTH_SHORT).show()
+                                                        return@SwitchPreference
+                                                    }
+                                                }
+                                                ppuTurboEnabled = enabled
+                                                GeneralSettings.setValue(ppuTurboKey, enabled)
+                                                Toast.makeText(
+                                                    context,
+                                                    if (enabled) "PPU LLVM Turbo enabled" else "PPU LLVM Turbo disabled",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                            }
+                                        )
+                                    }
+
+                                    if (isSpuDecoder && isSpuLLVMSelected) {
+                                        SwitchPreference(
+                                            checked = spuTurboEnabled,
+                                            title = "SPU LLVM Turbo",
+                                            subtitle = {
+                                                Text("NEON mapping, speculative DMA, hot-path caching, approximate math, unrolling, prefetch, relaxed sync")
+                                            },
+                                            onClick = { enabled ->
+                                                if (enabled) {
+                                                    if (!applySpuLLVMTurbo()) {
+                                                        Toast.makeText(context, "Failed to apply SPU LLVM Turbo", Toast.LENGTH_SHORT).show()
+                                                        return@SwitchPreference
+                                                    }
+                                                }
+                                                spuTurboEnabled = enabled
+                                                GeneralSettings.setValue(spuTurboKey, enabled)
+                                                Toast.makeText(
+                                                    context,
+                                                    if (enabled) "SPU LLVM Turbo enabled" else "SPU LLVM Turbo disabled",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                            }
+                                        )
+                                    }
+                                }
                             }
 
                             "uint", "int" -> {
