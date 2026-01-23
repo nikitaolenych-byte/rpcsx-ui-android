@@ -32,59 +32,53 @@ jobs:
           fi
           echo "✅ Java 17 verified"
       
-      - uses: reactivecircus/android-sdk-image-ubuntu@v2
-        with:
-          ndk-version: 29.0.13113456
-          cmake-version: 3.28.0
-          api-level: 36
-          build-tools-version: 36.0.0
-      
-      - name: Wait and verify Android SDK setup
+      - name: Setup Android SDK and NDK
         run: |
-          echo "=== Android SDK Setup Verification ==="
+          # Install cmdline-tools
+          echo "Setting up Android SDK..."
+          mkdir -p ~/android-sdk/cmdline-tools
+          cd ~/android-sdk/cmdline-tools
+          
+          # Download and extract cmdline-tools
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline.zip
+          unzip -q cmdline.zip
+          mv cmdline-tools latest
+          
+          export ANDROID_HOME=~/android-sdk
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
+          
+          # Accept licenses
+          yes | sdkmanager --licenses
+          
+          # Install required packages
+          sdkmanager "platforms;android-36" "ndk;29.0.13113456" "cmake;3.28.0" "build-tools;36.0.0"
+          
+          # Save to environment
+          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin:$PATH" >> $GITHUB_PATH
+          
+          echo "✅ Android SDK setup complete"
           echo "ANDROID_HOME: $ANDROID_HOME"
-          sleep 5
-          
-          if [ -d "$ANDROID_HOME" ]; then
-            echo "✅ ANDROID_HOME exists"
-            ls -la "$ANDROID_HOME" 2>/dev/null | head -15
+          ls -la $ANDROID_HOME/
+      
+      - name: Verify NDK installation
+        run: |
+          echo "=== NDK Verification ==="
+          NDK_PATH="$ANDROID_HOME/ndk/29.0.13113456"
+          if [ -d "$NDK_PATH" ]; then
+            echo "✅ NDK found at: $NDK_PATH"
+            ls -la "$NDK_PATH" | head -5
           else
-            echo "❌ ANDROID_HOME not found: $ANDROID_HOME"
-          fi
-          
-          # Check if ndkmanager is available
-          if [ -f "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
-            echo "✅ sdkmanager found"
-          else
-            echo "❌ sdkmanager not found"
+            echo "❌ NDK not found!"
+            ls -la "$ANDROID_HOME/ndk/" 2>/dev/null || echo "ndk/ directory doesn't exist"
+            exit 1
           fi
       
       - name: Install build dependencies
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y pkg-config libadrenotools-dev 2>&1 | tail -3 || echo "libadrenotools-dev not in repo"
-          echo "Build tools ready"
-      
-      - name: Manually install NDK if needed
-        run: |
-          ANDROID_SDK_ROOT="${ANDROID_HOME}"
-          NDK_PATH="$ANDROID_SDK_ROOT/ndk/29.0.13113456"
-          
-          if [ ! -d "$NDK_PATH" ]; then
-            echo "NDK not found, installing via sdkmanager..."
-            yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "ndk;29.0.13113456" || echo "⚠️ ndkmanager failed"
-          else
-            echo "✅ NDK already installed at $NDK_PATH"
-          fi
-          
-          # Final verification
-          if [ -d "$NDK_PATH" ]; then
-            echo "✅ NDK verified at: $NDK_PATH"
-            ls -la "$NDK_PATH/" | head -5
-          else
-            echo "❌ NDK still not found after install attempt"
-            exit 1
-          fi
+          echo "✅ Build dependencies ready"
       
       - name: Setup NDK environment
         run: |
