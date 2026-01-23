@@ -855,7 +855,7 @@ Java_net_rpcsx_RPCSX_runGraphicsPerformanceTest(JNIEnv *env, jobject,
     draw_cmd.type = rpcsx::vulkan::RSXCommand::Type::DRAW_ARRAYS;
     draw_cmd.data[0] = 0;        // First vertex
     draw_cmd.data[1] = 100 + i;  // Vertex count (vary)
-    draw_cmd.priority = (i % 256); // Assign priorities
+    draw_cmd.priority = static_cast<uint16_t>(i % 256); // Assign priorities
     
     g_rsx_engine->SubmitCommand(draw_cmd);
   }
