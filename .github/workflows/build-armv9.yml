@@ -38,59 +38,57 @@ jobs:
           
           # Create Android SDK directory
           export ANDROID_HOME=~/android-sdk
-          mkdir -p $ANDROID_HOME
-          
-          # Install NDK via apt (easier and more reliable)
-          echo "Installing Android NDK..."
-          sudo apt-get update -qq
-          sudo apt-get install -y android-ndk 2>&1 | tail -5
-          
-          # Check if NDK installed via apt
-          if [ -d "/usr/lib/android-ndk" ]; then
-            echo "✅ NDK found via apt at /usr/lib/android-ndk"
-            ln -sf /usr/lib/android-ndk $ANDROID_HOME/ndk/current || true
-          fi
-          
-          # Download cmdline-tools from Google
-          echo "Downloading cmdline-tools..."
           mkdir -p $ANDROID_HOME/cmdline-tools
           cd $ANDROID_HOME/cmdline-tools
           
-          curl -L -o cmdline.zip "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" 2>&1 | tail -3
+          # Download cmdline-tools
+          echo "Downloading cmdline-tools..."
+          curl -L -o cmdline.zip "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
+          unzip -q cmdline.zip
+          mv cmdline-tools latest
           
-          if [ -f "cmdline.zip" ]; then
-            echo "Extracting cmdline-tools..."
-            unzip -q cmdline.zip && mv cmdline-tools latest
-            echo "✅ cmdline-tools extracted"
-          else
-            echo "⚠️ cmdline-tools download failed, continuing..."
-          fi
+          # Add to PATH
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
+          
+          # Accept licenses
+          echo "Accepting licenses..."
+          yes | sdkmanager --licenses 2>&1 | tail -2
+          
+          # Install platforms and build-tools
+          echo "Installing Android SDK components..."
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" 2>&1 | tail -5
+          
+          # Install NDK
+          echo "Installing NDK 29.0.13113456..."
+          sdkmanager "ndk;29.0.13113456" 2>&1 | tail -5
+          
+          # Install CMake
+          echo "Installing CMake..."
+          sdkmanager "cmake;3.28.0" 2>&1 | tail -5
           
           # Set environment variables
           echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
           echo "$ANDROID_HOME/cmdline-tools/latest/bin:$PATH" >> $GITHUB_PATH
           
           echo "✅ Android SDK setup complete"
-          ls -la $ANDROID_HOME/ 2>/dev/null || echo "ANDROID_HOME empty"
+          ls -la $ANDROID_HOME/
       
       - name: Verify NDK installation
         run: |
           echo "=== NDK Verification ==="
-          
-          # Check system NDK
-          if [ -d "/usr/lib/android-ndk" ]; then
-            echo "✅ System NDK found: /usr/lib/android-ndk"
-            ls -la /usr/lib/android-ndk | head -5
-          fi
-          
-          # Check ANDROID_HOME NDK
           NDK_PATH="$ANDROID_HOME/ndk/29.0.13113456"
+          
           if [ -d "$NDK_PATH" ]; then
-            echo "✅ ANDROID_HOME NDK found at: $NDK_PATH"
-          elif [ -L "$ANDROID_HOME/ndk/current" ]; then
-            echo "✅ NDK symlink found"
+            echo "✅ NDK found at: $NDK_PATH"
+            echo "NDK version: $(cat $NDK_PATH/source.properties 2>/dev/null | head -1)"
+            TOOLCHAIN="$NDK_PATH/build/cmake/android.toolchain.cmake"
+            if [ -f "$TOOLCHAIN" ]; then
+              echo "✅ CMake toolchain found"
+            fi
           else
-            echo "⚠️ No specific NDK 29.0.13113456 found, using system NDK"
+            echo "❌ NDK not found at: $NDK_PATH"
+            ls -la "$ANDROID_HOME/" 2>/dev/null || echo "ANDROID_HOME doesn't exist"
+            exit 1
           fi
       
       - name: Install build dependencies
@@ -99,26 +97,13 @@ jobs:
           sudo apt-get install -y pkg-config libadrenotools-dev 2>&1 | tail -3 || echo "libadrenotools-dev not in repo"
           echo "✅ Build dependencies ready"
       
-      - name: Setup NDK environment
+      - name: Setup NDK environment variables
         run: |
-          NDK_PATH="$ANDROID_HOME/ndk/29.0.13113456"
-          echo "Looking for NDK at: $NDK_PATH"
-          
-          if [ ! -d "$NDK_PATH" ]; then
-            echo "❌ NDK not found at expected location!"
-            echo "Checking what's in ANDROID_HOME/ndk:"
-            ls -la "$ANDROID_HOME/ndk/" 2>/dev/null || echo "ndk/ directory doesn't exist"
-            echo ""
-            echo "Checking all Android SDK directories:"
-            ls -la "$ANDROID_HOME/" 2>/dev/null | head -20
-            exit 1
-          fi
-          
-          export NDK_ROOT="$NDK_PATH"
-          export CMAKE_TOOLCHAIN_FILE="$NDK_PATH/build/cmake/android.toolchain.cmake"
+          export NDK_ROOT="$ANDROID_HOME/ndk/29.0.13113456"
+          export CMAKE_TOOLCHAIN_FILE="$NDK_ROOT/build/cmake/android.toolchain.cmake"
           echo "NDK_ROOT=$NDK_ROOT" >> $GITHUB_ENV
           echo "CMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN_FILE" >> $GITHUB_ENV
-          echo "✅ NDK environment configured"
+          echo "✅ NDK environment variables set"
       
       - name: Accept licenses
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
