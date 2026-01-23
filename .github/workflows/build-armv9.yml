@@ -39,19 +39,54 @@ jobs:
             ndk;29.0.13113456
             cmake;3.28.0
             build-tools;36.0.0
+          accept-android-sdk-licenses: true
       
-      - name: Wait for Android SDK setup
+      - name: Wait and verify Android SDK setup
         run: |
-          echo "Waiting for Android SDK setup to complete..."
-          sleep 5
+          echo "=== Android SDK Setup Verification ==="
           echo "ANDROID_HOME: $ANDROID_HOME"
-          ls -la "$ANDROID_HOME" | head -10
+          sleep 5
+          
+          if [ -d "$ANDROID_HOME" ]; then
+            echo "✅ ANDROID_HOME exists"
+            ls -la "$ANDROID_HOME" 2>/dev/null | head -15
+          else
+            echo "❌ ANDROID_HOME not found: $ANDROID_HOME"
+          fi
+          
+          # Check if ndkmanager is available
+          if [ -f "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
+            echo "✅ sdkmanager found"
+          else
+            echo "❌ sdkmanager not found"
+          fi
       
       - name: Install build dependencies
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y pkg-config libadrenotools-dev 2>&1 | tail -3 || echo "libadrenotools-dev not in repo"
           echo "Build tools ready"
+      
+      - name: Manually install NDK if needed
+        run: |
+          ANDROID_SDK_ROOT="${ANDROID_HOME}"
+          NDK_PATH="$ANDROID_SDK_ROOT/ndk/29.0.13113456"
+          
+          if [ ! -d "$NDK_PATH" ]; then
+            echo "NDK not found, installing via sdkmanager..."
+            yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "ndk;29.0.13113456" || echo "⚠️ ndkmanager failed"
+          else
+            echo "✅ NDK already installed at $NDK_PATH"
+          fi
+          
+          # Final verification
+          if [ -d "$NDK_PATH" ]; then
+            echo "✅ NDK verified at: $NDK_PATH"
+            ls -la "$NDK_PATH/" | head -5
+          else
+            echo "❌ NDK still not found after install attempt"
+            exit 1
+          fi
       
       - name: Setup NDK environment
         run: |
