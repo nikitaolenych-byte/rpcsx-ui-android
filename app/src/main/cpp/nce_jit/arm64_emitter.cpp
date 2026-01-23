@@ -1081,7 +1081,7 @@ void PPCTranslator::EmitFPArith(const ppc::DecodedInstr& instr) {
         // FMUL Dd, Dn, Dm
         // Note: PPC fmul uses FRC field (bits 21-25) for second operand
         {
-            VecReg frc = static_cast<VecReg>((instr.rAw >> 6) & 0x1F);
+            VecReg frc = static_cast<VecReg>((instr.raw >> 6) & 0x1F);
             emit_.Emit(0x1E600800 | (static_cast<uint32_t>(frc) << 16) |
                        (static_cast<uint32_t>(fra) << 5) | static_cast<uint32_t>(frd));
         }
