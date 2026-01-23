@@ -13,8 +13,8 @@
 #include <cmath>
 
 #if defined(__aarch64__)
-// #include <adrenotools/driver.h>
-// #include <adrenotools/priv.h>
+#include "libadrenotools/adrenotools/driver.h"
+#include "libadrenotools/adrenotools/priv.h"
 #endif
 
 // RPCSX ARMv9 Optimization Modules
@@ -33,6 +33,7 @@
 
 #define LOG_TAG "RPCSX-Native"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+#define LOGW(...) __android_log_print(ANDROID_LOG_WARN, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 struct RPCSXApi {
@@ -730,7 +731,7 @@ extern "C" JNIEXPORT void JNICALL
 Java_net_rpcsx_RPCSX_rsxSubmitCommand(JNIEnv *env, jobject,
                                       jint cmd_type,
                                       jintArray cmd_data) {
-  if (!g_rsx_engine) {
+  if (!rpcsx::vulkan::g_rsx_engine) {
     LOGW("RSX engine not initialized");
     return;
   }
@@ -756,12 +757,12 @@ Java_net_rpcsx_RPCSX_rsxSubmitCommand(JNIEnv *env, jobject,
  */
 extern "C" JNIEXPORT jlongArray JNICALL
 Java_net_rpcsx_RPCSX_rsxGetStats(JNIEnv *env, jobject) {
-  if (!g_rsx_engine) {
+  if (!rpcsx::vulkan::g_rsx_engine) {
     return nullptr;
   }
   
   rpcsx::vulkan::RSXGraphicsEngine::GraphicsStats stats{};
-  g_rsx_engine->GetGraphicsStats(&stats);
+  rpcsx::vulkan::g_rsx_engine->GetGraphicsStats(&stats);
   
   // Return [total_commands, total_draws, total_clears]
   jlong stat_array[] = {
@@ -795,7 +796,7 @@ Java_net_rpcsx_RPCSX_rsxStart(JNIEnv *env, jobject) {
     return JNI_TRUE;
   }
   
-  if (!g_rsx_engine) {
+  if (!rpcsx::vulkan::g_rsx_engine) {
     LOGE("RSX engine not initialized");
     return JNI_FALSE;
   }
@@ -819,8 +820,8 @@ Java_net_rpcsx_RPCSX_rsxStop(JNIEnv *env, jobject) {
   g_rsx_started = false;
   
   // Flush all pending commands
-  if (g_rsx_engine) {
-    g_rsx_engine->Flush();
+  if (rpcsx::vulkan::g_rsx_engine) {
+    rpcsx::vulkan::g_rsx_engine->Flush();
   }
 }
 
@@ -839,13 +840,13 @@ static std::atomic<int> g_rsx_thread_count{4}; // Default 4 threads for Cortex-X
  * Get RSX statistics as JSON string
  */
 extern "C" JNIEXPORT jstring JNICALL
-Java_net_rpcsx_RPCSX_rsxGetStats(JNIEnv *env, jobject) {
-  if (!g_rsx_engine) {
+Java_net_rpcsx_RPCSX_rsxGetStatsJson(JNIEnv *env, jobject) {
+  if (!rpcsx::vulkan::g_rsx_engine) {
     return env->NewStringUTF("{\"error\": \"RSX not initialized\"}");
   }
   
   rpcsx::vulkan::RSXGraphicsEngine::GraphicsStats stats;
-  g_rsx_engine->GetGraphicsStats(&stats);
+  rpcsx::vulkan::g_rsx_engine->GetGraphicsStats(&stats);
   
   char buffer[512];
   snprintf(buffer, sizeof(buffer),
@@ -853,18 +854,16 @@ Java_net_rpcsx_RPCSX_rsxGetStats(JNIEnv *env, jobject) {
     "\"running\": %s,"
     "\"total_draws\": %lu,"
     "\"total_commands\": %lu,"
+    "\"total_clears\": %lu,"
     "\"thread_count\": %d,"
-    "\"queue_depth\": %lu,"
-    "\"avg_latency_us\": %.2f,"
-    "\"gpu_utilization\": %.1f"
+    "\"gpu_wait_cycles\": %lu"
     "}",
     g_rsx_started ? "true" : "false",
     stats.total_draws,
     stats.total_commands,
+    stats.total_clears,
     g_rsx_thread_count.load(),
-    stats.queue_depth,
-    stats.avg_latency_us,
-    stats.gpu_utilization
+    stats.gpu_wait_cycles
   );
   
   return env->NewStringUTF(buffer);
@@ -881,10 +880,8 @@ Java_net_rpcsx_RPCSX_rsxSetThreadCount(JNIEnv *env, jobject, jint count) {
   LOGI("RSX thread count set to %d", count);
   g_rsx_thread_count.store(count);
   
-  // Apply to running engine if active
-  if (g_rsx_engine && g_rsx_started) {
-    g_rsx_engine->SetWorkerThreadCount(count);
-  }
+  // Thread count will be applied on next engine initialization
+  // Dynamic thread count changes not supported yet
 }
 
 extern "C" JNIEXPORT jint JNICALL
@@ -902,7 +899,7 @@ static float g_rsx_current_fps = 0.0f;
 
 extern "C" JNIEXPORT jint JNICALL
 Java_net_rpcsx_RPCSX_getRSXFPS(JNIEnv *env, jobject) {
-  if (!g_rsx_started || !g_rsx_engine) {
+  if (!g_rsx_started || !rpcsx::vulkan::g_rsx_engine) {
     return 0;
   }
   
@@ -913,7 +910,7 @@ Java_net_rpcsx_RPCSX_getRSXFPS(JNIEnv *env, jobject) {
   if (elapsed >= 1000) {
     // Get current draw count from RSX engine
     rpcsx::vulkan::RSXGraphicsEngine::GraphicsStats stats;
-    g_rsx_engine->GetGraphicsStats(&stats);
+    rpcsx::vulkan::g_rsx_engine->GetGraphicsStats(&stats);
     
     // Calculate FPS based on draw calls (approximate)
     static uint64_t last_draws = 0;
@@ -938,7 +935,7 @@ Java_net_rpcsx_RPCSX_getRSXFPS(JNIEnv *env, jobject) {
 extern "C" JNIEXPORT jfloat JNICALL
 Java_net_rpcsx_RPCSX_runGraphicsPerformanceTest(JNIEnv *env, jobject,
                                                  jint num_draws) {
-  if (!g_rsx_engine) {
+  if (!rpcsx::vulkan::g_rsx_engine) {
     LOGE("RSX engine not available");
     return 0.0f;
   }
@@ -956,11 +953,11 @@ Java_net_rpcsx_RPCSX_runGraphicsPerformanceTest(JNIEnv *env, jobject,
     draw_cmd.data[1] = 100 + i;  // Vertex count (vary)
     draw_cmd.priority = static_cast<uint16_t>(i % 256); // Assign priorities
     
-    g_rsx_engine->SubmitCommand(draw_cmd);
+    rpcsx::vulkan::g_rsx_engine->SubmitCommand(draw_cmd);
   }
   
   // Wait for GPU to process all commands
-  g_rsx_engine->Flush();
+  rpcsx::vulkan::g_rsx_engine->Flush();
   
   auto end_time = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(

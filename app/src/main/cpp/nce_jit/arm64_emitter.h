@@ -878,25 +878,13 @@ public:
                  (static_cast<uint32_t>(rn) << 5) | static_cast<uint32_t>(rt));
     }
     
-    // CMP Xn, Xm (SUBS XZR, Xn, Xm)
-    void CMP(GpReg rn, GpReg rm) {
-        SUBS(GpReg::ZR, rn, rm);
-    }
-    
     // ============================================
-    // Branches for JIT
+    // Additional Branches for JIT
     // ============================================
     
-    // B offset (relative branch)
-    void B(int32_t offset) {
-        int32_t imm26 = (offset >> 2) & 0x3FFFFFF;
-        buf_.Emit(0x14000000 | imm26);
-    }
-    
-    // Bcond - conditional branch
+    // Bcond - conditional branch (alias for B_COND)
     void Bcond(Cond cond, int32_t offset) {
-        int32_t imm19 = (offset >> 2) & 0x7FFFF;
-        buf_.Emit(0x54000000 | (imm19 << 5) | static_cast<uint32_t>(cond));
+        B_COND(cond, offset);
     }
     
     // ============================================
