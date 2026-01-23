@@ -357,7 +357,7 @@ class RPCSXActivity : Activity() {
         
         android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_LONG).show()
     }
-}
+
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) enableFullScreenImmersive()
