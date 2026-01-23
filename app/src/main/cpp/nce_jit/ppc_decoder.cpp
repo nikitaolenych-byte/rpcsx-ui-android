@@ -112,19 +112,20 @@ DecodedInstr DecodeInstruction(const uint8_t* code, uint64_t pc) {
     uint32_t raw = instr.raw;
     
     // Primary opcode: bits 0-5
-    instr.opcode = ExtractBits(raw, 0, 5);
+    uint8_t opcode = ExtractBits(raw, 0, 5);
+    instr.primary = static_cast<PrimaryOp>(opcode);
     
     // Common fields
-    instr.rd = static_cast<GPR>(ExtractBits(raw, 6, 10));
-    instr.ra = static_cast<GPR>(ExtractBits(raw, 11, 15));
-    instr.rb = static_cast<GPR>(ExtractBits(raw, 16, 20));
+    instr.rD = ExtractBits(raw, 6, 10);
+    instr.rA = ExtractBits(raw, 11, 15);
+    instr.rB = ExtractBits(raw, 16, 20);
     instr.rc = (raw & 1) != 0;
     
     // D-form immediate (bits 16-31)
     instr.simm = static_cast<int16_t>(raw & 0xFFFF);
     instr.uimm = raw & 0xFFFF;
     
-    PrimaryOp op = static_cast<PrimaryOp>(instr.opcode);
+    PrimaryOp op = instr.primary;
     
     switch (op) {
     // ================== Load/Store ==================
