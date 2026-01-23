@@ -97,6 +97,24 @@ import org.json.JSONObject
 import java.io.File
 import kotlin.math.ceil
 
+// Safe wrapper for RPCSX native calls
+private fun safeSettingsSet(path: String, value: String): Boolean {
+    return try {
+        safeSettingsSet(path, value)
+    } catch (e: Exception) {
+        Log.e("Settings", "Error setting $path to $value: ${e.message}")
+        false
+    }
+}
+
+private fun safeSetNCEMode(mode: Int) {
+    try {
+        safeSetNCEMode(mode)
+    } catch (e: Exception) {
+        Log.e("Settings", "Error setting NCE mode to $mode: ${e.message}")
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdvancedSettingsScreen(
@@ -212,18 +230,17 @@ fun AdvancedSettingsScreen(
             filteredKeys.forEach { key ->
                 val itemPath = "$path@@$key"
                 item(key = key) {
-                    try {
-                        val itemObject = settingValue.value[key] as? JSONObject
+                    val itemObject = settingValue.value[key] as? JSONObject
 
-                        if (itemObject != null) {
-                            when (val type =
-                                if (itemObject.has("type")) itemObject.getString("type") else null) {
-                                null -> {
-                                    RegularPreference(
-                                        title = key, leadingIcon = null, onClick = {
-                                            Log.e(
-                                                "Main",
-                                                "Navigate to settings$itemPath, object $itemObject"
+                    if (itemObject != null) {
+                        when (val type =
+                            if (itemObject.has("type")) itemObject.getString("type") else null) {
+                            null -> {
+                                RegularPreference(
+                                    title = key, leadingIcon = null, onClick = {
+                                        Log.e(
+                                            "Main",
+                                            "Navigate to settings$itemPath, object $itemObject"
                                         )
                                         navigateTo("settings$itemPath")
                                     })
@@ -237,7 +254,7 @@ fun AdvancedSettingsScreen(
                                     title = key + if (itemValue == def) "" else " *",
                                     leadingIcon = null,
                                     onClick = { value ->
-                                        if (!RPCSX.instance.settingsSet(
+                                        if (!safeSettingsSet(
                                                 itemPath, if (value) "true" else "false"
                                             )
                                         ) {
@@ -255,10 +272,7 @@ fun AdvancedSettingsScreen(
                                             title = context.getString(R.string.reset_setting),
                                             message = context.getString(R.string.ask_if_reset_key, key),
                                             onConfirm = {
-                                                if (RPCSX.instance.settingsSet(
-                                                        itemPath, def.toString()
-                                                    )
-                                                ) {
+                                                if (safeSettingsSet(itemPath, def.toString())) {
                                                     itemObject.put("value", def)
                                                     itemValue = def
                                                 } else {
@@ -322,9 +336,9 @@ fun AdvancedSettingsScreen(
                                         if (isPpuDecoder && value == "NCE") {
                                             // IMPORTANT: Must use LLVM 19 to compile PPU modules!
                                             // Interpreter skips PPU compilation entirely.
-                                            RPCSX.instance.settingsSet(itemPath, "\"LLVM Recompiler (Legacy)\"")
+                                            safeSettingsSet(itemPath, "\"LLVM Recompiler (Legacy)\"")
                                             // Activate NCE Native - Your phone IS PlayStation 3!
-                                            RPCSX.instance.setNCEMode(3)
+                                            safeSetNCEMode(3)
                                             // Save NCE mode (use cached setter for performance)
                                             net.rpcsx.utils.GeneralSettings.nceMode = 3
                                             itemObject.put("value", value)
@@ -345,7 +359,7 @@ fun AdvancedSettingsScreen(
                                             else -> value
                                         }
                                         
-                                        if (!RPCSX.instance.settingsSet(
+                                        if (!safeSettingsSet(
                                                 itemPath, "\"" + internalValue + "\""
                                             )
                                         ) {
@@ -364,7 +378,7 @@ fun AdvancedSettingsScreen(
                                                     "Interpreter" -> 1
                                                     else -> 0
                                                 }
-                                                RPCSX.instance.setNCEMode(nceMode)
+                                                safeSetNCEMode(nceMode)
                                                 net.rpcsx.utils.GeneralSettings.nceMode = nceMode
                                             }
                                         }
@@ -374,7 +388,7 @@ fun AdvancedSettingsScreen(
                                             title = context.getString(R.string.reset_setting),
                                             message = context.getString(R.string.ask_if_reset_key, key),
                                             onConfirm = {
-                                                if (RPCSX.instance.settingsSet(
+                                                if (safeSettingsSet(
                                                         itemPath, "\"" + def + "\""
                                                     )
                                                 ) {
@@ -411,7 +425,7 @@ fun AdvancedSettingsScreen(
                                         title = key + if (itemValue == def) "" else " *",
                                         steps = (max - min).toInt() - 1,
                                         onValueChange = { value ->
-                                            if (!RPCSX.instance.settingsSet(
+                                            if (!safeSettingsSet(
                                                     itemPath, value.toLong().toString()
                                                 )
                                             ) {
@@ -432,7 +446,7 @@ fun AdvancedSettingsScreen(
                                                 title = context.getString(R.string.reset_setting),
                                                 message = context.getString(R.string.ask_if_reset_key, key),
                                                 onConfirm = {
-                                                    if (RPCSX.instance.settingsSet(
+                                                    if (safeSettingsSet(
                                                             itemPath, def.toString()
                                                         )
                                                     ) {
@@ -472,7 +486,7 @@ fun AdvancedSettingsScreen(
                                         title = key + if (itemValue == def) "" else " *",
                                         steps = ceil(max - min).toInt() - 1,
                                         onValueChange = { value ->
-                                            if (!RPCSX.instance.settingsSet(
+                                            if (!safeSettingsSet(
                                                     itemPath, value.toString()
                                                 )
                                             ) {
@@ -491,7 +505,7 @@ fun AdvancedSettingsScreen(
                                                 title = context.getString(R.string.reset_setting),
                                                 message = context.getString(R.string.ask_if_reset_key, key),
                                                 onConfirm = {
-                                                    if (RPCSX.instance.settingsSet(
+                                                    if (safeSettingsSet(
                                                             itemPath, def.toString()
                                                         )
                                                     ) {
@@ -512,10 +526,6 @@ fun AdvancedSettingsScreen(
                                 Log.e("Main", "Unimplemented setting type $type")
                             }
                         }
-                    }
-                    } catch (e: Exception) {
-                        Log.e("Settings", "Error rendering setting $key: ${e.message}")
-                        Text("Error loading setting: $key")
                     }
                 }
             }
