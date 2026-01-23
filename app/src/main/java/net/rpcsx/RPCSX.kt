@@ -131,6 +131,11 @@ class RPCSX {
     external fun rsxSetThreadCount(count: Int)
     external fun rsxGetThreadCount(): Int
 
+    // Performance Benchmark Tests
+    external fun runGraphicsPerformanceTest(numDraws: Int): Float
+    external fun runMemoryPerformanceTest(): Float
+    external fun runCPUPerformanceTest(): Float
+
 
     companion object {
         var initialized = false
