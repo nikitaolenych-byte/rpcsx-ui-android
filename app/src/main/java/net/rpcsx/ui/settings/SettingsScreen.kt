@@ -368,18 +368,26 @@ fun AdvancedSettingsScreen(
                                                 context.getString(R.string.failed_to_assign_value, value, itemPath)
                                             )
                                         } else {
-                                            itemObject.put("value", internalValue)
-                                            itemValue = value
-                                            
-                                            // Sync NCE mode when PPU Decoder changes
-                                            if (isPpuDecoder) {
-                                                val nceMode = when (value) {
-                                                    "LLVM 19" -> 2
-                                                    "Interpreter" -> 1
-                                                    else -> 0
+                                            try {
+                                                itemObject.put("value", internalValue)
+                                                itemValue = internalValue  // Use internalValue not value
+                                                
+                                                // Sync NCE mode when PPU Decoder changes
+                                                if (isPpuDecoder) {
+                                                    val nceMode = when (internalValue) {
+                                                        "LLVM Recompiler (Legacy)" -> 2  // LLVM 19
+                                                        "Interpreter (Legacy)", "Interpreter" -> 1
+                                                        else -> 0
+                                                    }
+                                                    safeSetNCEMode(nceMode)
+                                                    try {
+                                                        net.rpcsx.utils.GeneralSettings.nceMode = nceMode
+                                                    } catch (e: Exception) {
+                                                        android.util.Log.e("Settings", "Failed to save NCE mode: ${e.message}")
+                                                    }
                                                 }
-                                                safeSetNCEMode(nceMode)
-                                                net.rpcsx.utils.GeneralSettings.nceMode = nceMode
+                                            } catch (e: Exception) {
+                                                android.util.Log.e("Settings", "Error updating PPU decoder: ${e.message}")
                                             }
                                         }
                                     },
@@ -561,7 +569,7 @@ fun AdvancedSettingsScreen(
                 item(key = "rsx_enabled") {
                     var rsxEnabled by remember { 
                         mutableStateOf(
-                            try { RPCSX.instance.rsxIsRunning() } catch (e: Exception) { false }
+                            try { RPCSX.instance.rsxIsRunning() } catch (e: Exception) { true }
                         ) 
                     }
                     SwitchPreference(
