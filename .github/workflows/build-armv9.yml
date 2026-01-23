@@ -32,14 +32,12 @@ jobs:
           fi
           echo "✅ Java 17 verified"
       
-      - uses: android-actions/setup-android@v3
+      - uses: reactivecircus/android-sdk-image-ubuntu@v2
         with:
-          packages: |
-            platforms;android-36
-            ndk;29.0.13113456
-            cmake;3.28.0
-            build-tools;36.0.0
-          accept-android-sdk-licenses: true
+          ndk-version: 29.0.13113456
+          cmake-version: 3.28.0
+          api-level: 36
+          build-tools-version: 36.0.0
       
       - name: Wait and verify Android SDK setup
         run: |
