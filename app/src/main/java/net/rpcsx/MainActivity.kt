@@ -225,11 +225,11 @@ class MainActivity : ComponentActivity() {
             GeneralSettings.sync()
 
             // Apply RSX thread count to native layer (takes effect on next init)
-            try {
-                RPCSX.instance.rsxSetThreadCount(8)
-            } catch (e: Exception) {
-                Log.e("RPCSX", "Failed to set RSX thread count", e)
-            }
+                try {
+                    RPCSX.instance.rsxSetThreadCount(8)
+                } catch (e: Throwable) {
+                    Log.e("RPCSX", "Failed to set RSX thread count", e)
+                }
 
             // LLVM performance tweaks
             safeSettingsSet("Core@@PPU LLVM Greedy Mode", "true")
