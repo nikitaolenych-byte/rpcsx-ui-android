@@ -50,6 +50,15 @@ enum class Cond : uint8_t {
     AL = 14   // Always
 };
 
+// Special registers on ARM64 (must be defined before Emitter class)
+constexpr GpReg REG_STATE = GpReg::X29;   // PPU state pointer
+constexpr GpReg REG_LR = GpReg::X30;      // Link Register
+constexpr GpReg REG_CTR = GpReg::X22;     // Count Register
+constexpr GpReg REG_XER = GpReg::X23;     // XER (carry, overflow)
+constexpr GpReg REG_CR = GpReg::X24;      // Condition Register
+constexpr GpReg REG_TMP1 = GpReg::X25;    // Temp register 1
+constexpr GpReg REG_TMP2 = GpReg::X26;    // Temp register 2
+
 /**
  * ARM64 Code Buffer with instruction emission
  */
@@ -1025,15 +1034,6 @@ inline VecReg MapPPCVR(ppc::VR reg) {
     return static_cast<VecReg>(static_cast<uint8_t>(reg));
 }
 
-// Special registers on ARM64
-constexpr GpReg REG_STATE = GpReg::X29;   // PPU state pointer
-constexpr GpReg REG_LR = GpReg::X30;      // Link Register
-constexpr GpReg REG_CTR = GpReg::X22;     // Count Register
-constexpr GpReg REG_XER = GpReg::X23;     // XER (carry, overflow)
-constexpr GpReg REG_CR = GpReg::X24;      // Condition Register
-constexpr GpReg REG_TMP1 = GpReg::X25;    // Temp register 1
-constexpr GpReg REG_TMP2 = GpReg::X26;    // Temp register 2
-
 /**
  * PPU State structure layout (offsets)
  */
@@ -1060,6 +1060,74 @@ public:
     
     // Translate single PowerPC instruction
     bool Translate(const ppc::DecodedInstr& instr);
+    
+    // Translate OP31 (extended ALU) instructions
+    void TranslateOp31(const ppc::DecodedInstr& instr) {
+        // OP31 extended opcode is in bits 21-30
+        uint16_t xo = instr.xo;
+        
+        switch (xo) {
+            case 266:  // ADD
+            case 10:   // ADDC
+            case 138:  // ADDE
+                EmitAdd(instr);
+                break;
+            case 40:   // SUBF
+            case 8:    // SUBFC
+            case 136:  // SUBFE
+                EmitSub(instr);
+                break;
+            case 235:  // MULLW
+            case 233:  // MULLD
+                EmitMul(instr);
+                break;
+            case 491:  // DIVW
+            case 489:  // DIVD
+                EmitDiv(instr);
+                break;
+            case 28:   // AND
+            case 60:   // ANDC
+            case 444:  // OR
+            case 124:  // NOR
+            case 316:  // XOR
+            case 284:  // EQV
+                EmitLogic(instr);
+                break;
+            case 24:   // SLW
+            case 536:  // SRW
+            case 792:  // SRAW
+                EmitShift(instr);
+                break;
+            case 0:    // CMP
+            case 32:   // CMPL
+                EmitCompare(instr);
+                break;
+            case 339:  // MFSPR
+            case 467:  // MTSPR
+                EmitSPR(instr);
+                break;
+            case 19:   // MFCR
+            case 144:  // MTCRF
+                EmitCRLogic(instr);
+                break;
+            case 23:   // LWZX
+            case 21:   // LDUX
+            case 87:   // LBZX
+            case 279:  // LHZX
+                EmitLoad(instr);
+                break;
+            case 151:  // STWX
+            case 149:  // STDX
+            case 215:  // STBX
+            case 407:  // STHX
+                EmitStore(instr);
+                break;
+            default:
+                // Unsupported extended opcode - emit breakpoint
+                emit_.BRK(static_cast<uint16_t>(xo & 0x3FF));
+                break;
+        }
+    }
     
 private:
     Emitter& emit_;

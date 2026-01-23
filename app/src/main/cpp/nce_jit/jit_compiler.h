@@ -333,7 +333,7 @@ inline CompiledBlock* JitCompiler::CompileBlock(const uint8_t* guest_code,
     // Create code buffer and emitter
     CodeBuffer codebuf(code_start, std::min(remaining, config_.max_block_size * 4));
     Emitter emit(codebuf);
-    PPCTranslator translator;
+    PPCTranslator translator(emit);
     
     size_t guest_offset = 0;
     size_t instr_count = 0;
@@ -432,7 +432,7 @@ inline CompiledBlock* JitCompiler::CompileBlock(const uint8_t* guest_code,
                 
             case ppc::PrimaryOp::OP31:
                 // Extended ALU operations
-                TranslateOp31(emit, instr);
+                translator.TranslateOp31(instr);
                 break;
                 
             default:
