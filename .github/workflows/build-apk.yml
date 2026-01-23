@@ -61,18 +61,10 @@ jobs:
           echo "=== Release APKs ==="
           find app/build -name "*release*.apk" -type f 2>/dev/null || echo "No release APK"
       
-      - name: Upload Debug APK
+      - name: Upload APKs
         uses: actions/upload-artifact@v4
         with:
-          name: rpcsx-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
-          retention-days: 14
-          if-no-files-found: warn
-      
-      - name: Upload Release APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: rpcsx-release-apk
-          path: app/build/outputs/apk/release/*.apk
+          name: rpcsx-apk
+          path: app/build/outputs/apk/**/*.apk
           retention-days: 30
           if-no-files-found: warn
