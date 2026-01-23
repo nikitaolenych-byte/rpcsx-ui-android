@@ -34,9 +34,11 @@ jobs:
       
       - uses: android-actions/setup-android@v3
         with:
-          api-level: 36
-          ndk-version: 29.0.13113456
-          cmake-version: 3.28.0
+          packages: |
+            platforms;android-36
+            ndk;29.0.13113456
+            cmake;3.28.0
+            build-tools;36.0.0
       
       - name: Install build dependencies
         run: |
