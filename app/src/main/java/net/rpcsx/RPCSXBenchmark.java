@@ -159,7 +159,7 @@ public class RPCSXBenchmark {
         int iterations = 100;
         
         for (int i = 0; i < iterations; ++i) {
-            boolean success = rpcsx.testNCEJIT();
+            boolean success = rpcsx.runJITTest();
             if (!success) {
                 throw new RuntimeException("NCE JIT test failed");
             }
