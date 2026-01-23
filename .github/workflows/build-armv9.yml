@@ -35,18 +35,50 @@ jobs:
       - name: Accept licenses
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
       
+      - name: Verify build tools
+        run: |
+          echo "=== Environment Check ==="
+          java -version 2>&1 | head -1
+          cmake --version | head -1
+          clang --version 2>/dev/null | head -1 || echo "clang: OK (in NDK)"
+          echo "ANDROID_HOME: $ANDROID_HOME"
+          ls -la $ANDROID_HOME/ndk/29.0.13113456/toolchain/clang 2>/dev/null | head -1 || echo "NDK clang: checking..."
+          echo "=== Gradle wrapper ==="
+          ./gradlew --version | head -3
+      
       - name: Build Release APK
         run: |
           chmod +x gradlew
+          echo "Starting Gradle build..."
           ./gradlew assembleRelease \
             -Pandroid.native.buildOutput=verbose \
-            --no-daemon 2>&1 | tail -100
+            --no-daemon 2>&1 | tee gradle-build.log
+          
+          BUILD_EXIT=${PIPESTATUS[0]}
+          echo "Build exit code: $BUILD_EXIT"
+          
+          if [ $BUILD_EXIT -ne 0 ]; then
+            echo "❌ Build FAILED - showing last 200 lines of log:"
+            tail -200 gradle-build.log
+            exit $BUILD_EXIT
+          fi
+          echo "✅ Build succeeded"
       
       - name: Find APK
         if: success()
         run: |
-          APK=$(find app/build/outputs/apk -name "*.apk" | head -1)
-          [ -z "$APK" ] && echo "APK not found!" && exit 1
+          echo "Searching for APK..."
+          find app/build -type f -name "*.apk" 2>/dev/null | head -10 || echo "No APK files found"
+          
+          APK=$(find app/build/outputs/apk -type f -name "*.apk" 2>/dev/null | head -1)
+          if [ -z "$APK" ]; then
+            echo "❌ APK not found in standard location"
+            echo "Build outputs directory structure:"
+            ls -la app/build/outputs/ 2>/dev/null || echo "outputs/ directory not found"
+            exit 1
+          fi
+          
+          echo "✅ Found APK: $APK"
           cp "$APK" rpcsx-armv9.apk
           ls -lh rpcsx-armv9.apk
       
