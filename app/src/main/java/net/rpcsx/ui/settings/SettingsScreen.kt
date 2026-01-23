@@ -508,6 +508,117 @@ fun AdvancedSettingsScreen(
                     )
                 }
             }
+            
+            // RSX Video Settings - show when in Video section
+            if (path.contains("Video", ignoreCase = true)) {
+                item(key = "rsx_header") {
+                    PreferenceHeader(title = stringResource(R.string.rsx_video_settings))
+                }
+                
+                item(key = "rsx_enabled") {
+                    var rsxEnabled by remember { mutableStateOf(RPCSX.instance.rsxIsRunning()) }
+                    SwitchPreference(
+                        checked = rsxEnabled,
+                        title = stringResource(R.string.rsx_enabled),
+                        description = stringResource(R.string.rsx_enabled_description),
+                        leadingIcon = {
+                            PreferenceIcon(icon = painterResource(R.drawable.ic_rsx_engine))
+                        },
+                        onClick = { enabled ->
+                            if (enabled) {
+                                val success = RPCSX.instance.rsxStart()
+                                if (success) {
+                                    rsxEnabled = true
+                                    Toast.makeText(context, context.getString(R.string.rsx_status_on), Toast.LENGTH_SHORT).show()
+                                }
+                            } else {
+                                RPCSX.instance.rsxStop()
+                                rsxEnabled = false
+                                Toast.makeText(context, context.getString(R.string.rsx_status_off), Toast.LENGTH_SHORT).show()
+                            }
+                            GeneralSettings.setValue("rsx_enabled", enabled)
+                        }
+                    )
+                }
+                
+                item(key = "rsx_thread_count") {
+                    var threadCount by remember { mutableStateOf(RPCSX.instance.rsxGetThreadCount().toFloat()) }
+                    SliderPreference(
+                        value = threadCount,
+                        valueRange = 1f..8f,
+                        title = stringResource(R.string.rsx_thread_count),
+                        steps = 6,
+                        onValueChange = { value ->
+                            val count = value.toInt()
+                            RPCSX.instance.rsxSetThreadCount(count)
+                            threadCount = value
+                            GeneralSettings.setValue("rsx_thread_count", count)
+                        },
+                        valueContent = {
+                            PreferenceValue(text = "${threadCount.toInt()} threads")
+                        }
+                    )
+                }
+                
+                item(key = "rsx_fps_stats") {
+                    val rsxRunning = RPCSX.instance.rsxIsRunning()
+                    val fps = if (rsxRunning) RPCSX.instance.getRSXFPS() else 0
+                    RegularPreference(
+                        title = stringResource(R.string.rsx_stats),
+                        description = if (rsxRunning) "FPS: $fps" else stringResource(R.string.rsx_status_off),
+                        leadingIcon = null,
+                        onClick = {
+                            val stats = RPCSX.instance.rsxGetStats()
+                            Toast.makeText(context, stats, Toast.LENGTH_LONG).show()
+                        }
+                    )
+                }
+                
+                item(key = "rsx_resolution_scale") {
+                    var scale by remember { mutableStateOf((GeneralSettings["rsx_resolution_scale"] as? Int ?: 100).toFloat()) }
+                    SliderPreference(
+                        value = scale,
+                        valueRange = 50f..200f,
+                        title = "Resolution Scale",
+                        steps = 5,
+                        onValueChange = { value ->
+                            scale = value
+                            GeneralSettings.setValue("rsx_resolution_scale", value.toInt())
+                        },
+                        valueContent = {
+                            PreferenceValue(text = "${scale.toInt()}%")
+                        }
+                    )
+                }
+                
+                item(key = "rsx_vsync") {
+                    var vsyncEnabled by remember { mutableStateOf(GeneralSettings["rsx_vsync"] as? Boolean ?: true) }
+                    SwitchPreference(
+                        checked = vsyncEnabled,
+                        title = "VSync",
+                        description = "Synchronize frame rate with display refresh",
+                        leadingIcon = null,
+                        onClick = { enabled ->
+                            vsyncEnabled = enabled
+                            GeneralSettings.setValue("rsx_vsync", enabled)
+                        }
+                    )
+                }
+                
+                item(key = "rsx_frame_limit") {
+                    var frameLimitEnabled by remember { mutableStateOf(GeneralSettings["rsx_frame_limit"] as? Boolean ?: true) }
+                    SwitchPreference(
+                        checked = frameLimitEnabled,
+                        title = "Frame Limit",
+                        description = "Limit frame rate to 60 FPS",
+                        leadingIcon = null,
+                        onClick = { enabled ->
+                            frameLimitEnabled = enabled
+                            GeneralSettings.setValue("rsx_frame_limit", enabled)
+                        }
+                    )
+                }
+            }
         }
     }
 }
@@ -631,17 +742,6 @@ fun SettingsScreen(
                                 configExporter.launch("config.yml")
                             }
                         )
-                    }
-                )
-            }
-            
-            item(key = "rsx_video_settings") {
-                HomePreference(
-                    title = stringResource(R.string.rsx_video_settings),
-                    icon = { Icon(painterResource(R.drawable.ic_rsx_engine), null) },
-                    description = stringResource(R.string.rsx_video_description),
-                    onClick = {
-                        navigateTo("rsx_video")
                     }
                 )
             }
