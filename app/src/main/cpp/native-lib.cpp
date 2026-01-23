@@ -707,3 +707,70 @@ Java_net_rpcsx_RPCSX_runJITTest(JNIEnv *env, jobject) {
   return JNI_TRUE;
 }
 
+/**
+ * RSX Graphics Engine Control
+ */
+
+/**
+ * Flush all pending graphics commands
+ * Waits for GPU to process all queued commands
+ */
+extern "C" JNIEXPORT void JNICALL
+Java_net_rpcsx_RPCSX_rsxFlush(JNIEnv *env, jobject) {
+  rpcsx::vulkan::RSXFlush();
+}
+
+/**
+ * Submit graphics command to RSX engine
+ * Used by PPU code to send graphics commands to GPU
+ */
+extern "C" JNIEXPORT void JNICALL
+Java_net_rpcsx_RPCSX_rsxSubmitCommand(JNIEnv *env, jobject,
+                                      jint cmd_type,
+                                      jintArray cmd_data) {
+  if (!g_rsx_engine) {
+    LOGW("RSX engine not initialized");
+    return;
+  }
+  
+  rpcsx::vulkan::RSXCommand cmd{};
+  cmd.type = static_cast<rpcsx::vulkan::RSXCommand::Type>(cmd_type);
+  
+  jint* data = env->GetIntArrayElements(cmd_data, nullptr);
+  jsize data_len = env->GetArrayLength(cmd_data);
+  
+  cmd.data_size = std::min(static_cast<jsize>(256), data_len);
+  for (jsize i = 0; i < cmd.data_size; ++i) {
+    cmd.data[i] = data[i];
+  }
+  
+  env->ReleaseIntArrayElements(cmd_data, data, JNI_ABORT);
+  
+  rpcsx::vulkan::RSXSubmitCommand(cmd);
+}
+
+/**
+ * Get RSX graphics statistics
+ */
+extern "C" JNIEXPORT jlongArray JNICALL
+Java_net_rpcsx_RPCSX_rsxGetStats(JNIEnv *env, jobject) {
+  if (!g_rsx_engine) {
+    return nullptr;
+  }
+  
+  rpcsx::vulkan::RSXGraphicsEngine::GraphicsStats stats{};
+  g_rsx_engine->GetGraphicsStats(&stats);
+  
+  // Return [total_commands, total_draws, total_clears]
+  jlong stat_array[] = {
+    static_cast<jlong>(stats.total_commands),
+    static_cast<jlong>(stats.total_draws),
+    static_cast<jlong>(stats.total_clears),
+    static_cast<jlong>(stats.gpu_wait_cycles)
+  };
+  
+  jlongArray result = env->NewLongArray(4);
+  env->SetLongArrayRegion(result, 0, 4, stat_array);
+  return result;
+}
+
