@@ -782,6 +782,18 @@ fun SettingsScreen(
                 )
             }
 
+            // RSX Graphics Engine Settings
+            item(key = "rsx_settings") {
+                HomePreference(
+                    title = stringResource(R.string.rsx_video_settings),
+                    icon = { Icon(painterResource(R.drawable.memory), contentDescription = null) },
+                    description = stringResource(R.string.rsx_enabled_description),
+                    onClick = {
+                        navigateTo("rsx_settings")
+                    }
+                )
+            }
+
             item(
                 key = "custom_driver"
             ) {
