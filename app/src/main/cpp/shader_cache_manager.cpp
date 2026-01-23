@@ -14,7 +14,7 @@
 #include <dirent.h>
 #include <cerrno>
 #include <cstring>
-#include <zstd.h>
+// #include <zstd.h>  // Optional: requires libzstd installation
 
 #define LOG_TAG "RPCSX-ShaderCache"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -186,59 +186,26 @@ uint64_t ComputeShaderHash(const void* shader_code, size_t size) {
 }
 
 /**
- * Компресія шейдера через Zstd (максимальна швидкість)
+ * Компресія шейдера (disabled - requires libzstd)
  */
 std::vector<uint8_t> CompressShader(const void* data, size_t size) {
-    // Рівень 3 - оптимальний баланс швидкість/компресія для real-time
-    const int compression_level = 3;
-    
-    size_t compressed_bound = ZSTD_compressBound(size);
-    std::vector<uint8_t> compressed(compressed_bound);
-    
-    size_t compressed_size = ZSTD_compress(
-        compressed.data(), compressed_bound,
-        data, size,
-        compression_level
-    );
-    
-    if (ZSTD_isError(compressed_size)) {
-        LOGE("Zstd compression failed: %s", ZSTD_getErrorName(compressed_size));
-        return {};
-    }
-    
-    compressed.resize(compressed_size);
-    LOGI("Shader compressed: %zu -> %zu bytes (%.1f%%)", 
-         size, compressed_size, (compressed_size * 100.0f) / size);
-    
-    return compressed;
+    // Compression disabled - requires libzstd
+    // For now, just return uncompressed data
+    std::vector<uint8_t> result(static_cast<const uint8_t*>(data), 
+                                static_cast<const uint8_t*>(data) + size);
+    LOGI("Shader cache: compression disabled (libzstd not available)");
+    return result;
 }
 
 /**
- * Декомпресія шейдера
+ * Декомпресія шейдера (disabled - requires libzstd)
  */
 std::vector<uint8_t> DecompressShader(const void* compressed_data, size_t compressed_size) {
-    // Отримуємо розмір оригіналу
-    unsigned long long decompressed_size = ZSTD_getFrameContentSize(compressed_data, compressed_size);
-    
-    if (decompressed_size == ZSTD_CONTENTSIZE_ERROR || 
-        decompressed_size == ZSTD_CONTENTSIZE_UNKNOWN) {
-        LOGE("Invalid compressed shader data");
-        return {};
-    }
-    
-    std::vector<uint8_t> decompressed(decompressed_size);
-    
-    size_t result = ZSTD_decompress(
-        decompressed.data(), decompressed_size,
-        compressed_data, compressed_size
-    );
-    
-    if (ZSTD_isError(result)) {
-        LOGE("Zstd decompression failed: %s", ZSTD_getErrorName(result));
-        return {};
-    }
-    
-    return decompressed;
+    // Decompression disabled - requires libzstd
+    // For now, just return data as-is
+    std::vector<uint8_t> result(static_cast<const uint8_t*>(compressed_data),
+                                static_cast<const uint8_t*>(compressed_data) + compressed_size);
+    return result;
 }
 
 /**

@@ -11,8 +11,8 @@
 #include <utility>
 
 #if defined(__aarch64__)
-#include <adrenotools/driver.h>
-#include <adrenotools/priv.h>
+// #include <adrenotools/driver.h>
+// #include <adrenotools/priv.h>
 #endif
 
 // RPCSX ARMv9 Optimization Modules
