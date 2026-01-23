@@ -100,7 +100,7 @@ import kotlin.math.ceil
 // Safe wrapper for RPCSX native calls
 private fun safeSettingsSet(path: String, value: String): Boolean {
     return try {
-        safeSettingsSet(path, value)
+        RPCSX.instance.settingsSet(path, value)
     } catch (e: Exception) {
         Log.e("Settings", "Error setting $path to $value: ${e.message}")
         false
@@ -109,7 +109,7 @@ private fun safeSettingsSet(path: String, value: String): Boolean {
 
 private fun safeSetNCEMode(mode: Int) {
     try {
-        safeSetNCEMode(mode)
+        RPCSX.instance.setNCEMode(mode)
     } catch (e: Exception) {
         Log.e("Settings", "Error setting NCE mode to $mode: ${e.message}")
     }
@@ -562,16 +562,77 @@ fun AdvancedSettingsScreen(
                                    path == "@@$" ||  // Root of advanced settings
                                    path.isEmpty()    // Also show at root
             if (showRsxSettings) {
+                var rsxEnabled by remember { 
+                    mutableStateOf(
+                        try { RPCSX.instance.rsxIsRunning() } catch (e: Exception) { true }
+                    ) 
+                }
+                var rsxThreadCount by remember {
+                    mutableStateOf(
+                        try { RPCSX.instance.rsxGetThreadCount().toFloat() } catch (e: Exception) { 8f }
+                    )
+                }
+                var rsxResolutionScale by remember {
+                    mutableStateOf((GeneralSettings["rsx_resolution_scale"] as? Int ?: 50).toFloat())
+                }
+                var rsxVsyncEnabled by remember { mutableStateOf(GeneralSettings["rsx_vsync"] as? Boolean ?: false) }
+                var rsxFrameLimitEnabled by remember { mutableStateOf(GeneralSettings["rsx_frame_limit"] as? Boolean ?: false) }
+
                 item(key = "rsx_header") {
                     PreferenceHeader(text = stringResource(R.string.rsx_video_settings))
                 }
-                
+
+                item(key = "rsx_max_performance") {
+                    RegularPreference(
+                        title = "Max Performance",
+                        subtitle = { Text("Enables NCE, max RSX threads, no VSync/limit, 50% resolution") },
+                        onClick = {
+                            try {
+                                // PPU Decoder + NCE
+                                safeSettingsSet("Core@@PPU Decoder", "\"LLVM Recompiler (Legacy)\"")
+                                safeSetNCEMode(3)
+                                try {
+                                    GeneralSettings.nceMode = 3
+                                } catch (e: Exception) {
+                                    Log.e("Settings", "Failed to save NCE mode: ${e.message}")
+                                }
+
+                                // RSX engine
+                                if (!rsxEnabled) {
+                                    try {
+                                        if (RPCSX.instance.rsxStart()) {
+                                            rsxEnabled = true
+                                        }
+                                    } catch (e: Exception) {
+                                        Log.e("RSX", "Failed to start RSX: ${e.message}")
+                                    }
+                                }
+
+                                val maxThreads = 8
+                                try {
+                                    RPCSX.instance.rsxSetThreadCount(maxThreads)
+                                    rsxThreadCount = maxThreads.toFloat()
+                                    GeneralSettings.setValue("rsx_thread_count", maxThreads)
+                                } catch (e: Exception) {
+                                    Log.e("RSX", "Failed to set thread count: ${e.message}")
+                                }
+
+                                rsxResolutionScale = 50f
+                                GeneralSettings.setValue("rsx_resolution_scale", 50)
+                                rsxVsyncEnabled = false
+                                GeneralSettings.setValue("rsx_vsync", false)
+                                rsxFrameLimitEnabled = false
+                                GeneralSettings.setValue("rsx_frame_limit", false)
+
+                                Toast.makeText(context, "Max performance enabled", Toast.LENGTH_SHORT).show()
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Failed to apply performance mode", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    )
+                }
+
                 item(key = "rsx_enabled") {
-                    var rsxEnabled by remember { 
-                        mutableStateOf(
-                            try { RPCSX.instance.rsxIsRunning() } catch (e: Exception) { true }
-                        ) 
-                    }
                     SwitchPreference(
                         checked = rsxEnabled,
                         title = stringResource(R.string.rsx_enabled),
@@ -598,13 +659,8 @@ fun AdvancedSettingsScreen(
                 }
                 
                 item(key = "rsx_thread_count") {
-                    var threadCount by remember { 
-                        mutableStateOf(
-                            try { RPCSX.instance.rsxGetThreadCount().toFloat() } catch (e: Exception) { 4f }
-                        ) 
-                    }
                     SliderPreference(
-                        value = threadCount,
+                        value = rsxThreadCount,
                         valueRange = 1f..8f,
                         title = stringResource(R.string.rsx_thread_count),
                         steps = 6,
@@ -612,14 +668,14 @@ fun AdvancedSettingsScreen(
                             try {
                                 val count = value.toInt()
                                 RPCSX.instance.rsxSetThreadCount(count)
-                                threadCount = value
+                                rsxThreadCount = value
                                 GeneralSettings.setValue("rsx_thread_count", count)
                             } catch (e: Exception) {
                                 Log.e("RSX", "Failed to set thread count: ${e.message}")
                             }
                         },
                         valueContent = {
-                            Text(text = "${threadCount.toInt()} threads")
+                            Text(text = "${rsxThreadCount.toInt()} threads")
                         }
                     )
                 }
@@ -642,43 +698,40 @@ fun AdvancedSettingsScreen(
                 }
                 
                 item(key = "rsx_resolution_scale") {
-                    var scale by remember { mutableStateOf((GeneralSettings["rsx_resolution_scale"] as? Int ?: 100).toFloat()) }
                     SliderPreference(
-                        value = scale,
+                        value = rsxResolutionScale,
                         valueRange = 50f..200f,
                         title = "Resolution Scale",
                         steps = 5,
                         onValueChange = { value ->
-                            scale = value
+                            rsxResolutionScale = value
                             GeneralSettings.setValue("rsx_resolution_scale", value.toInt())
                         },
                         valueContent = {
-                            Text(text = "${scale.toInt()}%")
+                            Text(text = "${rsxResolutionScale.toInt()}%")
                         }
                     )
                 }
                 
                 item(key = "rsx_vsync") {
-                    var vsyncEnabled by remember { mutableStateOf(GeneralSettings["rsx_vsync"] as? Boolean ?: true) }
                     SwitchPreference(
-                        checked = vsyncEnabled,
+                        checked = rsxVsyncEnabled,
                         title = "VSync",
                         subtitle = { Text("Synchronize frame rate with display refresh") },
                         onClick = { enabled ->
-                            vsyncEnabled = enabled
+                            rsxVsyncEnabled = enabled
                             GeneralSettings.setValue("rsx_vsync", enabled)
                         }
                     )
                 }
                 
                 item(key = "rsx_frame_limit") {
-                    var frameLimitEnabled by remember { mutableStateOf(GeneralSettings["rsx_frame_limit"] as? Boolean ?: true) }
                     SwitchPreference(
-                        checked = frameLimitEnabled,
+                        checked = rsxFrameLimitEnabled,
                         title = "Frame Limit",
                         subtitle = { Text("Limit frame rate to 60 FPS") },
                         onClick = { enabled ->
-                            frameLimitEnabled = enabled
+                            rsxFrameLimitEnabled = enabled
                             GeneralSettings.setValue("rsx_frame_limit", enabled)
                         }
                     )
