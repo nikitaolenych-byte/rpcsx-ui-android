@@ -95,6 +95,7 @@
     <string name="ppu_decoder_title">PPU Decoder</string>
     <string name="ppu_decoder_llvm19">LLVM 19</string>
     <string name="ppu_decoder_nce">NCE (Native Code Execution)</string>
+    <string name="ppu_decoder_jit">JIT (Optimized NCE)</string>
     <string name="ppu_decoder_description">NCE Native: Your phone IS PlayStation 3! PPU→ARM64 JIT with LLVM 19, 6 SPU threads, RSX→Vulkan</string>
     <string name="ask_if_reset_key">"Do you want to reset '%1$s' to its default value?"</string>
     <string name="controls">Controls</string>
