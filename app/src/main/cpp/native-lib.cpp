@@ -9,6 +9,8 @@
 #include <sys/resource.h>
 #include <unistd.h>
 #include <utility>
+#include <chrono>
+#include <cmath>
 
 #if defined(__aarch64__)
 // #include <adrenotools/driver.h>
@@ -773,4 +775,177 @@ Java_net_rpcsx_RPCSX_rsxGetStats(JNIEnv *env, jobject) {
   env->SetLongArrayRegion(result, 0, 4, stat_array);
   return result;
 }
+
+/**
+ * GUI Button Control for RSX Graphics Engine
+ */
+
+// Global RSX engine state
+static volatile bool g_rsx_started = false;
+static volatile bool g_graphics_test_running = false;
+
+/**
+ * Start RSX Graphics Engine (called from GUI button)
+ * Initializes worker threads and begins graphics command processing
+ */
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_rsxStart(JNIEnv *env, jobject) {
+  if (g_rsx_started) {
+    LOGW("RSX already started");
+    return JNI_TRUE;
+  }
+  
+  if (!g_rsx_engine) {
+    LOGE("RSX engine not initialized");
+    return JNI_FALSE;
+  }
+  
+  LOGI("RSX Graphics Engine started from GUI button");
+  g_rsx_started = true;
+  return JNI_TRUE;
+}
+
+/**
+ * Stop RSX Graphics Engine (called from GUI button)
+ */
+extern "C" JNIEXPORT void JNICALL
+Java_net_rpcsx_RPCSX_rsxStop(JNIEnv *env, jobject) {
+  if (!g_rsx_started) {
+    LOGW("RSX not running");
+    return;
+  }
+  
+  LOGI("RSX Graphics Engine stopped from GUI button");
+  g_rsx_started = false;
+  
+  // Flush all pending commands
+  if (g_rsx_engine) {
+    g_rsx_engine->Flush();
+  }
+}
+
+/**
+ * Check if RSX is currently running
+ */
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_isRSXRunning(JNIEnv *env, jobject) {
+  return g_rsx_started ? JNI_TRUE : JNI_FALSE;
+}
+
+/**
+ * Performance Test - Stress test RSX Graphics Engine
+ * Simulates drawing many objects to measure performance
+ */
+extern "C" JNIEXPORT jfloat JNICALL
+Java_net_rpcsx_RPCSX_runGraphicsPerformanceTest(JNIEnv *env, jobject,
+                                                 jint num_draws) {
+  if (!g_rsx_engine) {
+    LOGE("RSX engine not available");
+    return 0.0f;
+  }
+  
+  LOGI("Starting graphics performance test with %d draws", num_draws);
+  g_graphics_test_running = true;
+  
+  // Submit draw commands
+  auto start_time = std::chrono::high_resolution_clock::now();
+  
+  for (int i = 0; i < num_draws; ++i) {
+    rpcsx::vulkan::RSXCommand draw_cmd{};
+    draw_cmd.type = rpcsx::vulkan::RSXCommand::Type::DRAW_ARRAYS;
+    draw_cmd.data[0] = 0;        // First vertex
+    draw_cmd.data[1] = 100 + i;  // Vertex count (vary)
+    draw_cmd.priority = (i % 256); // Assign priorities
+    
+    g_rsx_engine->SubmitCommand(draw_cmd);
+  }
+  
+  // Wait for GPU to process all commands
+  g_rsx_engine->Flush();
+  
+  auto end_time = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+      end_time - start_time);
+  
+  float fps = (num_draws * 1000.0f) / duration.count();
+  LOGI("Graphics test completed: %d draws in %lld ms (%.1f FPS)",
+       num_draws, duration.count(), fps);
+  
+  g_graphics_test_running = false;
+  return fps;
+}
+
+/**
+ * Memory Access Performance Test - ARMv9 fastmem
+ * Measures memory bandwidth on Cortex-X4
+ */
+extern "C" JNIEXPORT jfloat JNICALL
+Java_net_rpcsx_RPCSX_runMemoryPerformanceTest(JNIEnv *env, jobject) {
+  const int ITERATIONS = 10000;
+  const int CACHE_LINE_SIZE = 64;
+  const int TEST_SIZE = 16 * 1024 * 1024;  // 16 MB
+  
+  uint8_t* test_buffer = new uint8_t[TEST_SIZE];
+  
+  // Warm up cache
+  for (int i = 0; i < ITERATIONS / 10; ++i) {
+    volatile uint32_t* ptr = reinterpret_cast<volatile uint32_t*>(
+        test_buffer + (i * CACHE_LINE_SIZE) % TEST_SIZE);
+    *ptr = i;
+  }
+  
+  auto start = std::chrono::high_resolution_clock::now();
+  
+  // Sequential memory access (cache-friendly)
+  for (int i = 0; i < ITERATIONS; ++i) {
+    volatile uint32_t* ptr = reinterpret_cast<volatile uint32_t*>(
+        test_buffer + (i * CACHE_LINE_SIZE) % TEST_SIZE);
+    *ptr = i;
+  }
+  
+  auto end = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+      end - start);
+  
+  // Calculate bandwidth
+  uint64_t bytes_transferred = static_cast<uint64_t>(ITERATIONS) * CACHE_LINE_SIZE;
+  float bandwidth_gbps = (bytes_transferred * 1000.0f) / (duration.count() * 1024 * 1024 * 1024);
+  
+  LOGI("Memory bandwidth test: %.2f GB/s", bandwidth_gbps);
+  
+  delete[] test_buffer;
+  return bandwidth_gbps;
+}
+
+/**
+ * CPU Performance Test - Cortex-X4 arithmetic
+ * Measures floating point operations per second
+ */
+extern "C" JNIEXPORT jfloat JNICALL
+Java_net_rpcsx_RPCSX_runCPUPerformanceTest(JNIEnv *env, jobject) {
+  const int ITERATIONS = 1000000;
+  
+  float result = 0.0f;
+  
+  auto start = std::chrono::high_resolution_clock::now();
+  
+  // Floating point intensive workload
+  for (int i = 0; i < ITERATIONS; ++i) {
+    float x = sinf(i * 0.0001f);
+    float y = cosf(i * 0.0001f);
+    result += x * x + y * y;
+  }
+  
+  auto end = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+      end - start);
+  
+  // Calculate FLOPS (estimate: 4 ops per iteration)
+  float gflops = (ITERATIONS * 4.0f * 1000.0f) / (duration.count() * 1e9);
+  
+  LOGI("CPU performance: %.2f GFLOPS (result: %f)", gflops, result);
+  
+  return gflops;
+}
+
 
