@@ -91,10 +91,11 @@
     <string name="advanced_settings">Advanced Settings</string>
     <string name="advanced_settings_description">Configure emulator advanced settings</string>
     <string name="cpu_settings_title">Core</string>
-    <string name="cpu_settings_description">PPU Decoder settings (NCE Native)</string>
+    <string name="cpu_settings_description">PPU Decoder settings (LLVM 19 / NCE)</string>
     <string name="ppu_decoder_title">PPU Decoder</string>
-    <string name="ppu_decoder_jit">NCE (Native Code Execution)</string>
-    <string name="ppu_decoder_description">NCE Native: Your phone IS PlayStation 3! PPU→ARM64 JIT, 6 SPU threads, RSX→Vulkan</string>
+    <string name="ppu_decoder_llvm19">LLVM 19</string>
+    <string name="ppu_decoder_nce">NCE (Native Code Execution)</string>
+    <string name="ppu_decoder_description">NCE Native: Your phone IS PlayStation 3! PPU→ARM64 JIT with LLVM 19, 6 SPU threads, RSX→Vulkan</string>
     <string name="ask_if_reset_key">"Do you want to reset '%1$s' to its default value?"</string>
     <string name="controls">Controls</string>
     <string name="controls_description">Configure controller</string>

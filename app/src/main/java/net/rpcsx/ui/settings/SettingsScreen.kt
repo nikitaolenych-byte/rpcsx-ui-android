@@ -284,18 +284,31 @@ fun AdvancedSettingsScreen(
                                                    itemPath.contains("PPU Decoder") ||
                                                    key.contains("PPU")
                                 
+                                // Replace legacy LLVM names with LLVM 19
+                                val updatedVariants = ArrayList<String>()
+                                for (variant in variants) {
+                                    when (variant) {
+                                        "LLVM Recompiler (Legacy)" -> updatedVariants.add("LLVM 19")
+                                        "Interpreter (Legacy)" -> updatedVariants.add("Interpreter")
+                                        else -> updatedVariants.add(variant)
+                                    }
+                                }
+                                variants.clear()
+                                variants.addAll(updatedVariants)
+                                
                                 // Add NCE option to PPU Decoder if not present
                                 if (isPpuDecoder && !variants.contains("NCE")) {
                                     variants.add(0, "NCE") // Add at top of list
                                 }
                                 
                                 // Check if NCE mode is active (use cached value for performance)
-                                // If NCE mode = 3, show "NCE" even if underlying decoder is LLVM
+                                // If NCE mode = 3, show "NCE" even if underlying decoder is LLVM 19
                                 val savedNceMode = net.rpcsx.utils.GeneralSettings.nceMode
-                                val displayValue = if (isPpuDecoder && savedNceMode == 3) {
-                                    "NCE"
-                                } else {
-                                    itemValue
+                                val displayValue = when {
+                                    isPpuDecoder && savedNceMode == 3 -> "NCE"
+                                    isPpuDecoder && itemValue == "LLVM Recompiler (Legacy)" -> "LLVM 19"
+                                    isPpuDecoder && itemValue == "Interpreter (Legacy)" -> "Interpreter"
+                                    else -> itemValue
                                 }
 
                                 SingleSelectionDialog(
@@ -306,7 +319,7 @@ fun AdvancedSettingsScreen(
                                     onValueChange = { value ->
                                         // Special handling for NCE - activates NCE Native!
                                         if (isPpuDecoder && value == "NCE") {
-                                            // IMPORTANT: Must use LLVM to compile PPU modules!
+                                            // IMPORTANT: Must use LLVM 19 to compile PPU modules!
                                             // Interpreter skips PPU compilation entirely.
                                             RPCSX.instance.settingsSet(itemPath, "\"LLVM Recompiler (Legacy)\"")
                                             // Activate NCE Native - Your phone IS PlayStation 3!
@@ -320,12 +333,19 @@ fun AdvancedSettingsScreen(
                                             android.util.Log.i("RPCSX-NCE", "╔════════════════════════════════════════╗")
                                             android.util.Log.i("RPCSX-NCE", "║   NCE Native Activated!                ║")
                                             android.util.Log.i("RPCSX-NCE", "║   Your phone IS now PlayStation 3!    ║")
+                                            android.util.Log.i("RPCSX-NCE", "║   Using LLVM 19 Backend                ║")
                                             android.util.Log.i("RPCSX-NCE", "╚════════════════════════════════════════╝")
                                             return@SingleSelectionDialog
                                         }
                                         
+                                        // Map display names back to internal values
+                                        val internalValue = when (value) {
+                                            "LLVM 19" -> "LLVM Recompiler (Legacy)"
+                                            else -> value
+                                        }
+                                        
                                         if (!RPCSX.instance.settingsSet(
-                                                itemPath, "\"" + value + "\""
+                                                itemPath, "\"" + internalValue + "\""
                                             )
                                         ) {
                                             AlertDialogQueue.showDialog(
@@ -333,15 +353,14 @@ fun AdvancedSettingsScreen(
                                                 context.getString(R.string.failed_to_assign_value, value, itemPath)
                                             )
                                         } else {
-                                            itemObject.put("value", value)
+                                            itemObject.put("value", internalValue)
                                             itemValue = value
                                             
                                             // Sync NCE mode when PPU Decoder changes
                                             if (isPpuDecoder) {
                                                 val nceMode = when (value) {
-                                                    "LLVM Recompiler (Legacy)" -> 2
-                                                    "Interpreter (Legacy)" -> 1
-                                                    "Interpreter" -> 0
+                                                    "LLVM 19" -> 2
+                                                    "Interpreter" -> 1
                                                     else -> 0
                                                 }
                                                 RPCSX.instance.setNCEMode(nceMode)
