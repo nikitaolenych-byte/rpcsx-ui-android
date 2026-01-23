@@ -100,7 +100,7 @@ fun RSXSettingsScreen(
             item(key = "rsx_thread_count") {
                 var threadCount by remember { 
                     mutableStateOf(
-                        try { RPCSX.instance.rsxGetThreadCount().toFloat() } catch (e: Exception) { 4f }
+                        try { RPCSX.instance.rsxGetThreadCount().toFloat() } catch (e: Exception) { 8f }
                     ) 
                 }
                 SliderPreference(
@@ -146,7 +146,7 @@ fun RSXSettingsScreen(
             }
             
             item(key = "rsx_resolution_scale") {
-                var scale by remember { mutableStateOf((GeneralSettings["rsx_resolution_scale"] as? Int ?: 100).toFloat()) }
+                var scale by remember { mutableStateOf((GeneralSettings["rsx_resolution_scale"] as? Int ?: 50).toFloat()) }
                 SliderPreference(
                     value = scale,
                     valueRange = 50f..200f,
@@ -167,7 +167,7 @@ fun RSXSettingsScreen(
             }
             
             item(key = "rsx_vsync") {
-                var vsyncEnabled by remember { mutableStateOf(GeneralSettings["rsx_vsync"] as? Boolean ?: true) }
+                var vsyncEnabled by remember { mutableStateOf(GeneralSettings["rsx_vsync"] as? Boolean ?: false) }
                 SwitchPreference(
                     checked = vsyncEnabled,
                     title = "VSync",
@@ -180,7 +180,7 @@ fun RSXSettingsScreen(
             }
             
             item(key = "rsx_frame_limit") {
-                var frameLimitEnabled by remember { mutableStateOf(GeneralSettings["rsx_frame_limit"] as? Boolean ?: true) }
+                var frameLimitEnabled by remember { mutableStateOf(GeneralSettings["rsx_frame_limit"] as? Boolean ?: false) }
                 SwitchPreference(
                     checked = frameLimitEnabled,
                     title = "Frame Limit",

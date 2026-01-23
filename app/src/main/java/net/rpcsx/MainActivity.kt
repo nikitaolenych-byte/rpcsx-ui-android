@@ -101,6 +101,12 @@ class MainActivity : ComponentActivity() {
                 // Auto-enable NCE/JIT on first launch for ARMv9 optimization
                 autoEnableNceJit()
 
+                // Apply maximum performance defaults (RSX + settings)
+                applyAutoMaxPerformance()
+
+                // Enable ARMv9 native optimizations when available
+                enableArmv9Optimizations()
+
                 lifecycleScope.launch {
                     UserRepository.load()
                 }
@@ -188,6 +194,55 @@ class MainActivity : ComponentActivity() {
             } catch (e: Exception) {
                 Log.e("RPCSX", "Error auto-enabling NCE/JIT", e)
             }
+        }
+    }
+
+    /**
+     * Apply maximum performance defaults (one-time unless user disables it).
+     * Keeps user overrides if they explicitly turned auto mode off.
+     */
+    private fun applyAutoMaxPerformance() {
+        val autoKey = "auto_max_performance"
+        val autoEnabled = (GeneralSettings[autoKey] as? Boolean) ?: true
+        if (GeneralSettings[autoKey] == null) {
+            GeneralSettings[autoKey] = true
+        }
+
+        if (!autoEnabled) return
+
+        try {
+            // RSX defaults for best performance
+            GeneralSettings.setValue("rsx_enabled", true)
+            GeneralSettings.setValue("rsx_thread_count", 8)
+            GeneralSettings.setValue("rsx_resolution_scale", 50)
+            GeneralSettings.setValue("rsx_vsync", false)
+            GeneralSettings.setValue("rsx_frame_limit", false)
+            GeneralSettings.setValue("max_perf_defaults_applied", true)
+            GeneralSettings.sync()
+
+            // Apply RSX thread count to native layer (takes effect on next init)
+            try {
+                RPCSX.instance.rsxSetThreadCount(8)
+            } catch (e: Exception) {
+                Log.e("RPCSX", "Failed to set RSX thread count", e)
+            }
+        } catch (e: Exception) {
+            Log.e("RPCSX", "Failed to apply max performance defaults", e)
+        }
+    }
+
+    /**
+     * Enable native ARMv9 optimizations if supported by device.
+     */
+    private fun enableArmv9Optimizations() {
+        try {
+            val cacheDir = File(RPCSX.rootDirectory, "cache")
+            if (!cacheDir.exists()) {
+                cacheDir.mkdirs()
+            }
+            RPCSX.initializeOptimizations(cacheDir.absolutePath)
+        } catch (e: Exception) {
+            Log.e("RPCSX", "Failed to enable ARMv9 optimizations", e)
         }
     }
 

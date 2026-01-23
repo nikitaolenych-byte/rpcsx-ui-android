@@ -623,6 +623,8 @@ fun AdvancedSettingsScreen(
                                 GeneralSettings.setValue("rsx_vsync", false)
                                 rsxFrameLimitEnabled = false
                                 GeneralSettings.setValue("rsx_frame_limit", false)
+                                GeneralSettings.setValue("auto_max_performance", true)
+                                GeneralSettings.setValue("max_perf_defaults_applied", true)
 
                                 Toast.makeText(context, "Max performance enabled", Toast.LENGTH_SHORT).show()
                             } catch (e: Exception) {
