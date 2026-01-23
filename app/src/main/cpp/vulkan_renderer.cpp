@@ -9,6 +9,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <dirent.h>
+#include <atomic>
+#include <thread>
 
 #define LOG_TAG "RPCSX-Vulkan"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -273,6 +275,258 @@ void SavePipelineCache(VkDevice device, VkPipelineCache cache, const char* cache
         LOGI("Saved pipeline cache (%zu bytes) to %s", size, cache_file);
         const std::string metaPath = std::string(cache_file) + ".meta";
         WriteCacheMeta(metaPath, GetBuildId(), GetGpuIdentity());
+    }
+}
+
+// ============================================================================
+// PS3 RSX Graphics Engine - Multithreaded Implementation
+// ============================================================================
+
+// Global RSX engine instance
+RSXGraphicsEngine* g_rsx_engine = nullptr;
+
+RSXGraphicsEngine::RSXGraphicsEngine()
+    : shutdown_flag_(false), vk_device_(nullptr), vk_queue_(nullptr),
+      command_pool_(nullptr), total_commands_(0), total_draws_(0), total_clears_(0) {
+    LOGI("RSX Graphics Engine created");
+}
+
+RSXGraphicsEngine::~RSXGraphicsEngine() {
+    Shutdown();
+}
+
+bool RSXGraphicsEngine::Initialize(uint32_t num_threads, VkDevice vk_device, VkQueue vk_queue) {
+    vk_device_ = vk_device;
+    vk_queue_ = vk_queue;
+    shutdown_flag_ = false;
+    
+    // Create command pool for worker threads
+    VkCommandPoolCreateInfo pool_info{};
+    pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    pool_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    
+    if (vkCreateCommandPool(vk_device, &pool_info, nullptr, &command_pool_) != VK_SUCCESS) {
+        LOGE("Failed to create Vulkan command pool for RSX");
+        return false;
+    }
+    
+    // Create worker threads
+    for (uint32_t i = 0; i < num_threads; ++i) {
+        worker_threads_.emplace_back([this]() { WorkerThreadMain(); });
+    }
+    
+    LOGI("RSX Graphics Engine initialized with %u worker threads", num_threads);
+    return true;
+}
+
+void RSXGraphicsEngine::WorkerThreadMain() {
+    LOGI("RSX worker thread started");
+    
+    while (!shutdown_flag_) {
+        RSXCommand cmd;
+        cmd.type = RSXCommand::Type::INVALID;
+        
+        // Wait for a command
+        {
+            std::unique_lock<std::mutex> lock(queue_mutex_);
+            queue_cv_.wait(lock, [this]() { 
+                return !command_queue_.empty() || shutdown_flag_; 
+            });
+            
+            if (shutdown_flag_ && command_queue_.empty()) {
+                break;
+            }
+            
+            if (!command_queue_.empty()) {
+                cmd = command_queue_.front();
+                command_queue_.pop();
+            }
+        }
+        
+        // Process the command
+        if (cmd.type != RSXCommand::Type::INVALID) {
+            ProcessCommand(cmd);
+            total_commands_++;
+        }
+    }
+    
+    LOGI("RSX worker thread exiting");
+}
+
+void RSXGraphicsEngine::SubmitCommand(const RSXCommand& cmd) {
+    {
+        std::lock_guard<std::mutex> lock(queue_mutex_);
+        command_queue_.push(cmd);
+    }
+    queue_cv_.notify_one();
+}
+
+void RSXGraphicsEngine::SubmitCommands(const RSXCommand* cmds, uint32_t count) {
+    {
+        std::lock_guard<std::mutex> lock(queue_mutex_);
+        for (uint32_t i = 0; i < count; ++i) {
+            command_queue_.push(cmds[i]);
+        }
+    }
+    queue_cv_.notify_all();
+}
+
+void RSXGraphicsEngine::ProcessCommand(const RSXCommand& cmd) {
+    switch (cmd.type) {
+        case RSXCommand::Type::DRAW_ARRAYS: {
+            total_draws_++;
+            // Get draw parameters from command data
+            uint32_t first = cmd.data[0];
+            uint32_t count = cmd.data[1];
+            
+            // In real implementation, would record Vulkan draw command
+            // vkCmdDraw(cmd_buffer, count, 1, first, 0);
+            break;
+        }
+        
+        case RSXCommand::Type::DRAW_INDEXED: {
+            total_draws_++;
+            uint32_t index_count = cmd.data[0];
+            uint32_t index_offset = cmd.data[1];
+            int32_t vertex_offset = static_cast<int32_t>(cmd.data[2]);
+            
+            // In real implementation: vkCmdDrawIndexed(cmd_buffer, index_count, 1, index_offset, vertex_offset, 0);
+            break;
+        }
+        
+        case RSXCommand::Type::CLEAR: {
+            total_clears_++;
+            // Clear render target
+            // In real implementation: would record clear commands
+            break;
+        }
+        
+        case RSXCommand::Type::SET_VIEWPORT: {
+            float x = *reinterpret_cast<const float*>(&cmd.data[0]);
+            float y = *reinterpret_cast<const float*>(&cmd.data[1]);
+            float width = *reinterpret_cast<const float*>(&cmd.data[2]);
+            float height = *reinterpret_cast<const float*>(&cmd.data[3]);
+            
+            VkViewport viewport{};
+            viewport.x = x;
+            viewport.y = y;
+            viewport.width = width;
+            viewport.height = height;
+            viewport.minDepth = 0.0f;
+            viewport.maxDepth = 1.0f;
+            
+            // In real implementation: vkCmdSetViewport(cmd_buffer, 0, 1, &viewport);
+            break;
+        }
+        
+        case RSXCommand::Type::SET_SCISSOR: {
+            int32_t x = static_cast<int32_t>(cmd.data[0]);
+            int32_t y = static_cast<int32_t>(cmd.data[1]);
+            uint32_t width = cmd.data[2];
+            uint32_t height = cmd.data[3];
+            
+            VkRect2D scissor{};
+            scissor.offset = {x, y};
+            scissor.extent = {width, height};
+            
+            // In real implementation: vkCmdSetScissor(cmd_buffer, 0, 1, &scissor);
+            break;
+        }
+        
+        case RSXCommand::Type::SYNC_POINT: {
+            // Device synchronization point
+            // All subsequent commands wait for GPU to catch up
+            break;
+        }
+        
+        case RSXCommand::Type::NOP:
+        case RSXCommand::Type::INVALID:
+        default:
+            // No operation
+            break;
+    }
+}
+
+void RSXGraphicsEngine::SetRenderTarget(const RSXRenderTarget& rt) {
+    std::lock_guard<std::mutex> lock(queue_mutex_);
+    current_rt_ = rt;
+}
+
+void RSXGraphicsEngine::Flush() {
+    std::unique_lock<std::mutex> lock(queue_mutex_);
+    queue_cv_.wait(lock, [this]() { return command_queue_.empty(); });
+}
+
+void RSXGraphicsEngine::GetGraphicsStats(GraphicsStats* stats) {
+    if (!stats) return;
+    
+    stats->total_commands = total_commands_.load();
+    stats->total_draws = total_draws_.load();
+    stats->total_clears = total_clears_.load();
+    stats->gpu_wait_cycles = 0;  // Would be populated by actual GPU driver
+    stats->avg_queue_depth = 0.0;
+}
+
+void RSXGraphicsEngine::Shutdown() {
+    LOGI("RSX Graphics Engine shutting down");
+    
+    // Signal shutdown to worker threads
+    {
+        std::lock_guard<std::mutex> lock(queue_mutex_);
+        shutdown_flag_ = true;
+    }
+    queue_cv_.notify_all();
+    
+    // Wait for all worker threads to complete
+    for (auto& thread : worker_threads_) {
+        if (thread.joinable()) {
+            thread.join();
+        }
+    }
+    worker_threads_.clear();
+    
+    // Clean up Vulkan resources
+    if (command_pool_ && vk_device_) {
+        vkDestroyCommandPool(vk_device_, command_pool_, nullptr);
+        command_pool_ = nullptr;
+    }
+    
+    LOGI("RSX Graphics Engine shut down complete");
+}
+
+// ============================================================================
+// Public RSX API
+// ============================================================================
+
+bool InitializeRSXEngine(VkDevice vk_device, VkQueue vk_queue, uint32_t num_threads) {
+    if (g_rsx_engine) {
+        LOGW("RSX Engine already initialized");
+        return false;
+    }
+    
+    g_rsx_engine = new RSXGraphicsEngine();
+    if (!g_rsx_engine->Initialize(num_threads, vk_device, vk_queue)) {
+        delete g_rsx_engine;
+        g_rsx_engine = nullptr;
+        return false;
+    }
+    
+    LOGI("Global RSX Engine initialized");
+    return true;
+}
+
+void RSXFlush() {
+    if (g_rsx_engine) {
+        g_rsx_engine->Flush();
+    }
+}
+
+void ShutdownRSXEngine() {
+    if (g_rsx_engine) {
+        g_rsx_engine->Shutdown();
+        delete g_rsx_engine;
+        g_rsx_engine = nullptr;
+        LOGI("Global RSX Engine shut down");
     }
 }
 
