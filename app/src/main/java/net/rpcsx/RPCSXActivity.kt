@@ -60,12 +60,8 @@ class RPCSXActivity : Activity() {
             Log.e("RPCSX", "Failed to setup OSC toggle", e)
         }
 
-        // RSX Graphics Engine Toggle Button
-        try {
-            setupRSXButton()
-        } catch (e: Throwable) {
-            Log.e("RPCSX", "Failed to setup RSX button", e)
-        }
+        // RSX Graphics Engine Toggle Button - disabled
+        // setupRSXButton()
 
         val gamePath = intent.getStringExtra("path")
         if (gamePath.isNullOrEmpty()) {
@@ -83,12 +79,8 @@ class RPCSXActivity : Activity() {
             Log.e("RPCSX", "Failed to restore NCE mode", e)
         }
         
-        // Start FPS counter update
-        try {
-            startFPSCounter()
-        } catch (e: Throwable) {
-            Log.e("RPCSX", "Failed to start FPS counter", e)
-        }
+        // FPS counter disabled
+        // startFPSCounter()
 
         bootThread = thread {
             try {

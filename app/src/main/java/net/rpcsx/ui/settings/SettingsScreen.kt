@@ -470,14 +470,10 @@ fun AdvancedSettingsScreen(
                                             // Special handling for LLVM Turbo - PPU
                                             if (isPpuDecoder && value == "LLVM Turbo") {
                                                 safeSettingsSet(itemPath, "\"LLVM Recompiler (Legacy)\"")
-                                                if (applyPpuLLVMTurbo()) {
-                                                    GeneralSettings.setValue("ppu_llvm_turbo", true)
-                                                    itemObject.put("value", "LLVM Recompiler (Legacy)")
-                                                    itemValue = "LLVM Recompiler (Legacy)"
-                                                    Toast.makeText(context, "PPU LLVM Turbo enabled!", Toast.LENGTH_SHORT).show()
-                                                } else {
-                                                    Toast.makeText(context, "Failed to apply Turbo settings", Toast.LENGTH_SHORT).show()
-                                                }
+                                                applyPpuLLVMTurbo()
+                                                GeneralSettings.setValue("ppu_llvm_turbo", true)
+                                                itemObject.put("value", "LLVM Recompiler (Legacy)")
+                                                itemValue = "LLVM Recompiler (Legacy)"
                                                 return@SingleSelectionDialog
                                             }
                                             
@@ -490,14 +486,10 @@ fun AdvancedSettingsScreen(
                                                     else -> llvmOption
                                                 }
                                                 safeSettingsSet(itemPath, "\"$internalLlvm\"")
-                                                if (applySpuLLVMTurbo()) {
-                                                    GeneralSettings.setValue("spu_llvm_turbo", true)
-                                                    itemObject.put("value", internalLlvm)
-                                                    itemValue = internalLlvm
-                                                    Toast.makeText(context, "SPU LLVM Turbo enabled!", Toast.LENGTH_SHORT).show()
-                                                } else {
-                                                    Toast.makeText(context, "Failed to apply Turbo settings", Toast.LENGTH_SHORT).show()
-                                                }
+                                                applySpuLLVMTurbo()
+                                                GeneralSettings.setValue("spu_llvm_turbo", true)
+                                                itemObject.put("value", internalLlvm)
+                                                itemValue = internalLlvm
                                                 return@SingleSelectionDialog
                                             }
                                             

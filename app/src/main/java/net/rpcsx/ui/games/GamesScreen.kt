@@ -279,6 +279,22 @@ fun GameItem(game: Game) {
                                 .wrapContentHeight()
                         )
                     }
+                } else {
+                    // Disc placeholder for games without icon (grayscale disc)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color(0xFF2A2A2A))
+                    ) {
+                        Icon(
+                            imageVector = ImageVector.vectorResource(R.drawable.ic_album),
+                            contentDescription = "Game disc",
+                            tint = Color(0xFF808080),
+                            modifier = Modifier.size(64.dp)
+                        )
+                    }
                 }
 
                 if (game.progressList.isNotEmpty()) {
