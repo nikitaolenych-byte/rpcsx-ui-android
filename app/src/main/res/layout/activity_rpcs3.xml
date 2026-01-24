@@ -18,7 +18,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- RSX Graphics Engine Control Button -->
+    <!-- RSX Graphics Engine Control Button - HIDDEN -->
     <ImageButton
         android:id="@+id/rsx_toggle"
         android:layout_width="48dp"
@@ -27,13 +27,14 @@
         android:padding="8dp"
         android:src="@drawable/ic_rsx_engine"
         android:contentDescription="Toggle RSX Graphics Engine"
+        android:visibility="gone"
         app:tint="#80FFFFFF"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         android:layout_marginStart="10dp"
         android:layout_marginBottom="60dp" />
 
-    <!-- RSX Status Indicator -->
+    <!-- RSX Status Indicator - HIDDEN -->
     <TextView
         android:id="@+id/rsx_status"
         android:layout_width="wrap_content"
@@ -43,12 +44,13 @@
         android:textSize="10sp"
         android:background="#40000000"
         android:padding="4dp"
+        android:visibility="gone"
         app:layout_constraintBottom_toTopOf="@id/rsx_toggle"
         app:layout_constraintStart_toStartOf="@id/rsx_toggle"
         app:layout_constraintEnd_toEndOf="@id/rsx_toggle"
         android:layout_marginBottom="4dp" />
 
-    <!-- FPS Counter -->
+    <!-- FPS Counter - HIDDEN -->
     <TextView
         android:id="@+id/fps_counter"
         android:layout_width="wrap_content"
@@ -58,6 +60,7 @@
         android:textSize="12sp"
         android:background="#40000000"
         android:padding="4dp"
+        android:visibility="gone"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         android:layout_marginStart="10dp"

@@ -446,11 +446,14 @@ fun AdvancedSettingsScreen(
                                     variants.add(0, "LLVM Turbo") // Add at top
                                 }
                                 
+                                // Reactive state for turbo flags - updates UI immediately
+                                var ppuTurboEnabled by remember { mutableStateOf(GeneralSettings["ppu_llvm_turbo"] as? Boolean ?: false) }
+                                var spuTurboEnabled by remember { mutableStateOf(GeneralSettings["spu_llvm_turbo"] as? Boolean ?: false) }
+                                
                                 // Check if NCE mode is active (use cached value for performance)
-                                // If NCE mode = 3, show "NCE" even if underlying decoder is LLVM 19
                                 val savedNceMode = net.rpcsx.utils.GeneralSettings.nceMode
-                                val ppuTurboEnabled = GeneralSettings["ppu_llvm_turbo"] as? Boolean ?: false
-                                val spuTurboEnabled = GeneralSettings["spu_llvm_turbo"] as? Boolean ?: false
+                                
+                                // Compute display value based on current state
                                 val displayValue = when {
                                     isPpuDecoder && savedNceMode == 3 -> "NCE"
                                     isPpuDecoder && ppuTurboEnabled && itemValue == "LLVM Recompiler (Legacy)" -> "LLVM Turbo"
@@ -472,6 +475,7 @@ fun AdvancedSettingsScreen(
                                                 safeSettingsSet(itemPath, "\"LLVM Recompiler (Legacy)\"")
                                                 applyPpuLLVMTurbo()
                                                 GeneralSettings.setValue("ppu_llvm_turbo", true)
+                                                ppuTurboEnabled = true  // Update UI immediately
                                                 itemObject.put("value", "LLVM Recompiler (Legacy)")
                                                 itemValue = "LLVM Recompiler (Legacy)"
                                                 return@SingleSelectionDialog
@@ -488,6 +492,7 @@ fun AdvancedSettingsScreen(
                                                 safeSettingsSet(itemPath, "\"$internalLlvm\"")
                                                 applySpuLLVMTurbo()
                                                 GeneralSettings.setValue("spu_llvm_turbo", true)
+                                                spuTurboEnabled = true  // Update UI immediately
                                                 itemObject.put("value", internalLlvm)
                                                 itemValue = internalLlvm
                                                 return@SingleSelectionDialog
@@ -521,12 +526,14 @@ fun AdvancedSettingsScreen(
                                                 else -> value
                                             }
                                             
-                                            // When switching to non-Turbo mode, disable Turbo flag
+                                            // When switching to non-Turbo mode, disable Turbo flag and update UI
                                             if (isPpuDecoder && value != "LLVM Turbo") {
                                                 GeneralSettings.setValue("ppu_llvm_turbo", false)
+                                                ppuTurboEnabled = false  // Update UI immediately
                                             }
                                             if (isSpuDecoder && value != "LLVM Turbo") {
                                                 GeneralSettings.setValue("spu_llvm_turbo", false)
+                                                spuTurboEnabled = false  // Update UI immediately
                                             }
                                             
                                             if (!safeSettingsSet(
