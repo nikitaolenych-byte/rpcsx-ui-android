@@ -186,7 +186,7 @@ class MainActivity : ComponentActivity() {
                     GeneralSettings.nceMode = 3
                     GeneralSettings[nceEnabledKey] = true
                 }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 Log.e("RPCSX", "Error auto-enabling NCE/JIT", e)
             }
         }
@@ -227,7 +227,7 @@ class MainActivity : ComponentActivity() {
             safeSettingsSet("Core@@LLVM Precompilation", "true")
             safeSettingsSet("Core@@Set DAZ and FTZ", "true")
             safeSettingsSet("Core@@Max LLVM Compile Threads", "16")
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e("RPCSX", "Failed to apply max performance defaults", e)
         }
     }
@@ -251,7 +251,7 @@ class MainActivity : ComponentActivity() {
                 cacheDir.mkdirs()
             }
             RPCSX.initializeOptimizations(cacheDir.absolutePath)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e("RPCSX", "Failed to enable ARMv9 optimizations", e)
         }
     }

@@ -107,21 +107,29 @@ class RPCSXActivity : Activity() {
     private fun restoreNCEMode() {
         val savedMode = GeneralSettings.nceMode
         if (savedMode >= 0) {
-            RPCSX.instance.setNCEMode(savedMode)
-            Log.i("RPCSX", "Restored NCE mode before boot: $savedMode (${
-                when (savedMode) {
-                    0 -> "Disabled"
-                    1 -> "Interpreter"
-                    2 -> "Recompiler"
-                    3 -> "NCE/JIT"
-                    else -> "Unknown"
-                }
-            })")
+            try {
+                RPCSX.instance.setNCEMode(savedMode)
+                Log.i("RPCSX", "Restored NCE mode before boot: $savedMode (${
+                    when (savedMode) {
+                        0 -> "Disabled"
+                        1 -> "Interpreter"
+                        2 -> "Recompiler"
+                        3 -> "NCE/JIT"
+                        else -> "Unknown"
+                    }
+                })")
+            } catch (e: Throwable) {
+                Log.e("RPCSX", "Failed to restore NCE mode", e)
+            }
         } else {
             // Default to NCE/JIT if not set
-            RPCSX.instance.setNCEMode(3)
-            GeneralSettings.nceMode = 3
-            Log.i("RPCSX", "NCE mode not set, defaulting to NCE/JIT (mode 3)")
+            try {
+                RPCSX.instance.setNCEMode(3)
+                GeneralSettings.nceMode = 3
+                Log.i("RPCSX", "NCE mode not set, defaulting to NCE/JIT (mode 3)")
+            } catch (e: Throwable) {
+                Log.e("RPCSX", "Failed to set default NCE mode", e)
+            }
         }
     }
 
@@ -285,7 +293,7 @@ class RPCSXActivity : Activity() {
             
             if (rsxEnabled) {
                 // Start RSX Graphics Engine
-                val result = RPCSX.instance.rsxStart()
+                val result = try { RPCSX.instance.rsxStart() } catch (e: Throwable) { false }
                 if (result) {
                     binding.rsxToggle.isSelected = true
                     binding.rsxStatus.text = "RSX: ON"
@@ -297,7 +305,11 @@ class RPCSXActivity : Activity() {
                 }
             } else {
                 // Stop RSX Graphics Engine
-                RPCSX.instance.rsxStop()
+                try {
+                    RPCSX.instance.rsxStop()
+                } catch (e: Throwable) {
+                    Log.e("RPCSX-RSX", "Failed to stop RSX Graphics Engine", e)
+                }
                 binding.rsxToggle.isSelected = false
                 binding.rsxStatus.text = "RSX: OFF"
                 binding.rsxStatus.setTextColor(android.graphics.Color.parseColor("#80FFFFFF"))
@@ -320,7 +332,7 @@ class RPCSXActivity : Activity() {
         fpsUpdateRunnable = object : Runnable {
             override fun run() {
                 if (rsxEnabled) {
-                    val fps = RPCSX.instance.getRSXFPS()
+                    val fps = try { RPCSX.instance.getRSXFPS() } catch (e: Throwable) { 0 }
                     binding.fpsCounter.text = "FPS: $fps"
                     
                     // Color based on FPS
@@ -344,7 +356,7 @@ class RPCSXActivity : Activity() {
      * Show RSX Graphics Engine statistics
      */
     private fun showRSXStats() {
-        val stats = RPCSX.instance.rsxGetStats()
+        val stats = try { RPCSX.instance.rsxGetStats() } catch (e: Throwable) { "N/A" }
         val message = """
             |RSX Graphics Engine Stats:
             |─────────────────────────
