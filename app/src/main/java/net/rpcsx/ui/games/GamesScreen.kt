@@ -134,6 +134,28 @@ fun GameItem(game: Game) {
         DropdownMenu(
             expanded = menuExpanded.value, onDismissRequest = { menuExpanded.value = false }) {
             if (game.progressList.isEmpty()) {
+                // Game Patches option
+                DropdownMenuItem(
+                    text = { Text("Game Patches") },
+                    leadingIcon = { Icon(ImageVector.vectorResource(R.drawable.ic_settings), contentDescription = null) },
+                    onClick = {
+                        menuExpanded.value = false
+                        // Open game patches URL from RPCS3 wiki
+                        val titleId = game.info.titleId
+                        val patchUrl = "https://wiki.rpcs3.net/index.php?title=Help:Game_Patches"
+                        try {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(patchUrl))
+                            context.startActivity(intent)
+                        } catch (e: Throwable) {
+                            AlertDialogQueue.showDialog(
+                                title = "Game Patches",
+                                message = "Visit wiki.rpcs3.net for patches for $titleId"
+                            )
+                        }
+                    }
+                )
+                
+                // Delete option
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.delete)) },
                     leadingIcon = { Icon(Icons.Outlined.Delete, contentDescription = null) },

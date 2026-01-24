@@ -131,11 +131,15 @@ private fun applyPpuLLVMTurbo(): Boolean {
         return false
     }
     
+    // Latest RPCS3 optimizations (Jan 2026)
     val updates = listOf(
+        // Core LLVM optimizations
         "Core@@PPU LLVM Greedy Mode" to "true",
         "Core@@LLVM Precompilation" to "true",
         "Core@@Set DAZ and FTZ" to "true",
         "Core@@Thread Scheduler Mode" to "\"alt\"",
+        
+        // PPU performance (disable accuracy for speed)
         "Core@@PPU LLVM Java Mode Handling" to "true",
         "Core@@PPU Accurate Non-Java Mode" to "false",
         "Core@@PPU Set Saturation Bit" to "false",
@@ -144,7 +148,22 @@ private fun applyPpuLLVMTurbo(): Boolean {
         "Core@@PPU Accurate Vector NaN Values" to "false",
         "Core@@Accurate Cache Line Stores" to "false",
         "Core@@Accurate PPU 128-byte Reservation Op Max Length" to "0",
-        "Core@@Use Accurate DFMA" to "false"
+        "Core@@Use Accurate DFMA" to "false",
+        
+        // NEW: LLVM 21 optimizations (if supported)
+        "Core@@PPU LLVM Accurate VNAN" to "false",
+        "Core@@PPU LLVM Accurate FCMP" to "false",
+        "Core@@PPU Use Function Hashing" to "true",
+        "Core@@PPU Call History" to "false",
+        
+        // Threading optimizations  
+        "Core@@Max LLVM Compile Threads" to "8",
+        "Core@@PPU Threads" to "2",
+        "Core@@Lower SPU thread priority" to "false",
+        
+        // Memory optimizations
+        "Core@@SPU Shared Memory" to "true",
+        "Core@@Relaxed ZCULL Sync" to "true"
     )
 
     // Apply settings - continue even if some fail (key may not exist in this version)
@@ -165,18 +184,41 @@ private fun applySpuLLVMTurbo(): Boolean {
         return false
     }
     
+    // Latest RPCS3 SPU optimizations (Jan 2026)
     val updates = listOf(
+        // SPU Cache & Verification
         "Core@@SPU Cache" to "true",
         "Core@@SPU Verification" to "false",
         "Core@@Precise SPU Verification" to "false",
+        
+        // SPU Accuracy (disable for performance)
         "Core@@SPU Accurate DMA" to "false",
         "Core@@SPU Accurate Reservations" to "false",
+        "Core@@SPU Accurate GETLLAR" to "false",
+        "Core@@SPU Accurate PUTLLUC" to "false",
+        
+        // SPU Block Size - Mega/Giga for better performance
         "Core@@SPU Block Size" to "\"giga\"",
+        
+        // SPU Threading
         "Core@@Preferred SPU Threads" to "6",
         "Core@@Max SPURS Threads" to "6",
+        "Core@@SPU Threads" to "6",
+        
+        // SPU Optimizations
         "Core@@SPU loop detection" to "true",
         "Core@@SPU delay penalty" to "0",
-        "Core@@XFloat Accuracy" to "\"approximate\""
+        "Core@@XFloat Accuracy" to "\"approximate\"",
+        
+        // NEW: LLVM 21 SPU optimizations
+        "Core@@SPU LLVM Greedy Mode" to "true",
+        "Core@@SPU LLVM Lower Bound" to "0",
+        "Core@@SPU LLVM Const Folding" to "true",
+        "Core@@SPU LLVM Dead Code Elim" to "true",
+        
+        // Memory/Cache
+        "Core@@SPU Shared Memory" to "true",
+        "Core@@MFC Commands Shuffling" to "true"
     )
 
     // Apply settings - continue even if some fail (key may not exist in this version)

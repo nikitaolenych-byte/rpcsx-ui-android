@@ -523,6 +523,32 @@ fun GamesDestination(
         }
     )
 
+    // ISO file launcher - for mounting PS3 ISO/BIN disc images
+    val installIsoLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent(),
+        onResult = { uri: Uri? ->
+            if (uri != null) {
+                // ISO files need special handling
+                val fileName = uri.lastPathSegment ?: "unknown"
+                if (fileName.lowercase().endsWith(".iso") || 
+                    fileName.lowercase().endsWith(".bin") ||
+                    fileName.lowercase().endsWith(".img")) {
+                    // Try to install as disc image
+                    PrecompilerService.start(
+                        context,
+                        PrecompilerServiceAction.Install,
+                        uri
+                    )
+                } else {
+                    AlertDialogQueue.showDialog(
+                        "Unsupported Format",
+                        "Please select a valid PS3 disc image (.iso, .bin, .img)"
+                    )
+                }
+            }
+        }
+    )
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
@@ -718,7 +744,7 @@ fun GamesDestination(
                 )
             },
             floatingActionButton = {
-                DropUpFloatingActionButton(installPkgLauncher, gameFolderPickerLauncher)
+                DropUpFloatingActionButton(installPkgLauncher, gameFolderPickerLauncher, installIsoLauncher)
             },
         ) { innerPadding -> Column(modifier = Modifier.padding(innerPadding)) { GamesScreen() } }
     }
@@ -727,7 +753,8 @@ fun GamesDestination(
 @Composable
 fun DropUpFloatingActionButton(
     installPkgLauncher: ActivityResultLauncher<String>,
-    gameFolderPickerLauncher: ActivityResultLauncher<Uri?>
+    gameFolderPickerLauncher: ActivityResultLauncher<Uri?>,
+    installIsoLauncher: ActivityResultLauncher<String>? = null
 ) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -749,15 +776,31 @@ fun DropUpFloatingActionButton(
                 )
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // PKG/Game files
                     FloatingActionButton(
                         onClick = { installPkgLauncher.launch("*/*"); expanded = false },
                         containerColor = MaterialTheme.colorScheme.secondary
                     ) {
                         Icon(
                             painter = painterResource(id = R.drawable.ic_description),
-                            contentDescription = "Select Game"
+                            contentDescription = "Select PKG"
                         )
                     }
+                    
+                    // ISO disc images
+                    if (installIsoLauncher != null) {
+                        FloatingActionButton(
+                            onClick = { installIsoLauncher.launch("*/*"); expanded = false },
+                            containerColor = MaterialTheme.colorScheme.tertiary
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_album),
+                                contentDescription = "Select ISO"
+                            )
+                        }
+                    }
+                    
+                    // Folder picker
                     FloatingActionButton(
                         onClick = { gameFolderPickerLauncher.launch(null); expanded = false },
                         containerColor = MaterialTheme.colorScheme.secondary
