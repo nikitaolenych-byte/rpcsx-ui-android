@@ -367,9 +367,17 @@ fun AdvancedSettingsScreen(
                                     else -> itemValue
                                 }
 
-                                // DISABLED: LLVM Turbo variables removed for stability
-                                // val isPpuLLVMSelected = isPpuDecoder && itemValue == "LLVM Recompiler (Legacy)"
-                                // val isSpuLLVMSelected = isSpuDecoder && itemValue.contains("LLVM", ignoreCase = true)
+                                // LLVM Turbo state (only show buttons when LLVM is selected)
+                                val isPpuLLVMSelected = isPpuDecoder && itemValue == "LLVM Recompiler (Legacy)"
+                                val isSpuLLVMSelected = isSpuDecoder && itemValue.contains("LLVM", ignoreCase = true)
+                                val ppuTurboKey = "ppu_llvm_turbo"
+                                val spuTurboKey = "spu_llvm_turbo"
+                                var ppuTurboEnabled by remember {
+                                    mutableStateOf(GeneralSettings[ppuTurboKey] as? Boolean ?: false)
+                                }
+                                var spuTurboEnabled by remember {
+                                    mutableStateOf(GeneralSettings[spuTurboKey] as? Boolean ?: false)
+                                }
 
                                 Column {
                                     SingleSelectionDialog(
@@ -458,8 +466,65 @@ fun AdvancedSettingsScreen(
                                                 })
                                         })
 
-                                    // DISABLED: LLVM Turbo buttons were causing crashes
-                                    // PPU LLVM Turbo and SPU LLVM Turbo removed for stability
+                                    // PPU LLVM Turbo button (only visible when LLVM is selected)
+                                    if (isPpuLLVMSelected) {
+                                        SwitchPreference(
+                                            checked = ppuTurboEnabled,
+                                            title = "PPU LLVM Turbo",
+                                            subtitle = {
+                                                Text("Aggressive JIT, NEON fusion, speculative execution, hot-path locking, unsafe fast-math")
+                                            },
+                                            onClick = { enabled ->
+                                                try {
+                                                    if (enabled) {
+                                                        if (!applyPpuLLVMTurbo()) {
+                                                            Toast.makeText(context, "Failed to apply PPU LLVM Turbo", Toast.LENGTH_SHORT).show()
+                                                            return@SwitchPreference
+                                                        }
+                                                    }
+                                                    ppuTurboEnabled = enabled
+                                                    GeneralSettings.setValue(ppuTurboKey, enabled)
+                                                    Toast.makeText(
+                                                        context,
+                                                        if (enabled) "PPU LLVM Turbo enabled" else "PPU LLVM Turbo disabled",
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
+                                                } catch (e: Throwable) {
+                                                    Log.e("Settings", "PPU Turbo error: ${e.message}")
+                                                }
+                                            }
+                                        )
+                                    }
+
+                                    // SPU LLVM Turbo button (only visible when SPU LLVM is selected)
+                                    if (isSpuLLVMSelected) {
+                                        SwitchPreference(
+                                            checked = spuTurboEnabled,
+                                            title = "SPU LLVM Turbo",
+                                            subtitle = {
+                                                Text("NEON mapping, speculative DMA, hot-path caching, approximate math")
+                                            },
+                                            onClick = { enabled ->
+                                                try {
+                                                    if (enabled) {
+                                                        if (!applySpuLLVMTurbo()) {
+                                                            Toast.makeText(context, "Failed to apply SPU LLVM Turbo", Toast.LENGTH_SHORT).show()
+                                                            return@SwitchPreference
+                                                        }
+                                                    }
+                                                    spuTurboEnabled = enabled
+                                                    GeneralSettings.setValue(spuTurboKey, enabled)
+                                                    Toast.makeText(
+                                                        context,
+                                                        if (enabled) "SPU LLVM Turbo enabled" else "SPU LLVM Turbo disabled",
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
+                                                } catch (e: Throwable) {
+                                                    Log.e("Settings", "SPU Turbo error: ${e.message}")
+                                                }
+                                            }
+                                        )
+                                    }
                                 }
                             }
 
