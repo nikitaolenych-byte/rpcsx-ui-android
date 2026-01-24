@@ -60,7 +60,7 @@ class RPCSXActivity : Activity() {
             Log.e("RPCSX", "Failed to setup OSC toggle", e)
         }
 
-        // RSX Graphics Engine Toggle Button - disabled
+        // RSX Graphics Engine Toggle Button - disabled (UI hidden)
         // setupRSXButton()
 
         val gamePath = intent.getStringExtra("path")
@@ -79,7 +79,7 @@ class RPCSXActivity : Activity() {
             Log.e("RPCSX", "Failed to restore NCE mode", e)
         }
         
-        // FPS counter disabled
+        // FPS counter disabled (UI hidden)
         // startFPSCounter()
 
         bootThread = thread {
