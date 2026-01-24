@@ -108,6 +108,7 @@ class MainActivity : ComponentActivity() {
 
                 lifecycleScope.launch {
                     UserRepository.load()
+                    GameRepository.load()
                 }
 
                 RPCSX.initialized = true
