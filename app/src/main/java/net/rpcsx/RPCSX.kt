@@ -108,11 +108,12 @@ class RPCSX {
     external fun setNCEMode(mode: Int)
     external fun getNCEMode(): Int
     external fun isNCEActive(): Boolean
-    external fun isNCENativeActive(): Boolean
+    // isNCENativeActive - NOT in native lib, stub it
+    fun isNCENativeActive(): Boolean = false
     
-    // NCE Native - PS3 game loading
-    external fun loadAndStartGame(gamePath: String): Boolean
-    external fun stopGame()
+    // NCE Native - PS3 game loading (NOT in native lib, stubbed)
+    fun loadAndStartGame(gamePath: String): Boolean = false
+    fun stopGame() {}
     
     // Cache management
     external fun purgeAllCaches(cacheDir: String)
@@ -122,19 +123,19 @@ class RPCSX {
     external fun getJITStats(): String
     external fun runJITTest(): Boolean
     
-    // RSX Graphics Engine (Multithreaded)
-    external fun rsxStart(): Boolean
-    external fun rsxStop(): Boolean
-    external fun rsxIsRunning(): Boolean
-    external fun rsxGetStats(): String
-    external fun getRSXFPS(): Int
-    external fun rsxSetThreadCount(count: Int)
-    external fun rsxGetThreadCount(): Int
+    // RSX Graphics Engine - NOT in native lib, all stubbed
+    fun rsxStart(): Boolean = false
+    fun rsxStop(): Boolean = false
+    fun rsxIsRunning(): Boolean = false
+    fun rsxGetStats(): String = "RSX not available"
+    fun getRSXFPS(): Int = 0
+    fun rsxSetThreadCount(count: Int) {}
+    fun rsxGetThreadCount(): Int = 0
 
-    // Performance Benchmark Tests
-    external fun runGraphicsPerformanceTest(numDraws: Int): Float
-    external fun runMemoryPerformanceTest(): Float
-    external fun runCPUPerformanceTest(): Float
+    // Performance Benchmark Tests - NOT in native lib, stubbed
+    fun runGraphicsPerformanceTest(numDraws: Int): Float = 0f
+    fun runMemoryPerformanceTest(): Float = 0f
+    fun runCPUPerformanceTest(): Float = 0f
 
 
     companion object {
