@@ -100,8 +100,8 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                // Safe startup toggles (avoid crashing if JNI symbols are missing)
-                applyStartupPerformanceToggles()
+                // DISABLED: Performance toggles were causing crashes
+                // applyStartupPerformanceToggles()
 
                 lifecycleScope.launch {
                     UserRepository.load()
