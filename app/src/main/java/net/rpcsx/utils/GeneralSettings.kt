@@ -3,18 +3,28 @@ package net.rpcsx.utils
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
 
 object GeneralSettings {
 
-    private lateinit var prefs: SharedPreferences
+    private var prefs: SharedPreferences? = null
     
     // In-memory cache for frequently accessed values to avoid SharedPreferences overhead
     private var cachedNceMode: Int? = null
+    
+    val isInitialized: Boolean
+        get() = prefs != null
 
     fun init(context: Context) {
-        prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-        // Pre-load cached values
-        cachedNceMode = prefs.getInt("nce_mode", -1).takeIf { prefs.contains("nce_mode") }
+        try {
+            prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+            // Pre-load cached values
+            prefs?.let { p ->
+                cachedNceMode = p.getInt("nce_mode", -1).takeIf { p.contains("nce_mode") }
+            }
+        } catch (e: Throwable) {
+            Log.e("GeneralSettings", "Failed to initialize SharedPreferences", e)
+        }
     }
     
     // Fast access to NCE mode without SharedPreferences lookup
@@ -22,30 +32,40 @@ object GeneralSettings {
         get() = cachedNceMode ?: -1
         set(value) {
             cachedNceMode = value
-            prefs.edit().putInt("nce_mode", value).apply()
+            try {
+                prefs?.edit()?.putInt("nce_mode", value)?.apply()
+            } catch (e: Throwable) {
+                Log.e("GeneralSettings", "Failed to save nceMode", e)
+            }
         }
 
-    operator fun get(key: String): Any? = with(prefs) {
-        when {
-            contains(key) -> {
-                all[key]
-            }
-            else -> null
+    operator fun get(key: String): Any? {
+        val p = prefs ?: return null
+        return try {
+            if (p.contains(key)) p.all[key] else null
+        } catch (e: Throwable) {
+            Log.e("GeneralSettings", "Failed to get $key", e)
+            null
         }
     }
 
     fun setValue(key: String, value: Any?) {
-        with(prefs.edit()) {
-            when (value) {
-                null -> remove(key)
-                is String -> putString(key, value)
-                is Int -> putInt(key, value)
-                is Boolean -> putBoolean(key, value)
-                is Float -> putFloat(key, value)
-                is Long -> putLong(key, value)
-                else -> throw IllegalArgumentException("Unsupported type: ${value::class.java.name}")
+        val p = prefs ?: return
+        try {
+            with(p.edit()) {
+                when (value) {
+                    null -> remove(key)
+                    is String -> putString(key, value)
+                    is Int -> putInt(key, value)
+                    is Boolean -> putBoolean(key, value)
+                    is Float -> putFloat(key, value)
+                    is Long -> putLong(key, value)
+                    else -> throw IllegalArgumentException("Unsupported type: ${value::class.java.name}")
+                }
+                apply()
             }
-            apply()
+        } catch (e: Throwable) {
+            Log.e("GeneralSettings", "Failed to set value for $key", e)
         }
     }
 
@@ -74,6 +94,10 @@ object GeneralSettings {
     }
 
     fun sync() {
-        prefs.edit().commit()
+        try {
+            prefs?.edit()?.commit()
+        } catch (e: Throwable) {
+            Log.e("GeneralSettings", "Failed to sync", e)
+        }
     }
 }

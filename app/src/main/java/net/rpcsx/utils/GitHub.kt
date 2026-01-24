@@ -31,13 +31,17 @@ object GitHub {
         .build()
 
     private val json = Json { ignoreUnknownKeys = true }
-    private lateinit var prefs: SharedPreferences
+    private var prefs: SharedPreferences? = null
 
     fun initialize(context: Context) {
-        prefs = context.getSharedPreferences("github_cache", Context.MODE_PRIVATE)
+        try {
+            prefs = context.getSharedPreferences("github_cache", Context.MODE_PRIVATE)
 
-        prefs.all.forEach {
-            cache.entries[it.key] = Json.decodeFromString(it.value as String)
+            prefs?.all?.forEach {
+                cache.entries[it.key] = Json.decodeFromString(it.value as String)
+            }
+        } catch (e: Throwable) {
+            Log.e("GitHub", "Failed to initialize", e)
         }
     }
 
@@ -103,8 +107,12 @@ object GitHub {
 
             val cacheEntry = CacheEntry(timestamp, body)
             cache.entries[url] = cacheEntry
-            prefs.edit {
-                putString(url, Json.encodeToString(CacheEntry.serializer(), cacheEntry))
+            try {
+                prefs?.edit {
+                    putString(url, Json.encodeToString(CacheEntry.serializer(), cacheEntry))
+                }
+            } catch (e: Throwable) {
+                Log.e("GitHub", "Failed to save cache entry", e)
             }
 
             GetResult.Success(body)

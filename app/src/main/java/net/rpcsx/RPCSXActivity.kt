@@ -23,8 +23,8 @@ import kotlin.concurrent.thread
 import kotlin.math.abs
 
 class RPCSXActivity : Activity() {
-    private lateinit var binding: ActivityRpcs3Binding
-    private lateinit var unregisterUsbEventListener: () -> Unit
+    private var binding: ActivityRpcs3Binding? = null
+    private var unregisterUsbEventListener: (() -> Unit)? = null
     private var gamePadState: State = State()
     private var usesAxisL2 = false
     private var usesAxisR2 = false
@@ -33,28 +33,62 @@ class RPCSXActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = ActivityRpcs3Binding.inflate(layoutInflater)
-        setContentView(binding.root)
+        try {
+            binding = ActivityRpcs3Binding.inflate(layoutInflater)
+            binding?.root?.let { setContentView(it) }
 
-        unregisterUsbEventListener = listenUsbEvents(this)
-        enableFullScreenImmersive()
+            unregisterUsbEventListener = listenUsbEvents(this)
+        } catch (e: Throwable) {
+            Log.e("RPCSX", "Failed to setup binding or USB listener", e)
+            unregisterUsbEventListener = null
+        }
+        
+        try {
+            enableFullScreenImmersive()
+        } catch (e: Throwable) {
+            Log.e("RPCSX", "Failed to enable fullscreen", e)
+        }
 
-        binding.oscToggle.setOnClickListener {
-            binding.padOverlay.isInvisible = !binding.padOverlay.isInvisible
-            binding.oscToggle.setImageResource(if (binding.padOverlay.isInvisible) R.drawable.ic_osc_off else R.drawable.ic_show_osc)
+        try {
+            binding?.oscToggle?.setOnClickListener {
+                binding?.padOverlay?.let { pad ->
+                    pad.isInvisible = !pad.isInvisible
+                    binding?.oscToggle?.setImageResource(if (pad.isInvisible) R.drawable.ic_osc_off else R.drawable.ic_show_osc)
+                }
+            }
+        } catch (e: Throwable) {
+            Log.e("RPCSX", "Failed to setup OSC toggle", e)
         }
 
         // RSX Graphics Engine Toggle Button
-        setupRSXButton()
+        try {
+            setupRSXButton()
+        } catch (e: Throwable) {
+            Log.e("RPCSX", "Failed to setup RSX button", e)
+        }
 
-        val gamePath = intent.getStringExtra("path")!!
+        val gamePath = intent.getStringExtra("path")
+        if (gamePath.isNullOrEmpty()) {
+            Log.e("RPCSX", "No game path provided, finishing activity")
+            finish()
+            return
+        }
+        
         RPCSX.lastPlayedGame = gamePath
         
         // Restore NCE mode from saved preferences before boot
-        restoreNCEMode()
+        try {
+            restoreNCEMode()
+        } catch (e: Throwable) {
+            Log.e("RPCSX", "Failed to restore NCE mode", e)
+        }
         
         // Start FPS counter update
-        startFPSCounter()
+        try {
+            startFPSCounter()
+        } catch (e: Throwable) {
+            Log.e("RPCSX", "Failed to start FPS counter", e)
+        }
 
         bootThread = thread {
             try {
@@ -99,7 +133,11 @@ class RPCSXActivity : Activity() {
     override fun onDestroy() {
         super.onDestroy()
         RPCSX.state.value = EmulatorState.Paused
-        unregisterUsbEventListener()
+        try {
+            unregisterUsbEventListener?.invoke()
+        } catch (e: Throwable) {
+            Log.e("RPCSX", "Failed to unregister USB listener", e)
+        }
         bootThread?.interrupt()
         bootThread?.join()
     }
@@ -270,17 +308,19 @@ class RPCSXActivity : Activity() {
     }
 
     private fun applyInsetsToPadOverlay() {
-        ViewCompat.setOnApplyWindowInsetsListener(binding.padOverlay) { view, windowInsets ->
-            // I don't think we need `displayCutout` insets here as well
-            // Since there is hardly any overlay overlapping with it
-            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
-            view.updateLayoutParams<MarginLayoutParams> {
-                leftMargin = insets.left
-                rightMargin = insets.right
-                topMargin = insets.top
-                bottomMargin = insets.bottom
+        binding?.padOverlay?.let { padOverlay ->
+            ViewCompat.setOnApplyWindowInsetsListener(padOverlay) { view, windowInsets ->
+                // I don't think we need `displayCutout` insets here as well
+                // Since there is hardly any overlay overlapping with it
+                val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
+                view.updateLayoutParams<MarginLayoutParams> {
+                    leftMargin = insets.left
+                    rightMargin = insets.right
+                    topMargin = insets.top
+                    bottomMargin = insets.bottom
+                }
+                WindowInsetsCompat.CONSUMED
             }
-            WindowInsetsCompat.CONSUMED
         }
     }
 
@@ -296,16 +336,18 @@ class RPCSXActivity : Activity() {
      * Setup RSX toggle button and its functionality
      */
     private fun setupRSXButton() {
-        binding.rsxToggle.setOnClickListener {
+        val b = binding ?: return
+        
+        b.rsxToggle.setOnClickListener {
             rsxEnabled = !rsxEnabled
             
             if (rsxEnabled) {
                 // Start RSX Graphics Engine
                 val result = try { RPCSX.instance.rsxStart() } catch (e: Throwable) { false }
                 if (result) {
-                    binding.rsxToggle.isSelected = true
-                    binding.rsxStatus.text = "RSX: ON"
-                    binding.rsxStatus.setTextColor(android.graphics.Color.parseColor("#00FF00"))
+                    b.rsxToggle.isSelected = true
+                    b.rsxStatus.text = "RSX: ON"
+                    b.rsxStatus.setTextColor(android.graphics.Color.parseColor("#00FF00"))
                     Log.i("RPCSX-RSX", "RSX Graphics Engine started (multithreaded)")
                 } else {
                     rsxEnabled = false
@@ -318,15 +360,15 @@ class RPCSXActivity : Activity() {
                 } catch (e: Throwable) {
                     Log.e("RPCSX-RSX", "Failed to stop RSX Graphics Engine", e)
                 }
-                binding.rsxToggle.isSelected = false
-                binding.rsxStatus.text = "RSX: OFF"
-                binding.rsxStatus.setTextColor(android.graphics.Color.parseColor("#80FFFFFF"))
+                b.rsxToggle.isSelected = false
+                b.rsxStatus.text = "RSX: OFF"
+                b.rsxStatus.setTextColor(android.graphics.Color.parseColor("#80FFFFFF"))
                 Log.i("RPCSX-RSX", "RSX Graphics Engine stopped")
             }
         }
         
         // Long press for RSX stats
-        binding.rsxToggle.setOnLongClickListener {
+        b.rsxToggle.setOnLongClickListener {
             showRSXStats()
             true
         }
@@ -339,9 +381,10 @@ class RPCSXActivity : Activity() {
         fpsUpdateHandler = android.os.Handler(mainLooper)
         fpsUpdateRunnable = object : Runnable {
             override fun run() {
-                if (rsxEnabled) {
+                val b = binding
+                if (rsxEnabled && b != null) {
                     val fps = try { RPCSX.instance.getRSXFPS() } catch (e: Throwable) { 0 }
-                    binding.fpsCounter.text = "FPS: $fps"
+                    b.fpsCounter.text = "FPS: $fps"
                     
                     // Color based on FPS
                     val color = when {
@@ -349,10 +392,10 @@ class RPCSXActivity : Activity() {
                         fps >= 30 -> android.graphics.Color.parseColor("#FFFF00")  // Yellow
                         else -> android.graphics.Color.parseColor("#FF0000")       // Red
                     }
-                    binding.fpsCounter.setTextColor(color)
+                    b.fpsCounter.setTextColor(color)
                 } else {
-                    binding.fpsCounter.text = "FPS: --"
-                    binding.fpsCounter.setTextColor(android.graphics.Color.parseColor("#80FFFFFF"))
+                    b?.fpsCounter?.text = "FPS: --"
+                    b?.fpsCounter?.setTextColor(android.graphics.Color.parseColor("#80FFFFFF"))
                 }
                 fpsUpdateHandler?.postDelayed(this, 500)
             }

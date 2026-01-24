@@ -30,27 +30,26 @@ class MainActivity : ComponentActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
         if (!RPCSX.initialized) {
-            Permission.PostNotifications.requestPermission(this)
+            try {
+                Permission.PostNotifications.requestPermission(this)
 
-            with(getSystemService(NOTIFICATION_SERVICE) as NotificationManager) {
-                val channel = NotificationChannel(
-                    "rpcsx-progress",
-                    getString(R.string.installation_progress),
-                    NotificationManager.IMPORTANCE_DEFAULT
-                ).apply {
-                    setShowBadge(false)
-                    lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                with(getSystemService(NOTIFICATION_SERVICE) as NotificationManager) {
+                    val channel = NotificationChannel(
+                        "rpcsx-progress",
+                        getString(R.string.installation_progress),
+                        NotificationManager.IMPORTANCE_DEFAULT
+                    ).apply {
+                        setShowBadge(false)
+                        lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                    }
+
+                    createNotificationChannel(channel)
                 }
 
-                createNotificationChannel(channel)
-            }
+                val externalDir = applicationContext.getExternalFilesDir(null)
+                RPCSX.rootDirectory = (externalDir?.absolutePath ?: filesDir.absolutePath) + "/"
 
-            RPCSX.rootDirectory = applicationContext.getExternalFilesDir(null).toString()
-            if (!RPCSX.rootDirectory.endsWith("/")) {
-                RPCSX.rootDirectory += "/"
-            }
-
-            GitHub.initialize(this)
+                GitHub.initialize(this)
 
             var rpcsxLibrary = GeneralSettings["rpcsx_library"] as? String
             val rpcsxUpdateStatus = GeneralSettings["rpcsx_update_status"]
@@ -142,6 +141,9 @@ class MainActivity : ComponentActivity() {
             if (updateFile.exists()) {
                 updateFile.delete()
             }
+            } catch (e: Throwable) {
+                Log.e("RPCSX", "Failed to initialize: ${e.message}", e)
+            }
         }
 
         setContent {
@@ -150,16 +152,27 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        if (RPCSX.activeLibrary.value != null) {
-            unregisterUsbEventListener = listenUsbEvents(this)
-        } else {
+        try {
+            if (RPCSX.activeLibrary.value != null) {
+                unregisterUsbEventListener = listenUsbEvents(this)
+            } else {
+                unregisterUsbEventListener = {}
+            }
+        } catch (e: Throwable) {
+            Log.e("RPCSX", "Failed to setup USB listener", e)
             unregisterUsbEventListener = {}
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        unregisterUsbEventListener()
+        try {
+            if (::unregisterUsbEventListener.isInitialized) {
+                unregisterUsbEventListener()
+            }
+        } catch (e: Throwable) {
+            Log.e("RPCSX", "Failed to unregister USB listener", e)
+        }
     }
 
     /**
