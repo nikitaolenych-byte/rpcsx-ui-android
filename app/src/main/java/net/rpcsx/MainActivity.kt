@@ -93,14 +93,8 @@ class MainActivity : ComponentActivity() {
                     RPCSX.instance.setCustomDriver(gpuDriverPath, gpuDriverName, nativeLibraryDir)
                 }
 
-                // Auto-enable NCE/JIT on first launch for ARMv9 optimization
-                autoEnableNceJit()
-
-                // Apply maximum performance defaults (RSX + settings)
-                applyAutoMaxPerformance()
-
-                // Enable ARMv9 native optimizations when available
-                enableArmv9Optimizations()
+                // Safe startup toggles (avoid crashing if JNI symbols are missing)
+                applyStartupPerformanceToggles()
 
                 lifecycleScope.launch {
                     UserRepository.load()
@@ -162,8 +156,12 @@ class MainActivity : ComponentActivity() {
         
         // Always restore NCE mode from saved preference
         if (nceMode >= 0) {
-            RPCSX.instance.setNCEMode(nceMode)
-            Log.i("RPCSX", "Restored NCE mode from preferences: $nceMode")
+            try {
+                RPCSX.instance.setNCEMode(nceMode)
+                Log.i("RPCSX", "Restored NCE mode from preferences: $nceMode")
+            } catch (e: Throwable) {
+                Log.e("RPCSX", "Error restoring NCE mode", e)
+            }
         }
         
         // First launch - auto-enable NCE/JIT
@@ -172,17 +170,25 @@ class MainActivity : ComponentActivity() {
                 // IMPORTANT: Use LLVM Recompiler to compile PPU modules!
                 // Interpreter does NOT compile PPU modules - they just get skipped.
                 // NCE optimizes the already-compiled LLVM code at runtime.
-                val ok = RPCSX.instance.settingsSet("Core@@PPU Decoder", "\"LLVM Recompiler (Legacy)\"")
+                val ok = safeSettingsSet("Core@@PPU Decoder", "\"LLVM Recompiler (Legacy)\"")
                 if (ok) {
                     // Activate NCE JIT layer (mode 3) for additional ARM64 optimizations
-                    RPCSX.instance.setNCEMode(3)
+                    try {
+                        RPCSX.instance.setNCEMode(3)
+                    } catch (e: Throwable) {
+                        Log.e("RPCSX", "Error setting NCE mode", e)
+                    }
                     GeneralSettings.nceMode = 3
                     GeneralSettings[nceEnabledKey] = true
                     Log.i("RPCSX", "NCE/JIT auto-enabled (LLVM + NCE optimization layer)")
                 } else {
                     Log.w("RPCSX", "Failed to set PPU Decoder to LLVM, trying fallback...")
                     // Still enable NCE for runtime optimizations
-                    RPCSX.instance.setNCEMode(3)
+                    try {
+                        RPCSX.instance.setNCEMode(3)
+                    } catch (e: Throwable) {
+                        Log.e("RPCSX", "Error setting NCE mode", e)
+                    }
                     GeneralSettings.nceMode = 3
                     GeneralSettings[nceEnabledKey] = true
                 }
@@ -253,6 +259,26 @@ class MainActivity : ComponentActivity() {
             RPCSX.initializeOptimizations(cacheDir.absolutePath)
         } catch (e: Throwable) {
             Log.e("RPCSX", "Failed to enable ARMv9 optimizations", e)
+        }
+    }
+
+    private fun applyStartupPerformanceToggles() {
+        try {
+            autoEnableNceJit()
+        } catch (e: Throwable) {
+            Log.e("RPCSX", "Startup: NCE/JIT toggle failed", e)
+        }
+
+        try {
+            applyAutoMaxPerformance()
+        } catch (e: Throwable) {
+            Log.e("RPCSX", "Startup: Max performance toggle failed", e)
+        }
+
+        try {
+            enableArmv9Optimizations()
+        } catch (e: Throwable) {
+            Log.e("RPCSX", "Startup: ARMv9 optimizations failed", e)
         }
     }
 
