@@ -123,7 +123,7 @@ fun GpuDriversScreen(navigateBack: () -> Unit) {
                             )
                         }
                     }
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
                     Log.e("GpuDriver", "Error installing driver: ${e.message}")
                 }
             }

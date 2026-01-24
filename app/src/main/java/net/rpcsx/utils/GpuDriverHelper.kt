@@ -70,7 +70,7 @@ object GpuDriverHelper {
 
         try {
             ZipUtil.unzip(stream, installTempDir)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             e.printStackTrace()
             installTempDir.deleteRecursively()
             return GpuDriverInstallResult.InvalidArchive
@@ -87,7 +87,7 @@ object GpuDriverHelper {
 
         try {
             ZipUtil.unzip(file, installTempDir)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             e.printStackTrace()
             installTempDir.deleteRecursively()
             return GpuDriverInstallResult.InvalidArchive

@@ -213,7 +213,7 @@ object FileUtil {
                 val document = SimpleDocument(documentName, documentMimeType, documentUri)
                 results.add(document)
             }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e("FileUtil", "Cannot list file error: " + e.message)
         } finally {
             c?.close()
@@ -246,7 +246,7 @@ object FileUtil {
             inputStream.close()
             outputStream.close()
             true
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             e.printStackTrace()
             false
         }
@@ -261,7 +261,7 @@ object FileUtil {
             inputStream.close()
             outputStream.close()
            true
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             e.printStackTrace()
             false
         }

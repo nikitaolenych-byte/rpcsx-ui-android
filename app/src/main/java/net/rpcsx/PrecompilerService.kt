@@ -25,7 +25,7 @@ class PrecompilerService : Service() {
 
             try {
                 context.startForegroundService(intent)
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 e.printStackTrace()
             }
         }
@@ -46,7 +46,7 @@ class PrecompilerService : Service() {
 
             try {
                 context.startForegroundService(intent)
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 e.printStackTrace()
             }
         }
@@ -67,7 +67,7 @@ class PrecompilerService : Service() {
         if (fd == null) {
             try {
                 descriptor?.close()
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 e.printStackTrace()
             }
 
@@ -83,14 +83,14 @@ class PrecompilerService : Service() {
         if (!installResult) {
             try {
                 ProgressRepository.onProgressEvent(installProgress, -1, 0)
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 e.printStackTrace()
             }
         }
 
         try {
             descriptor.close()
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             e.printStackTrace()
         }
 
@@ -137,7 +137,7 @@ class PrecompilerService : Service() {
                     0
                 }
             )
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             e.printStackTrace()
         }
 

@@ -436,11 +436,11 @@ fun AdvancedSettingsScreen(
                                                         safeSetNCEMode(nceMode)
                                                         try {
                                                             net.rpcsx.utils.GeneralSettings.nceMode = nceMode
-                                                        } catch (e: Exception) {
+                                                        } catch (e: Throwable) {
                                                             android.util.Log.e("Settings", "Failed to save NCE mode: ${e.message}")
                                                         }
                                                     }
-                                                } catch (e: Exception) {
+                                                } catch (e: Throwable) {
                                                     android.util.Log.e("Settings", "Error updating PPU decoder: ${e.message}")
                                                 }
                                             }
@@ -527,7 +527,7 @@ fun AdvancedSettingsScreen(
                                     max = itemObject.getString("max").toLong()
                                     min = itemObject.getString("min").toLong()
                                     def = itemObject.getString("default").toLong()
-                                } catch (e: Exception) {
+                                } catch (e: Throwable) {
                                     e.printStackTrace()
                                 }
                                 var itemValue by remember { mutableLongStateOf(initialItemValue) }
@@ -697,7 +697,7 @@ fun AdvancedSettingsScreen(
                                     safeSetNCEMode(3)
                                     try {
                                         GeneralSettings.nceMode = 3
-                                    } catch (e: Exception) {
+                                    } catch (e: Throwable) {
                                         Log.e("Settings", "Failed to save NCE mode: ${e.message}")
                                     }
 
@@ -737,7 +737,7 @@ fun AdvancedSettingsScreen(
                                     GeneralSettings.setValue("max_perf_defaults_applied", true)
 
                                     Toast.makeText(context, "Max performance enabled", Toast.LENGTH_SHORT).show()
-                                } catch (e: Exception) {
+                                } catch (e: Throwable) {
                                     Toast.makeText(context, "Failed to apply performance mode", Toast.LENGTH_SHORT).show()
                                 }
                             }
@@ -984,7 +984,7 @@ fun SettingsScreen(
                                     dismissText = ""
                                 )
                             }
-                        } catch (e: Exception) {
+                        } catch (e: Throwable) {
                             AlertDialogQueue.showDialog(
                                 title = context.getString(R.string.custom_driver_not_supported),
                                 message = "Error: ${e.message}",

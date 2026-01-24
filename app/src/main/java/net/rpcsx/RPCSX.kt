@@ -158,15 +158,24 @@ class RPCSX {
             }
             
             android.util.Log.i("RPCSX", "Enabling ARMv9 optimizations for Snapdragon 8s Gen 3")
-            val buildId = "${BuildConfig.VERSION_NAME}:${BuildConfig.VERSION_CODE}"
-            armv9OptimizationsEnabled = instance.initializeARMv9Optimizations(cacheDir, titleId, buildId)
-            
-            if (armv9OptimizationsEnabled) {
-                android.util.Log.i("RPCSX", "ARMv9 optimizations enabled successfully!")
-                // Auto-set NCE/JIT mode
-                instance.setNCEMode(3)
-            } else {
-                android.util.Log.e("RPCSX", "Failed to enable ARMv9 optimizations")
+            try {
+                val buildId = "${BuildConfig.VERSION_NAME}:${BuildConfig.VERSION_CODE}"
+                armv9OptimizationsEnabled = instance.initializeARMv9Optimizations(cacheDir, titleId, buildId)
+                
+                if (armv9OptimizationsEnabled) {
+                    android.util.Log.i("RPCSX", "ARMv9 optimizations enabled successfully!")
+                    // Auto-set NCE/JIT mode
+                    try {
+                        instance.setNCEMode(3)
+                    } catch (e: Throwable) {
+                        android.util.Log.e("RPCSX", "Failed to set NCE mode", e)
+                    }
+                } else {
+                    android.util.Log.e("RPCSX", "Failed to enable ARMv9 optimizations")
+                }
+            } catch (e: Throwable) {
+                android.util.Log.e("RPCSX", "Failed to initialize ARMv9 optimizations", e)
+                return false
             }
             
             return armv9OptimizationsEnabled
@@ -178,7 +187,11 @@ class RPCSX {
         fun shutdownOptimizations() {
             if (armv9OptimizationsEnabled) {
                 android.util.Log.i("RPCSX", "Shutting down ARMv9 optimizations")
-                instance.shutdownARMv9Optimizations()
+                try {
+                    instance.shutdownARMv9Optimizations()
+                } catch (e: Throwable) {
+                    android.util.Log.e("RPCSX", "Failed to shutdown ARMv9 optimizations", e)
+                }
                 armv9OptimizationsEnabled = false
             }
         }
@@ -187,8 +200,12 @@ class RPCSX {
          * Встановлення режиму PPU декодера
          */
         fun setDecoderMode(mode: Int) {
-            instance.setNCEMode(mode)
-            android.util.Log.i("RPCSX", "PPU Decoder mode set to $mode")
+            try {
+                instance.setNCEMode(mode)
+                android.util.Log.i("RPCSX", "PPU Decoder mode set to $mode")
+            } catch (e: Throwable) {
+                android.util.Log.e("RPCSX", "Failed to set PPU Decoder mode to $mode", e)
+            }
         }
 
         fun boot(path: String): BootResult {

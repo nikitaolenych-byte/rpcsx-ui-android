@@ -122,7 +122,7 @@ object GitHub {
             is GetResult.Success -> {
                 try {
                     FetchResult.Success(json.decodeFromString(Release.serializer(), response.content))
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
                     FetchResult.Error("Parsing error: ${e.message}")
                 }
             }
@@ -143,7 +143,7 @@ object GitHub {
                         release.name to assetUrl
                     }
                     FetchResult.Success(drivers)
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
                     FetchResult.Error("Parsing error: ${e.message}")
                 }
             }
@@ -202,7 +202,7 @@ object GitHub {
 
             deferredList.awaitAll()
             return@withContext DownloadStatus.Success
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e("GitHub", "Parallel download failed", e)
             return@withContext DownloadStatus.Error(e.message ?: "Unknown error")
         }

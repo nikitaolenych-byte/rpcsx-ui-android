@@ -85,12 +85,20 @@ class MainActivity : ComponentActivity() {
             RPCSX.nativeLibDirectory = nativeLibraryDir
 
             if (RPCSX.activeLibrary.value != null) {
-                RPCSX.instance.initialize(RPCSX.rootDirectory, UserRepository.getUserFromSettings())
+                try {
+                    RPCSX.instance.initialize(RPCSX.rootDirectory, UserRepository.getUserFromSettings())
+                } catch (e: Throwable) {
+                    Log.e("RPCSX", "Failed to initialize RPCSX", e)
+                }
                 val gpuDriverPath = GeneralSettings["gpu_driver_path"] as? String
                 val gpuDriverName = GeneralSettings["gpu_driver_name"] as? String
 
                 if (gpuDriverPath != null && gpuDriverName != null) {
-                    RPCSX.instance.setCustomDriver(gpuDriverPath, gpuDriverName, nativeLibraryDir)
+                    try {
+                        RPCSX.instance.setCustomDriver(gpuDriverPath, gpuDriverName, nativeLibraryDir)
+                    } catch (e: Throwable) {
+                        Log.e("RPCSX", "Failed to set custom driver", e)
+                    }
                 }
 
                 // Safe startup toggles (avoid crashing if JNI symbols are missing)
@@ -103,11 +111,19 @@ class MainActivity : ComponentActivity() {
                 RPCSX.initialized = true
 
                 thread {
-                    RPCSX.instance.startMainThreadProcessor()
+                    try {
+                        RPCSX.instance.startMainThreadProcessor()
+                    } catch (e: Throwable) {
+                        Log.e("RPCSX", "Failed to start main thread processor", e)
+                    }
                 }
 
                 thread {
-                    RPCSX.instance.processCompilationQueue()
+                    try {
+                        RPCSX.instance.processCompilationQueue()
+                    } catch (e: Throwable) {
+                        Log.e("RPCSX", "Failed to process compilation queue", e)
+                    }
                 }
 
                 GeneralSettings["rpcsx_update_status"] = true
@@ -302,7 +318,7 @@ class MainActivity : ComponentActivity() {
                     break
                 }
             }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e("RPCSX", "Error checking Downloads for APK", e)
         }
     }

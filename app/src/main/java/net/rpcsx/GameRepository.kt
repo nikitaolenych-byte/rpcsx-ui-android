@@ -96,7 +96,7 @@ class GameRepository {
                         game.info
                     )
                 }.filter { info -> info.path != "$" }))
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 e.printStackTrace()
             }
         }
@@ -109,7 +109,7 @@ class GameRepository {
                         File(RPCSX.rootDirectory + "games.json").readText()
                     ).map { info -> Game(toStore(info)) }
                 } catch (_: NotFoundException) {
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
                     e.printStackTrace()
                 }
             }

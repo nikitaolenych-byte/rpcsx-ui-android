@@ -31,7 +31,7 @@ class FirmwareRepository {
                             FirmwareInfo(version.value, status.value)
                         )
                     )
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
                     e.printStackTrace()
 
             }
@@ -44,7 +44,7 @@ class FirmwareRepository {
                     status.value = info.status
                     version.value = info.version
                 } catch (_: NotFoundException) {
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
                     e.printStackTrace()
                 }
         }

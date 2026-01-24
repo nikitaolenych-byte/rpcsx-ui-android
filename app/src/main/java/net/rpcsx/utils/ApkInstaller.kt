@@ -39,7 +39,7 @@ object ApkInstaller {
 
         return try {
             installViaPackageInstaller(context, apkFile)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.w(TAG, "PackageInstaller failed, trying Intent.ACTION_VIEW", e)
             installViaIntent(context, apkFile)
         }
@@ -123,7 +123,7 @@ object ApkInstaller {
         return try {
             context.startActivity(intent)
             true
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(TAG, "Failed to start install intent", e)
             AlertDialogQueue.showDialog(
                 context.getString(R.string.error),
@@ -151,7 +151,7 @@ object ApkInstaller {
         return try {
             context.startActivity(intent)
             true
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(TAG, "Failed to install APK from URI", e)
             false
         }

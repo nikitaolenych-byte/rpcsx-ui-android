@@ -109,21 +109,21 @@ fun GameItem(game: Game) {
                         if (!RPCSX.instance.installKey(fd, installProgress, game.info.path)) {
                             try {
                                 ProgressRepository.onProgressEvent(installProgress, -1, 0)
-                            } catch (e: Exception) {
+                            } catch (e: Throwable) {
                                 e.printStackTrace()
                             }
                         }
 
                         try {
                             descriptor.close()
-                        } catch (e: Exception) {
+                        } catch (e: Throwable) {
                             e.printStackTrace()
                         }
                     }
                 } else {
                     try {
                         descriptor?.close()
-                    } catch (e: Exception) {
+                    } catch (e: Throwable) {
                         e.printStackTrace()
                     }
                 }

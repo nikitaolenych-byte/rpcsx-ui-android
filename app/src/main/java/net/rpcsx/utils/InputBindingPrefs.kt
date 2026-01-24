@@ -37,7 +37,7 @@ object InputBindingPrefs {
             }
 
             GeneralSettings.setValue("input_bindings", json.toString())
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             return false
         }
         return true
