@@ -99,6 +99,8 @@ import kotlin.math.ceil
 
 // Safe wrapper for RPCSX native calls
 private fun safeSettingsSet(path: String, value: String): Boolean {
+// Import statements and other code above remain unchanged
+
     return try {
         RPCSX.instance.settingsSet(path, value)
     } catch (e: Exception) {
@@ -109,14 +111,14 @@ private fun safeSettingsSet(path: String, value: String): Boolean {
 
 private fun safeSetNCEMode(mode: Int) {
     try {
-        RPCSX.instance.setNCEMode(mode)
-    } catch (e: Exception) {
-        Log.e("Settings", "Error setting NCE mode to $mode: ${e.message}")
-    }
-}
-
-private fun applyPpuLLVMTurbo(): Boolean {
-    val updates = listOf(
+                        val maxThreads = 8
+                        try {
+                            RPCSX.instance.rsxSetThreadCount(maxThreads)
+                            rsxThreadCount = maxThreads.toFloat()
+                            GeneralSettings.setValue("rsx_thread_count", maxThreads)
+                        } catch (e: Throwable) {
+                            Log.e("RSX", "Failed to set thread count: ${e.message}")
+                        }
         "Core@@PPU LLVM Greedy Mode" to "true",
         "Core@@LLVM Precompilation" to "true",
         "Core@@Set DAZ and FTZ" to "true",
