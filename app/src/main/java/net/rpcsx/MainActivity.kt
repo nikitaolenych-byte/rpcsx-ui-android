@@ -235,7 +235,7 @@ class MainActivity : ComponentActivity() {
     private fun safeSettingsSet(path: String, value: String): Boolean {
         return try {
             RPCSX.instance.settingsSet(path, value)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e("RPCSX", "Error setting $path to $value", e)
             false
         }

@@ -99,11 +99,9 @@ import kotlin.math.ceil
 
 // Safe wrapper for RPCSX native calls
 private fun safeSettingsSet(path: String, value: String): Boolean {
-// Import statements and other code above remain unchanged
-
     return try {
         RPCSX.instance.settingsSet(path, value)
-    } catch (e: Exception) {
+    } catch (e: Throwable) {
         Log.e("Settings", "Error setting $path to $value: ${e.message}")
         false
     }
@@ -111,14 +109,14 @@ private fun safeSettingsSet(path: String, value: String): Boolean {
 
 private fun safeSetNCEMode(mode: Int) {
     try {
-                        val maxThreads = 8
-                        try {
-                            RPCSX.instance.rsxSetThreadCount(maxThreads)
-                            rsxThreadCount = maxThreads.toFloat()
-                            GeneralSettings.setValue("rsx_thread_count", maxThreads)
-                        } catch (e: Throwable) {
-                            Log.e("RSX", "Failed to set thread count: ${e.message}")
-                        }
+        RPCSX.instance.setNCEMode(mode)
+    } catch (e: Throwable) {
+        Log.e("Settings", "Error setting NCE mode to $mode: ${e.message}")
+    }
+}
+
+private fun applyPpuLLVMTurbo(): Boolean {
+    val updates = listOf(
         "Core@@PPU LLVM Greedy Mode" to "true",
         "Core@@LLVM Precompilation" to "true",
         "Core@@Set DAZ and FTZ" to "true",
@@ -672,12 +670,12 @@ fun AdvancedSettingsScreen(
                 item(key = "rsx_settings_block") {
                     var rsxEnabled by remember { 
                         mutableStateOf(
-                            try { RPCSX.instance.rsxIsRunning() } catch (e: Exception) { true }
+                            try { RPCSX.instance.rsxIsRunning() } catch (e: Throwable) { true }
                         ) 
                     }
                     var rsxThreadCount by remember {
                         mutableStateOf(
-                            try { RPCSX.instance.rsxGetThreadCount().toFloat() } catch (e: Exception) { 8f }
+                            try { RPCSX.instance.rsxGetThreadCount().toFloat() } catch (e: Throwable) { 8f }
                         )
                     }
                     var rsxResolutionScale by remember {
@@ -715,7 +713,7 @@ fun AdvancedSettingsScreen(
                                             if (RPCSX.instance.rsxStart()) {
                                                 rsxEnabled = true
                                             }
-                                        } catch (e: Exception) {
+                                        } catch (e: Throwable) {
                                             Log.e("RSX", "Failed to start RSX: ${e.message}")
                                         }
                                     }
@@ -763,7 +761,7 @@ fun AdvancedSettingsScreen(
                                         Toast.makeText(context, context.getString(R.string.rsx_status_off), Toast.LENGTH_SHORT).show()
                                     }
                                     GeneralSettings.setValue("rsx_enabled", enabled)
-                                } catch (e: Exception) {
+                                } catch (e: Throwable) {
                                     Toast.makeText(context, "RSX not available: ${e.message}", Toast.LENGTH_SHORT).show()
                                 }
                             }
@@ -789,8 +787,8 @@ fun AdvancedSettingsScreen(
                             }
                         )
                         
-                        val rsxRunning = try { RPCSX.instance.rsxIsRunning() } catch (e: Exception) { false }
-                        val fps = if (rsxRunning) { try { RPCSX.instance.getRSXFPS() } catch (e: Exception) { 0 } } else 0
+                        val rsxRunning = try { RPCSX.instance.rsxIsRunning() } catch (e: Throwable) { false }
+                        val fps = if (rsxRunning) { try { RPCSX.instance.getRSXFPS() } catch (e: Throwable) { 0 } } else 0
                         RegularPreference(
                             title = stringResource(R.string.rsx_stats),
                             subtitle = { Text(if (rsxRunning) "FPS: $fps" else stringResource(R.string.rsx_status_off)) },
@@ -798,7 +796,7 @@ fun AdvancedSettingsScreen(
                                 try {
                                     val stats = RPCSX.instance.rsxGetStats()
                                     Toast.makeText(context, stats, Toast.LENGTH_LONG).show()
-                                } catch (e: Exception) {
+                                } catch (e: Throwable) {
                                     Toast.makeText(context, "RSX stats not available", Toast.LENGTH_SHORT).show()
                                 }
                             }

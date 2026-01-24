@@ -69,7 +69,7 @@ fun RSXSettingsScreen(
             item(key = "rsx_enabled") {
                 var rsxEnabled by remember { 
                     mutableStateOf(
-                        try { RPCSX.instance.rsxIsRunning() } catch (e: Exception) { false }
+                        try { RPCSX.instance.rsxIsRunning() } catch (e: Throwable) { false }
                     ) 
                 }
                 SwitchPreference(
@@ -90,7 +90,7 @@ fun RSXSettingsScreen(
                                 Toast.makeText(context, context.getString(R.string.rsx_status_off), Toast.LENGTH_SHORT).show()
                             }
                             GeneralSettings.setValue("rsx_enabled", enabled)
-                        } catch (e: Exception) {
+                        } catch (e: Throwable) {
                             Toast.makeText(context, "RSX not available: ${e.message}", Toast.LENGTH_SHORT).show()
                         }
                     }
@@ -100,7 +100,7 @@ fun RSXSettingsScreen(
             item(key = "rsx_thread_count") {
                 var threadCount by remember { 
                     mutableStateOf(
-                        try { RPCSX.instance.rsxGetThreadCount().toFloat() } catch (e: Exception) { 8f }
+                        try { RPCSX.instance.rsxGetThreadCount().toFloat() } catch (e: Throwable) { 8f }
                     ) 
                 }
                 SliderPreference(
@@ -125,8 +125,8 @@ fun RSXSettingsScreen(
             }
             
             item(key = "rsx_fps_stats") {
-                val rsxRunning = try { RPCSX.instance.rsxIsRunning() } catch (e: Exception) { false }
-                val fps = if (rsxRunning) { try { RPCSX.instance.getRSXFPS() } catch (e: Exception) { 0 } } else 0
+                val rsxRunning = try { RPCSX.instance.rsxIsRunning() } catch (e: Throwable) { false }
+                val fps = if (rsxRunning) { try { RPCSX.instance.getRSXFPS() } catch (e: Throwable) { 0 } } else 0
                 RegularPreference(
                     title = stringResource(R.string.rsx_stats),
                     subtitle = { Text(if (rsxRunning) "FPS: $fps" else stringResource(R.string.rsx_status_off)) },
@@ -134,7 +134,7 @@ fun RSXSettingsScreen(
                         try {
                             val stats = RPCSX.instance.rsxGetStats()
                             Toast.makeText(context, stats, Toast.LENGTH_LONG).show()
-                        } catch (e: Exception) {
+                        } catch (e: Throwable) {
                             Toast.makeText(context, "RSX stats not available", Toast.LENGTH_SHORT).show()
                         }
                     }
