@@ -817,6 +817,69 @@ fun AdvancedSettingsScreen(
                             }
                         )
 
+                        // PPU LLVM Turbo switch - visible on main settings
+                        var ppuTurboEnabled by remember { mutableStateOf(GeneralSettings["ppu_llvm_turbo"] as? Boolean ?: false) }
+                        SwitchPreference(
+                            checked = ppuTurboEnabled,
+                            title = "⚡ PPU LLVM Turbo",
+                            subtitle = { Text("Max PPU performance: Greedy Mode, Precompilation, Fast Math") },
+                            onClick = { enabled ->
+                                try {
+                                    if (enabled) {
+                                        if (applyPpuLLVMTurbo()) {
+                                            ppuTurboEnabled = true
+                                            GeneralSettings.setValue("ppu_llvm_turbo", true)
+                                            Toast.makeText(context, "PPU LLVM Turbo enabled!", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            Toast.makeText(context, "Failed to apply PPU Turbo", Toast.LENGTH_SHORT).show()
+                                        }
+                                    } else {
+                                        // Reset to defaults
+                                        safeSettingsSet("Core@@PPU LLVM Greedy Mode", "false")
+                                        safeSettingsSet("Core@@LLVM Precompilation", "false")
+                                        safeSettingsSet("Core@@Set DAZ and FTZ", "false")
+                                        safeSettingsSet("Core@@Use LLVM Thread Scheduler Alternative", "false")
+                                        ppuTurboEnabled = false
+                                        GeneralSettings.setValue("ppu_llvm_turbo", false)
+                                        Toast.makeText(context, "PPU LLVM Turbo disabled", Toast.LENGTH_SHORT).show()
+                                    }
+                                } catch (e: Throwable) {
+                                    Log.e("Settings", "PPU Turbo error: ${e.message}")
+                                }
+                            }
+                        )
+
+                        // SPU LLVM Turbo switch - visible on main settings
+                        var spuTurboEnabled by remember { mutableStateOf(GeneralSettings["spu_llvm_turbo"] as? Boolean ?: false) }
+                        SwitchPreference(
+                            checked = spuTurboEnabled,
+                            title = "⚡ SPU LLVM Turbo",
+                            subtitle = { Text("Max SPU performance: Cache, Giga Blocks, XFloat Approx") },
+                            onClick = { enabled ->
+                                try {
+                                    if (enabled) {
+                                        if (applySpuLLVMTurbo()) {
+                                            spuTurboEnabled = true
+                                            GeneralSettings.setValue("spu_llvm_turbo", true)
+                                            Toast.makeText(context, "SPU LLVM Turbo enabled!", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            Toast.makeText(context, "Failed to apply SPU Turbo", Toast.LENGTH_SHORT).show()
+                                        }
+                                    } else {
+                                        // Reset to defaults
+                                        safeSettingsSet("Core@@SPU Cache", "false")
+                                        safeSettingsSet("Core@@SPU Block Size", "\"Safe\"")
+                                        safeSettingsSet("Core@@Accurate xfloat", "true")
+                                        spuTurboEnabled = false
+                                        GeneralSettings.setValue("spu_llvm_turbo", false)
+                                        Toast.makeText(context, "SPU LLVM Turbo disabled", Toast.LENGTH_SHORT).show()
+                                    }
+                                } catch (e: Throwable) {
+                                    Log.e("Settings", "SPU Turbo error: ${e.message}")
+                                }
+                            }
+                        )
+
                         SwitchPreference(
                             checked = rsxEnabled,
                             title = stringResource(R.string.rsx_enabled),
