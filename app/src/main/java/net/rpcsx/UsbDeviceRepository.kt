@@ -121,18 +121,26 @@ class UsbDeviceRepository {
 
             val connection = usbManager.openDevice(device)
             devices[device] = connection
-            RPCSX.instance.usbDeviceEvent(
-                connection.fileDescriptor,
-                device.vendorId,
-                device.productId,
-                0
-            )
+            try {
+                RPCSX.instance.usbDeviceEvent(
+                    connection.fileDescriptor,
+                    device.vendorId,
+                    device.productId,
+                    0
+                )
+            } catch (e: Throwable) {
+                android.util.Log.e("USB", "Failed to attach USB device", e)
+            }
         }
 
         fun detach(device: UsbDevice) {
             val connection = devices[device]
             if (connection != null) {
-                RPCSX.instance.usbDeviceEvent(connection.fileDescriptor, -1, -1, 1)
+                try {
+                    RPCSX.instance.usbDeviceEvent(connection.fileDescriptor, -1, -1, 1)
+                } catch (e: Throwable) {
+                    android.util.Log.e("USB", "Failed to detach USB device", e)
+                }
                 connection.close()
 
                 devices.remove(device)

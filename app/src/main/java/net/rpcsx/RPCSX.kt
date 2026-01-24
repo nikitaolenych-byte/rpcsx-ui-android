@@ -210,13 +210,22 @@ class RPCSX {
         }
 
         fun boot(path: String): BootResult {
-            return BootResult.fromInt(instance.boot(path))
+            return try {
+                BootResult.fromInt(instance.boot(path))
+            } catch (e: Throwable) {
+                android.util.Log.e("RPCSX", "Failed to boot: ${e.message}", e)
+                BootResult.GenericError
+            }
         }
 
         fun updateState() {
-            val newState = EmulatorState.fromInt(instance.getState())
-            if (newState != state.value) {
-                state.value = newState
+            try {
+                val newState = EmulatorState.fromInt(instance.getState())
+                if (newState != state.value) {
+                    state.value = newState
+                }
+            } catch (e: Throwable) {
+                android.util.Log.e("RPCSX", "Failed to update state: ${e.message}", e)
             }
         }
 
@@ -230,16 +239,24 @@ class RPCSX {
         }
 
         fun openLibrary(path: String): Boolean {
-            if (!instance.openLibrary(path)) {
-                return false
+            return try {
+                if (!instance.openLibrary(path)) {
+                    return false
+                }
+                activeLibrary.value = path
+                true
+            } catch (e: Throwable) {
+                android.util.Log.e("RPCSX", "Failed to open library: ${e.message}", e)
+                false
             }
-
-            activeLibrary.value = path
-            return true
         }
 
         init {
-            System.loadLibrary("rpcsx-android")
+            try {
+                System.loadLibrary("rpcsx-android")
+            } catch (e: Throwable) {
+                android.util.Log.e("RPCSX", "Failed to load native library: ${e.message}", e)
+            }
         }
     }
 }

@@ -57,37 +57,41 @@ class RPCSXActivity : Activity() {
         startFPSCounter()
 
         bootThread = thread {
-            if (RPCSX.getState() != EmulatorState.Stopped) {
-                val state = RPCSX.getState()
-                Log.w("RPCSX State", state.name)
+            try {
+                if (RPCSX.getState() != EmulatorState.Stopped) {
+                    val state = RPCSX.getState()
+                    Log.w("RPCSX State", state.name)
 
-                if (state == EmulatorState.Paused && RPCSX.activeGame.value == gamePath) {
-                    RPCSX.instance.resume()
-                    return@thread
-                }
+                    if (state == EmulatorState.Paused && RPCSX.activeGame.value == gamePath) {
+                        try { RPCSX.instance.resume() } catch (e: Throwable) { Log.e("RPCSX", "resume failed", e) }
+                        return@thread
+                    }
 
-                if (RPCSX.getState() != EmulatorState.Stopping && RPCSX.getState() != EmulatorState.Stopped) {
-                    RPCSX.instance.kill()
+                    if (RPCSX.getState() != EmulatorState.Stopping && RPCSX.getState() != EmulatorState.Stopped) {
+                        try { RPCSX.instance.kill() } catch (e: Throwable) { Log.e("RPCSX", "kill failed", e) }
 
-                    while (RPCSX.getState() != EmulatorState.Stopped) {
-                        Thread.sleep(300)
-                        if (Thread.interrupted()) {
-                            return@thread
+                        while (RPCSX.getState() != EmulatorState.Stopped) {
+                            Thread.sleep(300)
+                            if (Thread.interrupted()) {
+                                return@thread
+                            }
                         }
                     }
                 }
-            }
 
-            Log.w("RPCSX State", RPCSX.getState().name)
-            RPCSX.activeGame.value = gamePath
+                Log.w("RPCSX State", RPCSX.getState().name)
+                RPCSX.activeGame.value = gamePath
 
-            val bootResult = RPCSX.boot(gamePath)
-            if (bootResult != BootResult.NoErrors) {
-                AlertDialogQueue.showDialog(
-                    getString(R.string.failed_to_boot),
-                    getString(R.string.error_with_msg, bootResult.name)
-                )
-                finish()
+                val bootResult = RPCSX.boot(gamePath)
+                if (bootResult != BootResult.NoErrors) {
+                    AlertDialogQueue.showDialog(
+                        getString(R.string.failed_to_boot),
+                        getString(R.string.error_with_msg, bootResult.name)
+                    )
+                    finish()
+                }
+            } catch (e: Throwable) {
+                Log.e("RPCSX", "Boot thread crashed", e)
             }
         }
     }
@@ -237,14 +241,18 @@ class RPCSXActivity : Activity() {
     }
 
     private fun sendGamepadData() {
-        RPCSX.instance.overlayPadData(
-            gamePadState.digital[0],
-            gamePadState.digital[1],
-            gamePadState.leftStickX,
-            gamePadState.leftStickY,
-            gamePadState.rightStickX,
-            gamePadState.rightStickY
-        )
+        try {
+            RPCSX.instance.overlayPadData(
+                gamePadState.digital[0],
+                gamePadState.digital[1],
+                gamePadState.leftStickX,
+                gamePadState.leftStickY,
+                gamePadState.rightStickX,
+                gamePadState.rightStickY
+            )
+        } catch (e: Throwable) {
+            Log.e("RPCSX", "Failed to send gamepad data", e)
+        }
     }
 
     private fun enableFullScreenImmersive() {

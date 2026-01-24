@@ -136,10 +136,14 @@ class GameRepository {
 
         private fun refresh() {
             clear()
-            RPCSX.instance.collectGameInfo(
-                RPCSX.rootDirectory + "/config/dev_hdd0/game", -1
-            )
-            RPCSX.instance.collectGameInfo(RPCSX.rootDirectory + "/config/games", -1)
+            try {
+                RPCSX.instance.collectGameInfo(
+                    RPCSX.rootDirectory + "/config/dev_hdd0/game", -1
+                )
+                RPCSX.instance.collectGameInfo(RPCSX.rootDirectory + "/config/games", -1)
+            } catch (e: Throwable) {
+                android.util.Log.e("GameRepository", "Failed to collect game info", e)
+            }
         }
         
         @Keep

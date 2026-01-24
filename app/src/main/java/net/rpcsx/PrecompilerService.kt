@@ -74,11 +74,15 @@ class PrecompilerService : Service() {
             return false
         }
 
-        val installResult =
+        val installResult = try {
             if (isFw)
                 RPCSX.instance.installFw(fd, installProgress)
             else
                 RPCSX.instance.install(fd, installProgress)
+        } catch (e: Throwable) {
+            android.util.Log.e("Precompiler", "Install failed", e)
+            false
+        }
 
         if (!installResult) {
             try {
