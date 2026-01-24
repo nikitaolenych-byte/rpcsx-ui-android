@@ -141,7 +141,7 @@ fun GameItem(game: Game) {
                     onClick = {
                         menuExpanded.value = false
                         // Open game patches URL from RPCS3 wiki
-                        val titleId = game.info.titleId
+                        val gameName = game.info.name.value ?: "Unknown"
                         val patchUrl = "https://wiki.rpcs3.net/index.php?title=Help:Game_Patches"
                         try {
                             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(patchUrl))
@@ -149,7 +149,7 @@ fun GameItem(game: Game) {
                         } catch (e: Throwable) {
                             AlertDialogQueue.showDialog(
                                 title = "Game Patches",
-                                message = "Visit wiki.rpcs3.net for patches for $titleId"
+                                message = "Visit wiki.rpcs3.net for patches for $gameName"
                             )
                         }
                     }
