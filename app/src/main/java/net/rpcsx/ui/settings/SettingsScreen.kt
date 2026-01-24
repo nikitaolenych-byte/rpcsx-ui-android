@@ -99,8 +99,17 @@ import kotlin.math.ceil
 
 // Safe wrapper for RPCSX native calls
 private fun safeSettingsSet(path: String, value: String): Boolean {
+    // Check if library is loaded
+    if (RPCSX.activeLibrary.value == null) {
+        Log.w("Settings", "Cannot set $path: RPCSX library not loaded")
+        return false
+    }
     return try {
-        RPCSX.instance.settingsSet(path, value)
+        val result = RPCSX.instance.settingsSet(path, value)
+        if (!result) {
+            Log.w("Settings", "settingsSet returned false for $path = $value")
+        }
+        result
     } catch (e: Throwable) {
         Log.e("Settings", "Error setting $path to $value: ${e.message}")
         false
@@ -116,6 +125,12 @@ private fun safeSetNCEMode(mode: Int) {
 }
 
 private fun applyPpuLLVMTurbo(): Boolean {
+    // Check if library is loaded first
+    if (RPCSX.activeLibrary.value == null) {
+        Log.w("Settings", "Cannot apply PPU Turbo: RPCSX library not loaded")
+        return false
+    }
+    
     val updates = listOf(
         "Core@@PPU LLVM Greedy Mode" to "true",
         "Core@@LLVM Precompilation" to "true",
@@ -132,10 +147,24 @@ private fun applyPpuLLVMTurbo(): Boolean {
         "Core@@Use Accurate DFMA" to "false"
     )
 
-    return updates.all { (path, value) -> safeSettingsSet(path, value) }
+    // Apply settings - continue even if some fail (key may not exist in this version)
+    var successCount = 0
+    for ((path, value) in updates) {
+        if (safeSettingsSet(path, value)) {
+            successCount++
+        }
+    }
+    Log.i("Settings", "PPU LLVM Turbo: applied $successCount/${updates.size} settings")
+    return successCount > 0  // Success if at least one setting was applied
 }
 
 private fun applySpuLLVMTurbo(): Boolean {
+    // Check if library is loaded first
+    if (RPCSX.activeLibrary.value == null) {
+        Log.w("Settings", "Cannot apply SPU Turbo: RPCSX library not loaded")
+        return false
+    }
+    
     val updates = listOf(
         "Core@@SPU Cache" to "true",
         "Core@@SPU Verification" to "false",
@@ -150,7 +179,15 @@ private fun applySpuLLVMTurbo(): Boolean {
         "Core@@XFloat Accuracy" to "\"approximate\""
     )
 
-    return updates.all { (path, value) -> safeSettingsSet(path, value) }
+    // Apply settings - continue even if some fail (key may not exist in this version)
+    var successCount = 0
+    for ((path, value) in updates) {
+        if (safeSettingsSet(path, value)) {
+            successCount++
+        }
+    }
+    Log.i("Settings", "SPU LLVM Turbo: applied $successCount/${updates.size} settings")
+    return successCount > 0  // Success if at least one setting was applied
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
