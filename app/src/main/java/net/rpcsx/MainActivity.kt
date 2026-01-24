@@ -49,6 +49,9 @@ class MainActivity : ComponentActivity() {
                 val externalDir = applicationContext.getExternalFilesDir(null)
                 RPCSX.rootDirectory = (externalDir?.absolutePath ?: filesDir.absolutePath) + "/"
 
+                // Load saved firmware info
+                FirmwareRepository.load()
+
                 GitHub.initialize(this)
 
             var rpcsxLibrary = GeneralSettings["rpcsx_library"] as? String

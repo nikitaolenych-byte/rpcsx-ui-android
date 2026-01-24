@@ -436,26 +436,28 @@ fun AdvancedSettingsScreen(
                                     variants.add(0, "NCE") // Add at top of list
                                 }
                                 
+                                // Add LLVM Turbo option to PPU and SPU Decoder
+                                if (isPpuDecoder && !variants.contains("LLVM Turbo")) {
+                                    // Insert after NCE, before LLVM 19
+                                    val nceIndex = variants.indexOf("NCE")
+                                    variants.add(if (nceIndex >= 0) nceIndex + 1 else 0, "LLVM Turbo")
+                                }
+                                if (isSpuDecoder && !variants.contains("LLVM Turbo")) {
+                                    variants.add(0, "LLVM Turbo") // Add at top
+                                }
+                                
                                 // Check if NCE mode is active (use cached value for performance)
                                 // If NCE mode = 3, show "NCE" even if underlying decoder is LLVM 19
                                 val savedNceMode = net.rpcsx.utils.GeneralSettings.nceMode
+                                val ppuTurboEnabled = GeneralSettings["ppu_llvm_turbo"] as? Boolean ?: false
+                                val spuTurboEnabled = GeneralSettings["spu_llvm_turbo"] as? Boolean ?: false
                                 val displayValue = when {
                                     isPpuDecoder && savedNceMode == 3 -> "NCE"
+                                    isPpuDecoder && ppuTurboEnabled && itemValue == "LLVM Recompiler (Legacy)" -> "LLVM Turbo"
                                     isPpuDecoder && itemValue == "LLVM Recompiler (Legacy)" -> "LLVM 19"
                                     isPpuDecoder && itemValue == "Interpreter (Legacy)" -> "Interpreter"
+                                    isSpuDecoder && spuTurboEnabled && itemValue.contains("LLVM", ignoreCase = true) -> "LLVM Turbo"
                                     else -> itemValue
-                                }
-
-                                // LLVM Turbo state (only show buttons when LLVM is selected)
-                                val isPpuLLVMSelected = isPpuDecoder && itemValue == "LLVM Recompiler (Legacy)"
-                                val isSpuLLVMSelected = isSpuDecoder && itemValue.contains("LLVM", ignoreCase = true)
-                                val ppuTurboKey = "ppu_llvm_turbo"
-                                val spuTurboKey = "spu_llvm_turbo"
-                                var ppuTurboEnabled by remember {
-                                    mutableStateOf(GeneralSettings[ppuTurboKey] as? Boolean ?: false)
-                                }
-                                var spuTurboEnabled by remember {
-                                    mutableStateOf(GeneralSettings[spuTurboKey] as? Boolean ?: false)
                                 }
 
                                 Column {
@@ -465,6 +467,40 @@ fun AdvancedSettingsScreen(
                                         icon = null,
                                         title = key + if (itemValue == def) "" else " *",
                                         onValueChange = { value ->
+                                            // Special handling for LLVM Turbo - PPU
+                                            if (isPpuDecoder && value == "LLVM Turbo") {
+                                                safeSettingsSet(itemPath, "\"LLVM Recompiler (Legacy)\"")
+                                                if (applyPpuLLVMTurbo()) {
+                                                    GeneralSettings.setValue("ppu_llvm_turbo", true)
+                                                    itemObject.put("value", "LLVM Recompiler (Legacy)")
+                                                    itemValue = "LLVM Recompiler (Legacy)"
+                                                    Toast.makeText(context, "PPU LLVM Turbo enabled!", Toast.LENGTH_SHORT).show()
+                                                } else {
+                                                    Toast.makeText(context, "Failed to apply Turbo settings", Toast.LENGTH_SHORT).show()
+                                                }
+                                                return@SingleSelectionDialog
+                                            }
+                                            
+                                            // Special handling for LLVM Turbo - SPU
+                                            if (isSpuDecoder && value == "LLVM Turbo") {
+                                                // Find the LLVM option in original variants
+                                                val llvmOption = variants.find { it.contains("LLVM", ignoreCase = true) && it != "LLVM Turbo" } ?: "ASMJIT Recompiler"
+                                                val internalLlvm = when (llvmOption) {
+                                                    "LLVM 19" -> "LLVM Recompiler (Legacy)"
+                                                    else -> llvmOption
+                                                }
+                                                safeSettingsSet(itemPath, "\"$internalLlvm\"")
+                                                if (applySpuLLVMTurbo()) {
+                                                    GeneralSettings.setValue("spu_llvm_turbo", true)
+                                                    itemObject.put("value", internalLlvm)
+                                                    itemValue = internalLlvm
+                                                    Toast.makeText(context, "SPU LLVM Turbo enabled!", Toast.LENGTH_SHORT).show()
+                                                } else {
+                                                    Toast.makeText(context, "Failed to apply Turbo settings", Toast.LENGTH_SHORT).show()
+                                                }
+                                                return@SingleSelectionDialog
+                                            }
+                                            
                                             // Special handling for NCE - activates NCE Native!
                                             if (isPpuDecoder && value == "NCE") {
                                                 // IMPORTANT: Must use LLVM 19 to compile PPU modules!
@@ -491,6 +527,14 @@ fun AdvancedSettingsScreen(
                                                 "LLVM 19" -> "LLVM Recompiler (Legacy)"
                                                 "Interpreter" -> "Interpreter (Legacy)"
                                                 else -> value
+                                            }
+                                            
+                                            // When switching to non-Turbo mode, disable Turbo flag
+                                            if (isPpuDecoder && value != "LLVM Turbo") {
+                                                GeneralSettings.setValue("ppu_llvm_turbo", false)
+                                            }
+                                            if (isSpuDecoder && value != "LLVM Turbo") {
+                                                GeneralSettings.setValue("spu_llvm_turbo", false)
                                             }
                                             
                                             if (!safeSettingsSet(
@@ -544,66 +588,6 @@ fun AdvancedSettingsScreen(
                                                     }
                                                 })
                                         })
-
-                                    // PPU LLVM Turbo button (only visible when LLVM is selected)
-                                    if (isPpuLLVMSelected) {
-                                        SwitchPreference(
-                                            checked = ppuTurboEnabled,
-                                            title = "PPU LLVM Turbo",
-                                            subtitle = {
-                                                Text("Aggressive JIT, NEON fusion, speculative execution, hot-path locking, unsafe fast-math")
-                                            },
-                                            onClick = { enabled ->
-                                                try {
-                                                    if (enabled) {
-                                                        if (!applyPpuLLVMTurbo()) {
-                                                            Toast.makeText(context, "Failed to apply PPU LLVM Turbo", Toast.LENGTH_SHORT).show()
-                                                            return@SwitchPreference
-                                                        }
-                                                    }
-                                                    ppuTurboEnabled = enabled
-                                                    GeneralSettings.setValue(ppuTurboKey, enabled)
-                                                    Toast.makeText(
-                                                        context,
-                                                        if (enabled) "PPU LLVM Turbo enabled" else "PPU LLVM Turbo disabled",
-                                                        Toast.LENGTH_SHORT
-                                                    ).show()
-                                                } catch (e: Throwable) {
-                                                    Log.e("Settings", "PPU Turbo error: ${e.message}")
-                                                }
-                                            }
-                                        )
-                                    }
-
-                                    // SPU LLVM Turbo button (only visible when SPU LLVM is selected)
-                                    if (isSpuLLVMSelected) {
-                                        SwitchPreference(
-                                            checked = spuTurboEnabled,
-                                            title = "SPU LLVM Turbo",
-                                            subtitle = {
-                                                Text("NEON mapping, speculative DMA, hot-path caching, approximate math")
-                                            },
-                                            onClick = { enabled ->
-                                                try {
-                                                    if (enabled) {
-                                                        if (!applySpuLLVMTurbo()) {
-                                                            Toast.makeText(context, "Failed to apply SPU LLVM Turbo", Toast.LENGTH_SHORT).show()
-                                                            return@SwitchPreference
-                                                        }
-                                                    }
-                                                    spuTurboEnabled = enabled
-                                                    GeneralSettings.setValue(spuTurboKey, enabled)
-                                                    Toast.makeText(
-                                                        context,
-                                                        if (enabled) "SPU LLVM Turbo enabled" else "SPU LLVM Turbo disabled",
-                                                        Toast.LENGTH_SHORT
-                                                    ).show()
-                                                } catch (e: Throwable) {
-                                                    Log.e("Settings", "SPU Turbo error: ${e.message}")
-                                                }
-                                            }
-                                        )
-                                    }
                                 }
                             }
 
