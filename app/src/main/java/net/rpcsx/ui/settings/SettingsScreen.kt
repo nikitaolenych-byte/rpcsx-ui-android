@@ -881,7 +881,7 @@ fun SettingsScreen(
                     IconButton(
                         onClick = navigateBack
                     ) {
-                        Icon(imageVector = Icons.AutoMirrored.Default.KeyboardArrowLeft, null)
+                        Icon(imageVector = Icons.Filled.KeyboardArrowLeft, null)
                     }
                 })
         }
@@ -1070,7 +1070,7 @@ fun ControllerSettings(
                     IconButton(
                         onClick = navigateBack
                     ) {
-                        Icon(imageVector = Icons.AutoMirrored.Default.KeyboardArrowLeft, null)
+                        Icon(imageVector = Icons.Filled.KeyboardArrowLeft, null)
                     }
                 }
             )

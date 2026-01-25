@@ -1,7 +1,7 @@
 package net.rpcsx.ui.settings.components.preference
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -79,7 +79,7 @@ private fun RegularPreferencePreview() {
             title = "Install Firmware",
             leadingIcon = Icons.Default.Settings,
             subtitle = { PreferenceSubtitle(text = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Ullamcorper tempor imperdiet. Tempor magna proident pariatur nonumy iusto, sint laborum possim accumsan, elit nonummy facer enim autem eiusmod lobortis reprehenderit molestie vel esse aliquyam cupiditat velit nisi aliquid ipsum. Erat accusam reprehenderit. Feugiat aliquyam iure. Nisi ex officia.") },
-            trailingContent = { PreferenceIcon(icon = Icons.AutoMirrored.Default.KeyboardArrowRight) },
+            trailingContent = { PreferenceIcon(icon = Icons.Filled.KeyboardArrowRight) },
             onClick = { }
         )
     }
@@ -93,7 +93,7 @@ private fun RegularPreferenceDisabledPreview() {
             title = "Advanced Settings",
             leadingIcon = Icons.Default.Settings,
             subtitle = { PreferenceSubtitle(text = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Ullamcorper tempor imperdiet. Tempor magna proident pariatur nonumy iusto, sint laborum possim accumsan, elit nonummy facer enim autem eiusmod lobortis reprehenderit molestie vel esse aliquyam cupiditat velit nisi aliquid ipsum. Erat accusam reprehenderit. Feugiat aliquyam iure. Nisi ex officia.") },
-            trailingContent = { PreferenceIcon(icon = Icons.AutoMirrored.Default.KeyboardArrowRight) },
+            trailingContent = { PreferenceIcon(icon = Icons.Filled.KeyboardArrowRight) },
             enabled = false,
             onClick = { }
         )

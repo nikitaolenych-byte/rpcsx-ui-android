@@ -10,7 +10,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -111,7 +111,7 @@ private fun BasePreferencePreview() {
             title = { PreferenceTitle("Preference Title") },
             subContent = { PreferenceSubtitle("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Ullamcorper tempor imperdiet. Tempor magna proident pariatur nonumy iusto, sint laborum possim accumsan, elit nonummy facer enim autem eiusmod lobortis reprehenderit molestie vel esse aliquyam cupiditat velit nisi aliquid ipsum. Erat accusam reprehenderit. Feugiat aliquyam iure. Nisi ex officia.", maxLines = 2) },
             leadingContent = { PreferenceIcon(Icons.Default.Search) },
-            trailingContent = { PreferenceIcon(Icons.AutoMirrored.Default.KeyboardArrowRight) },
+            trailingContent = { PreferenceIcon(Icons.Filled.KeyboardArrowRight) },
             onClick = {}
         )
     }
@@ -125,7 +125,7 @@ private fun BasePreferenceDisabledPreview() {
             title = { PreferenceTitle("Preference Title") },
             subContent = { PreferenceSubtitle("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Ullamcorper tempor imperdiet. Tempor magna proident pariatur nonumy iusto, sint laborum possim accumsan, elit nonummy facer enim autem eiusmod lobortis reprehenderit molestie vel esse aliquyam cupiditat velit nisi aliquid ipsum. Erat accusam reprehenderit. Feugiat aliquyam iure. Nisi ex officia.", maxLines = 2) },
             leadingContent = { PreferenceIcon(Icons.Default.Search) },
-            trailingContent = { PreferenceIcon(Icons.AutoMirrored.Default.KeyboardArrowRight) },
+            trailingContent = { PreferenceIcon(Icons.Filled.KeyboardArrowRight) },
             enabled = false,
             onClick = {}
         )
