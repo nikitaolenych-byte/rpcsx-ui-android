@@ -71,6 +71,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.launch
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
+import java.net.URLDecoder
 import net.rpcsx.BuildConfig
 import net.rpcsx.EmulatorState
 import net.rpcsx.FirmwareRepository
@@ -95,6 +98,7 @@ import net.rpcsx.ui.channels.uiTextToChannel
 import net.rpcsx.ui.channels.uiTextToChannels
 import net.rpcsx.ui.drivers.GpuDriversScreen
 import net.rpcsx.ui.games.GamesScreen
+import net.rpcsx.ui.patches.PatchManagerScreen
 import net.rpcsx.ui.settings.AdvancedSettingsScreen
 import net.rpcsx.ui.settings.ControllerSettings
 import net.rpcsx.ui.settings.SettingsScreen
@@ -247,6 +251,24 @@ fun AppNavHost() {
                 navigateTo = navController::navigate,
                 onRefresh = refreshSettings
             )
+        }
+
+        // Patch Manager routes - optional gamePath parameter (URL-encoded)
+        composable(route = "patch_manager") {
+            PatchManagerScreen(navigateBack = navController::navigateUp, gamePath = null)
+        }
+
+        composable(
+            route = "patch_manager/{gamePath}",
+            arguments = listOf(navArgument("gamePath") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val encoded = backStackEntry.arguments?.getString("gamePath")
+            val gamePath = try {
+                if (encoded != null) URLDecoder.decode(encoded, "UTF-8") else null
+            } catch (e: Throwable) {
+                encoded
+            }
+            PatchManagerScreen(navigateBack = navController::navigateUp, gamePath = gamePath)
         }
 
         composable(
@@ -481,7 +503,7 @@ fun GamesDestination(
     val rpcsxLibrary by remember { RPCSX.activeLibrary }
 
     if (rpcsxLibrary == null) {
-        GamesScreen()
+        GamesScreen(navigateTo = navController::navigate)
         return
     }
 
@@ -746,7 +768,7 @@ fun GamesDestination(
             floatingActionButton = {
                 DropUpFloatingActionButton(installPkgLauncher, gameFolderPickerLauncher, installIsoLauncher)
             },
-        ) { innerPadding -> Column(modifier = Modifier.padding(innerPadding)) { GamesScreen() } }
+        ) { innerPadding -> Column(modifier = Modifier.padding(innerPadding)) { GamesScreen(navigateTo = navController::navigate) } }
     }
 }
 

@@ -59,6 +59,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import kotlinx.coroutines.launch
+import java.net.URLEncoder
 import net.rpcsx.BuildConfig
 import net.rpcsx.EmulatorState
 import net.rpcsx.FirmwareRepository
@@ -87,7 +88,7 @@ private fun withAlpha(color: Color, alpha: Float): Color {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun GameItem(game: Game) {
+fun GameItem(game: Game, navigateTo: (String) -> Unit) {
     val context = LocalContext.current
     val menuExpanded = remember { mutableStateOf(false) }
     val iconExists = remember { mutableStateOf(false) }
@@ -188,7 +189,7 @@ fun GameItem(game: Game) {
             }
         }
 
-        Card(
+                Card(
             shape = RectangleShape,
             modifier = Modifier
                 .fillMaxSize()
@@ -236,8 +237,14 @@ fun GameItem(game: Game) {
                         }
                     }
                 }, onLongClick = {
+                    // Open Patch Manager for this game on long-press (auto-detect/apply)
                     if (game.info.name.value != "VSH") {
-                        menuExpanded.value = true
+                        try {
+                            val encoded = URLEncoder.encode(game.info.path, "UTF-8")
+                            navigateTo("patch_manager/$encoded")
+                        } catch (e: Throwable) {
+                            menuExpanded.value = true
+                        }
                     }
                 })
         ) {
@@ -385,7 +392,7 @@ fun GameItem(game: Game) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun GamesScreen() {
+fun GamesScreen(navigateTo: (String) -> Unit = {}) {
     val context = LocalContext.current
     val games = remember { GameRepository.list() }
     val isRefreshing by remember { GameRepository.isRefreshing }
@@ -629,7 +636,7 @@ fun GamesScreen() {
             modifier = Modifier.fillMaxSize()
         ) {
             items(count = games.size, key = { index -> games[index].info.path }) { index ->
-                GameItem(games[index])
+                GameItem(games[index], navigateTo)
             }
         }
     }
