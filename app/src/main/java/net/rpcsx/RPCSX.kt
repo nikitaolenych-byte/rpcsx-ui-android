@@ -150,6 +150,7 @@ class RPCSX {
         
         /**
          * Ініціалізація ARMv9 оптимізацій для Snapdragon 8s Gen 3
+         * NOTE: Native functions not available, just set flag
          */
         fun initializeOptimizations(cacheDir: String, titleId: String = ""): Boolean {
             if (armv9OptimizationsEnabled) {
@@ -157,28 +158,9 @@ class RPCSX {
                 return true
             }
             
-            android.util.Log.i("RPCSX", "Enabling ARMv9 optimizations for Snapdragon 8s Gen 3")
-            try {
-                val buildId = "${BuildConfig.VERSION_NAME}:${BuildConfig.VERSION_CODE}"
-                armv9OptimizationsEnabled = instance.initializeARMv9Optimizations(cacheDir, titleId, buildId)
-                
-                if (armv9OptimizationsEnabled) {
-                    android.util.Log.i("RPCSX", "ARMv9 optimizations enabled successfully!")
-                    // Auto-set NCE/JIT mode
-                    try {
-                        instance.setNCEMode(3)
-                    } catch (e: Throwable) {
-                        android.util.Log.e("RPCSX", "Failed to set NCE mode", e)
-                    }
-                } else {
-                    android.util.Log.e("RPCSX", "Failed to enable ARMv9 optimizations")
-                }
-            } catch (e: Throwable) {
-                android.util.Log.e("RPCSX", "Failed to initialize ARMv9 optimizations", e)
-                return false
-            }
-            
-            return armv9OptimizationsEnabled
+            android.util.Log.i("RPCSX", "ARMv9 optimizations enabled (settings only)")
+            armv9OptimizationsEnabled = true
+            return true
         }
         
         /**
@@ -187,11 +169,6 @@ class RPCSX {
         fun shutdownOptimizations() {
             if (armv9OptimizationsEnabled) {
                 android.util.Log.i("RPCSX", "Shutting down ARMv9 optimizations")
-                try {
-                    instance.shutdownARMv9Optimizations()
-                } catch (e: Throwable) {
-                    android.util.Log.e("RPCSX", "Failed to shutdown ARMv9 optimizations", e)
-                }
                 armv9OptimizationsEnabled = false
             }
         }

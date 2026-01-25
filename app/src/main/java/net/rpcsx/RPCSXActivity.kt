@@ -72,12 +72,12 @@ class RPCSXActivity : Activity() {
         
         RPCSX.lastPlayedGame = gamePath
         
-        // NCE mode functions not available in native library - disabled
-        // try {
-        //     restoreNCEMode()
-        // } catch (e: Throwable) {
-        //     Log.e("RPCSX", "Failed to restore NCE mode", e)
-        // }
+        // Apply optimal performance settings before boot
+        try {
+            applyOptimalPerformanceSettings()
+        } catch (e: Throwable) {
+            Log.e("RPCSX", "Failed to apply performance settings", e)
+        }
         
         // FPS counter disabled (UI hidden)
         // startFPSCounter()
@@ -135,35 +135,43 @@ class RPCSXActivity : Activity() {
     }
 
     /**
-     * Restore NCE mode from saved preferences before game boot.
-     * This prevents NCE from being reset to interpreter when launching games.
+     * Apply optimal performance settings before game boot.
+     * This ensures best performance on mobile devices.
      */
-    private fun restoreNCEMode() {
-        val savedMode = GeneralSettings.nceMode
-        if (savedMode >= 0) {
-            try {
-                RPCSX.instance.setNCEMode(savedMode)
-                Log.i("RPCSX", "Restored NCE mode before boot: $savedMode (${
-                    when (savedMode) {
-                        0 -> "Disabled"
-                        1 -> "Interpreter"
-                        2 -> "Recompiler"
-                        3 -> "NCE/JIT"
-                        else -> "Unknown"
-                    }
-                })")
-            } catch (e: Throwable) {
-                Log.e("RPCSX", "Failed to restore NCE mode", e)
-            }
-        } else {
-            // Default to NCE/JIT if not set
-            try {
-                RPCSX.instance.setNCEMode(3)
-                GeneralSettings.nceMode = 3
-                Log.i("RPCSX", "NCE mode not set, defaulting to NCE/JIT (mode 3)")
-            } catch (e: Throwable) {
-                Log.e("RPCSX", "Failed to set default NCE mode", e)
-            }
+    private fun applyOptimalPerformanceSettings() {
+        Log.i("RPCSX", "Applying optimal performance settings...")
+        
+        // PPU settings - LLVM is faster than Interpreter
+        safeSettingsSet("Core@@PPU Decoder", "\"LLVM Recompiler (Legacy)\"")
+        safeSettingsSet("Core@@PPU LLVM Greedy Mode", "true")
+        safeSettingsSet("Core@@LLVM Precompilation", "true")
+        
+        // SPU settings - Giga block size for best performance
+        safeSettingsSet("Core@@SPU Decoder", "\"LLVM Recompiler (Legacy)\"")
+        safeSettingsSet("Core@@SPU Block Size", "\"giga\"")
+        safeSettingsSet("Core@@Preferred SPU Threads", "6")
+        
+        // Disable accuracy options for speed
+        safeSettingsSet("Core@@Set DAZ and FTZ", "true")
+        safeSettingsSet("Core@@SPU Accurate DMA", "false")
+        safeSettingsSet("Core@@SPU Accurate Reservations", "false")
+        safeSettingsSet("Core@@Accurate Cache Line Stores", "false")
+        
+        // GPU/Video optimizations
+        safeSettingsSet("Video@@Frame Limit", "Off")
+        safeSettingsSet("Video@@VSync", "false")
+        safeSettingsSet("Video@@Strict Rendering Mode", "false")
+        safeSettingsSet("Video@@Disable Vertex Cache", "false")
+        
+        Log.i("RPCSX", "Performance settings applied")
+    }
+    
+    private fun safeSettingsSet(path: String, value: String): Boolean {
+        return try {
+            RPCSX.instance.settingsSet(path, value)
+        } catch (e: Throwable) {
+            Log.w("RPCSX", "Setting $path not available: ${e.message}")
+            false
         }
     }
 
