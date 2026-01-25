@@ -83,6 +83,7 @@ import net.rpcsx.provider.AppDataDocumentProvider
 import net.rpcsx.ui.common.ComposePreview
 import net.rpcsx.ui.settings.components.core.PreferenceHeader
 import net.rpcsx.ui.settings.components.core.PreferenceIcon
+import net.rpcsx.ui.settings.components.core.PreferenceSubtitle
 import net.rpcsx.ui.settings.components.core.PreferenceValue
 import net.rpcsx.ui.settings.components.preference.HomePreference
 import net.rpcsx.ui.settings.components.preference.RegularPreference
@@ -903,8 +904,7 @@ fun SettingsScreen(
                 SwitchPreference(
                     checked = asimdEnabled,
                     title = "ASIMD (NEON)",
-                    subtitle = { Text("Enable Advanced SIMD vector instructions for Cell PPU/SPU emulation") },
-                    leadingIcon = { Icon(painterResource(R.drawable.memory), null) },
+                    subtitle = { PreferenceSubtitle(subtitle = "Advanced SIMD for Cell PPU/SPU emulation") },
                     onClick = { enabled ->
                         asimdEnabled = enabled
                         GeneralSettings.setValue("asimd_neon_enabled", enabled)
@@ -920,8 +920,7 @@ fun SettingsScreen(
                 SwitchPreference(
                     checked = sve2Enabled,
                     title = "SVE2 (Scalable Vector Extension 2)",
-                    subtitle = { Text("Enable SVE2 for Snapdragon 8 Gen 3/4/5 - faster SPU emulation") },
-                    leadingIcon = { Icon(painterResource(R.drawable.memory), null) },
+                    subtitle = { PreferenceSubtitle(subtitle = "SVE2 for Snapdragon 8 Gen 3/4/5") },
                     onClick = { enabled ->
                         sve2Enabled = enabled
                         GeneralSettings.setValue("sve2_enabled", enabled)
@@ -937,8 +936,7 @@ fun SettingsScreen(
                 SwitchPreference(
                     checked = zramEnabled,
                     title = "zRAM / Swap",
-                    subtitle = { Text("Use compressed virtual memory (4-8GB recommended for PS3 emulation)") },
-                    leadingIcon = { Icon(painterResource(R.drawable.memory), null) },
+                    subtitle = { PreferenceSubtitle(subtitle = "Compressed virtual memory (4-8GB for PS3)") },
                     onClick = { enabled ->
                         zramEnabled = enabled
                         GeneralSettings.setValue("zram_enabled", enabled)
