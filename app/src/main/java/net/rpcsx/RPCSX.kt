@@ -99,29 +99,28 @@ class RPCSX {
     external fun getVersion(): String
     external fun setCustomDriver(path: String, libraryName: String, hookDir: String): Boolean
     
-    // ARMv9 Optimization Functions
-    external fun initializeARMv9Optimizations(cacheDir: String, titleId: String, buildId: String): Boolean
-    external fun shutdownARMv9Optimizations()
+    // ARMv9 Optimization Functions - NOT in native lib, stubbed
+    fun initializeARMv9Optimizations(cacheDir: String, titleId: String, buildId: String): Boolean = false
+    fun shutdownARMv9Optimizations() {}
     
-    // NCE Mode control (0=Disabled, 1=Interpreter, 2=Recompiler, 3=NCE Native!)
-    // When mode=3, NCE Native activates - Your phone IS PlayStation 3!
-    external fun setNCEMode(mode: Int)
-    external fun getNCEMode(): Int
-    external fun isNCEActive(): Boolean
-    // isNCENativeActive - NOT in native lib, stub it
+    // NCE Mode control - NOT in native lib, stubbed
+    // Settings are saved in GeneralSettings.nceMode
+    fun setNCEMode(mode: Int) {}
+    fun getNCEMode(): Int = 0
+    fun isNCEActive(): Boolean = false
     fun isNCENativeActive(): Boolean = false
     
     // NCE Native - PS3 game loading (NOT in native lib, stubbed)
     fun loadAndStartGame(gamePath: String): Boolean = false
     fun stopGame() {}
     
-    // Cache management
-    external fun purgeAllCaches(cacheDir: String)
-    external fun getFastmemStats(): String
+    // Cache management - NOT in native lib, stubbed
+    fun purgeAllCaches(cacheDir: String) {}
+    fun getFastmemStats(): String = ""
     
-    // JIT statistics
-    external fun getJITStats(): String
-    external fun runJITTest(): Boolean
+    // JIT statistics - NOT in native lib, stubbed
+    fun getJITStats(): String = ""
+    fun runJITTest(): Boolean = false
     
     // RSX Graphics Engine - NOT in native lib, all stubbed
     fun rsxStart(): Boolean = false

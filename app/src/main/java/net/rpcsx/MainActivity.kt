@@ -182,46 +182,45 @@ class MainActivity : ComponentActivity() {
     /**
      * Auto-enable NCE/JIT on first launch for ARMv9 optimization.
      * PPU modules MUST be compiled with LLVM, then NCE optimizes execution.
+     * NOTE: setNCEMode not available in native library - settings only
      */
     private fun autoEnableNceJit() {
         val nceEnabledKey = "nce_jit_auto_enabled"
         val nceMode = GeneralSettings.nceMode
         
-        // Always restore NCE mode from saved preference
-        if (nceMode >= 0) {
-            try {
-                RPCSX.instance.setNCEMode(nceMode)
-                Log.i("RPCSX", "Restored NCE mode from preferences: $nceMode")
-            } catch (e: Throwable) {
-                Log.e("RPCSX", "Error restoring NCE mode", e)
-            }
-        }
+        // NCE mode saved in preferences only - native function not available
+        // if (nceMode >= 0) {
+        //     try {
+        //         RPCSX.instance.setNCEMode(nceMode)
+        //         Log.i("RPCSX", "Restored NCE mode from preferences: $nceMode")
+        //     } catch (e: Throwable) {
+        //         Log.e("RPCSX", "Error restoring NCE mode", e)
+        //     }
+        // }
         
-        // First launch - auto-enable NCE/JIT
+        // First launch - auto-enable NCE/JIT settings
         if (GeneralSettings[nceEnabledKey] != true) {
             try {
                 // IMPORTANT: Use LLVM Recompiler to compile PPU modules!
-                // Interpreter does NOT compile PPU modules - they just get skipped.
-                // NCE optimizes the already-compiled LLVM code at runtime.
                 val ok = safeSettingsSet("Core@@PPU Decoder", "\"LLVM Recompiler (Legacy)\"")
                 if (ok) {
-                    // Activate NCE JIT layer (mode 3) for additional ARM64 optimizations
-                    try {
-                        RPCSX.instance.setNCEMode(3)
-                    } catch (e: Throwable) {
-                        Log.e("RPCSX", "Error setting NCE mode", e)
-                    }
+                    // Save NCE mode to preferences (native function not available)
+                    // try {
+                    //     RPCSX.instance.setNCEMode(3)
+                    // } catch (e: Throwable) {
+                    //     Log.e("RPCSX", "Error setting NCE mode", e)
+                    // }
                     GeneralSettings.nceMode = 3
                     GeneralSettings[nceEnabledKey] = true
-                    Log.i("RPCSX", "NCE/JIT auto-enabled (LLVM + NCE optimization layer)")
+                    Log.i("RPCSX", "NCE/JIT settings saved (LLVM + NCE optimization)")
                 } else {
                     Log.w("RPCSX", "Failed to set PPU Decoder to LLVM, trying fallback...")
-                    // Still enable NCE for runtime optimizations
-                    try {
-                        RPCSX.instance.setNCEMode(3)
-                    } catch (e: Throwable) {
-                        Log.e("RPCSX", "Error setting NCE mode", e)
-                    }
+                    // Save NCE settings
+                    // try {
+                    //     RPCSX.instance.setNCEMode(3)
+                    // } catch (e: Throwable) {
+                    //     Log.e("RPCSX", "Error setting NCE mode", e)
+                    // }
                     GeneralSettings.nceMode = 3
                     GeneralSettings[nceEnabledKey] = true
                 }

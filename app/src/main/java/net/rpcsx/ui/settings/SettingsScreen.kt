@@ -116,13 +116,14 @@ private fun safeSettingsSet(path: String, value: String): Boolean {
     }
 }
 
-private fun safeSetNCEMode(mode: Int) {
-    try {
-        RPCSX.instance.setNCEMode(mode)
-    } catch (e: Throwable) {
-        Log.e("Settings", "Error setting NCE mode to $mode: ${e.message}")
-    }
-}
+// Native setNCEMode not available - settings only
+// private fun safeSetNCEMode(mode: Int) {
+//     try {
+//         RPCSX.instance.setNCEMode(mode)
+//     } catch (e: Throwable) {
+//         Log.e("Settings", "Error setting NCE mode to $mode: ${e.message}")
+//     }
+// }
 
 private fun applyPpuLLVMTurbo(): Boolean {
     // Check if library is loaded first
@@ -503,8 +504,8 @@ fun AdvancedSettingsScreen(
                                                 // IMPORTANT: Must use LLVM 19 to compile PPU modules!
                                                 // Interpreter skips PPU compilation entirely.
                                                 safeSettingsSet(itemPath, "\"LLVM Recompiler (Legacy)\"")
-                                                // Activate NCE Native - Your phone IS PlayStation 3!
-                                                safeSetNCEMode(3)
+                                                // NCE mode - native function not available, save settings only
+                                                // safeSetNCEMode(3)
                                                 // Save NCE mode (use cached setter for performance)
                                                 net.rpcsx.utils.GeneralSettings.nceMode = 3
                                                 itemObject.put("value", "LLVM Recompiler (Legacy)")
@@ -549,14 +550,15 @@ fun AdvancedSettingsScreen(
                                                     itemObject.put("value", internalValue)
                                                     itemValue = internalValue  // Use internalValue not value
                                                     
-                                                    // Sync NCE mode when PPU Decoder changes
+                                                    // Sync NCE mode when PPU Decoder changes (save to preferences only)
                                                     if (isPpuDecoder) {
                                                         val nceMode = when (internalValue) {
                                                             "LLVM Recompiler (Legacy)" -> 2  // LLVM 19
                                                             "Interpreter (Legacy)", "Interpreter" -> 1
                                                             else -> 0
                                                         }
-                                                        safeSetNCEMode(nceMode)
+                                                        // Native function not available
+                                                        // safeSetNCEMode(nceMode)
                                                         try {
                                                             net.rpcsx.utils.GeneralSettings.nceMode = nceMode
                                                         } catch (e: Throwable) {

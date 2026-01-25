@@ -72,12 +72,12 @@ class RPCSXActivity : Activity() {
         
         RPCSX.lastPlayedGame = gamePath
         
-        // Restore NCE mode from saved preferences before boot
-        try {
-            restoreNCEMode()
-        } catch (e: Throwable) {
-            Log.e("RPCSX", "Failed to restore NCE mode", e)
-        }
+        // NCE mode functions not available in native library - disabled
+        // try {
+        //     restoreNCEMode()
+        // } catch (e: Throwable) {
+        //     Log.e("RPCSX", "Failed to restore NCE mode", e)
+        // }
         
         // FPS counter disabled (UI hidden)
         // startFPSCounter()
