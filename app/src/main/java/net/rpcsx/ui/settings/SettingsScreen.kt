@@ -391,33 +391,8 @@ fun AdvancedSettingsScreen(
             // Note: ARM64 NEON optimizations are now baked into LLVM code (v1.5.0-neon)
             // See: SPULLVMRecompiler.cpp, CPUTranslator.h for real NEON implementations
             if (path.contains("Core") || path.endsWith("@@Core")) {
-                item(key = "ppu_decoder_header") {
-                    PreferenceHeader(text = "PPU Decoder")
-                }
-                
-                // Duplicate custom PPU selector removed. Use original settings JSON
-                // (the enum handling below will inject LLVM/Turbo/NCE/20.3 options).
-                
-                item(key = "spu_decoder_header") {
-                    PreferenceHeader(text = "SPU Decoder")
-                }
-                
-                // Duplicate custom SPU selector removed. Use original settings JSON
-                // (the enum handling below will inject LLVM/Turbo/20.3 options).
-                
                 item(key = "core_settings_header") {
                     PreferenceHeader(text = "Core Settings")
-                }
-
-                // Patch Manager entry (opens patch manager screen where user can apply RPCS3-compatible patches)
-                item(key = "patch_manager") {
-                    RegularPreference(
-                        title = "Patch Manager",
-                        subtitle = { PreferenceSubtitle(text = "Manage and apply RPCS3-compatible patches for RPCSX") },
-                        onClick = {
-                            navigateTo("patch_manager")
-                        }
-                    )
                 }
             }
             

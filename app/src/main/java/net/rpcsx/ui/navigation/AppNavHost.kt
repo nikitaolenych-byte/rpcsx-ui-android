@@ -98,7 +98,6 @@ import net.rpcsx.ui.channels.uiTextToChannel
 import net.rpcsx.ui.channels.uiTextToChannels
 import net.rpcsx.ui.drivers.GpuDriversScreen
 import net.rpcsx.ui.games.GamesScreen
-import net.rpcsx.ui.patches.PatchManagerScreen
 import net.rpcsx.ui.settings.AdvancedSettingsScreen
 import net.rpcsx.ui.settings.ControllerSettings
 import net.rpcsx.ui.settings.SettingsScreen
@@ -255,23 +254,7 @@ fun AppNavHost() {
             )
         }
 
-        // Patch Manager routes - optional gamePath parameter (URL-encoded)
-        composable(route = "patch_manager") {
-            PatchManagerScreen(navigateBack = navController::navigateUp, gamePath = null)
-        }
-
-        composable(
-            route = "patch_manager/{gamePath}",
-            arguments = listOf(navArgument("gamePath") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val encoded = backStackEntry.arguments?.getString("gamePath")
-            val gamePath = try {
-                if (encoded != null) URLDecoder.decode(encoded, "UTF-8") else null
-            } catch (e: Throwable) {
-                encoded
-            }
-            PatchManagerScreen(navigateBack = navController::navigateUp, gamePath = gamePath)
-        }
+        // Patch Manager removed
 
         composable(
             route = "controls"

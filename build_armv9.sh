@@ -97,9 +97,14 @@ echo "Version: $RX_VERSION-$RX_SHA"
 echo "Optimizations: ARMv9, SVE2, LTO, Fastmem, FSR 3.1"
 echo "=================================================="${NC}
 
-# Питаємо чи встановлювати на пристрій
-read -p "Install on connected device? (y/n) " -n 1 -r
-echo
+# Питаємо чи встановлювати на пристрій (skip interactive prompt in CI/non-interactive)
+# If running inside GitHub Actions or without a TTY, default to 'no'
+if [ -n "${GITHUB_ACTIONS:-}" ] || [ ! -t 0 ]; then
+    REPLY="n"
+else
+    read -p "Install on connected device? (y/n) " -n 1 -r
+    echo
+fi
 if [[ $REPLY =~ ^[Yy]$ ]]; then
     echo -e "${YELLOW}Installing on device...${NC}"
     

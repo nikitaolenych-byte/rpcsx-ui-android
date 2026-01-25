@@ -237,15 +237,8 @@ fun GameItem(game: Game, navigateTo: (String) -> Unit) {
                         }
                     }
                 }, onLongClick = {
-                    // Open Patch Manager for this game on long-press (auto-detect/apply)
-                    if (game.info.name.value != "VSH") {
-                        try {
-                            val encoded = URLEncoder.encode(game.info.path, "UTF-8")
-                            navigateTo("patch_manager/$encoded")
-                        } catch (e: Throwable) {
-                            menuExpanded.value = true
-                        }
-                    }
+                    // Show context menu on long-press
+                    menuExpanded.value = true
                 })
         ) {
             if (game.info.iconPath.value != null && !iconExists.value) {
