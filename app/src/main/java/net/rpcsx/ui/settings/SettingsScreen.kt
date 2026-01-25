@@ -542,8 +542,10 @@ fun AdvancedSettingsScreen(
                                         onValueChange = { value ->
                                             // Special handling for LLVM 20.3 - select new LLVM backend
                                             if (isPpuDecoder && value == "LLVM 20.3") {
-                                                // Set decoder to LLVM and hint the desired LLVM version (some backends read this key)
-                                                if (!safeSettingsSet(itemPath, "\"Recompiler (LLVM)\"")) {
+                                                // Many native builds may not expose a modern PPU enum value.
+                                                // Use the legacy LLVM recompiler token so settingsSet succeeds,
+                                                // and separately write the desired LLVM version key.
+                                                if (!safeSettingsSet(itemPath, "\"LLVM Recompiler (Legacy)\"")) {
                                                     AlertDialogQueue.showDialog(
                                                         context.getString(R.string.error),
                                                         context.getString(R.string.failed_to_assign_value, value, itemPath)
@@ -551,22 +553,26 @@ fun AdvancedSettingsScreen(
                                                 }
                                                 safeSettingsSet("Core@@PPU LLVM Version", "\"20.3\"")
                                                 try {
-                                                    itemObject.put("value", "LLVM Recompiler (20.3)")
-                                                    itemValue = "LLVM Recompiler (20.3)"
+                                                    itemObject.put("value", "LLVM Recompiler (Legacy)")
+                                                    // Keep a marker that 20.3 was requested so display logic shows it
+                                                    itemValue = "LLVM Recompiler (Legacy) 20.3"
                                                 } catch (e: Throwable) { }
                                                 return@SingleSelectionDialog
                                             }
                                             if (isSpuDecoder && value == "LLVM 20.3") {
-                                                if (!safeSettingsSet(itemPath, "\"Recompiler (LLVM)\"")) {
-                                                    AlertDialogQueue.showDialog(
-                                                        context.getString(R.string.error),
-                                                        context.getString(R.string.failed_to_assign_value, value, itemPath)
-                                                    )
+                                                // SPU may already support generic LLVM token; try to set it,
+                                                // fall back to legacy token if needed. Keep version key as hint.
+                                                val spuInternal = "Recompiler (LLVM)"
+                                                if (!safeSettingsSet(itemPath, "\"$spuInternal\"")) {
+                                                    // fallback to legacy token
+                                                    safeSettingsSet(itemPath, "\"LLVM Recompiler (Legacy)\"")
                                                 }
                                                 safeSettingsSet("Core@@SPU LLVM Version", "\"20.3\"")
                                                 try {
-                                                    itemObject.put("value", "LLVM Recompiler (20.3)")
-                                                    itemValue = "LLVM Recompiler (20.3)"
+                                                    // Prefer to show generic LLVM token if it succeeded, otherwise legacy
+                                                    val current = try { itemObject.getString("value") } catch (_: Throwable) { null }
+                                                    if (current == null || !current.contains("LLVM")) itemObject.put("value", "Recompiler (LLVM)")
+                                                    itemValue = (itemObject.getString("value") + " 20.3")
                                                 } catch (e: Throwable) { }
                                                 return@SingleSelectionDialog
                                             }
