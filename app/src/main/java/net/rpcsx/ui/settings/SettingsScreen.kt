@@ -34,6 +34,8 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -368,7 +370,6 @@ fun AdvancedSettingsScreen(
                     SwitchPreference(
                         checked = sve2Enabled,
                         title = "SVE2 (Scalable Vector Extension 2)",
-                        subtitle = { PreferenceSubtitle(text = "SVE2 for Snapdragon 8 Gen 3/4/5") },
                         onClick = { enabled ->
                             sve2Enabled = enabled
                             GeneralSettings.setValue("sve2_enabled", enabled)
@@ -379,22 +380,187 @@ fun AdvancedSettingsScreen(
                 }
 
                 item(key = "zram_swap") {
-                    var zramEnabled by remember { mutableStateOf(GeneralSettings["zram_enabled"] as? Boolean ?: true) }
-                    SwitchPreference(
-                        checked = zramEnabled,
+                    val zramOptions = listOf("Off", "4 GB", "6 GB", "8 GB")
+                    var zramSelection by remember { mutableStateOf(GeneralSettings["zram_size"] as? String ?: "6 GB") }
+                    var expanded by remember { mutableStateOf(false) }
+                    
+                    RegularPreference(
                         title = "zRAM / Swap",
-                        subtitle = { PreferenceSubtitle(text = "Compressed virtual memory (4-8GB)") },
-                        onClick = { enabled ->
-                            zramEnabled = enabled
-                            GeneralSettings.setValue("zram_enabled", enabled)
-                            safeSettingsSet("Core@@Memory Management", if (enabled) "\"aggressive\"" else "\"default\"")
-                            safeSettingsSet("Core@@Use Large Pages", if (enabled) "true" else "false")
-                        }
+                        subtitle = { PreferenceSubtitle(text = zramSelection) },
+                        onClick = { expanded = true }
                     )
+                    
+                    DropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        zramOptions.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(option) },
+                                onClick = {
+                                    zramSelection = option
+                                    expanded = false
+                                    GeneralSettings.setValue("zram_size", option)
+                                    val isEnabled = option != "Off"
+                                    GeneralSettings.setValue("zram_enabled", isEnabled)
+                                    safeSettingsSet("Core@@Memory Management", if (isEnabled) "\"aggressive\"" else "\"default\"")
+                                    safeSettingsSet("Core@@Use Large Pages", if (isEnabled) "true" else "false")
+                                    safeSettingsSet("Core@@zRAM Size", "\"$option\"")
+                                }
+                            )
+                        }
+                    }
+                }
+                
+                item(key = "ppu_decoder_header") {
+                    PreferenceHeader(text = "PPU Decoder")
+                }
+                
+                item(key = "ppu_decoder") {
+                    val ppuOptions = listOf("LLVM 21 JIT NEON", "Interpreter (slow)", "Interpreter (fast)")
+                    var ppuSelection by remember { mutableStateOf(GeneralSettings["ppu_decoder"] as? String ?: "LLVM 21 JIT NEON") }
+                    var expanded by remember { mutableStateOf(false) }
+                    
+                    RegularPreference(
+                        title = "PPU Decoder",
+                        subtitle = { PreferenceSubtitle(text = ppuSelection) },
+                        onClick = { expanded = true }
+                    )
+                    
+                    DropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        ppuOptions.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(option) },
+                                onClick = {
+                                    ppuSelection = option
+                                    expanded = false
+                                    GeneralSettings.setValue("ppu_decoder", option)
+                                    val decoderValue = when (option) {
+                                        "LLVM 21 JIT NEON" -> "\"Recompiler (LLVM)\""
+                                        "Interpreter (slow)" -> "\"Interpreter (slow)\""
+                                        else -> "\"Interpreter (fast)\""
+                                    }
+                                    safeSettingsSet("Core@@PPU Decoder", decoderValue)
+                                    if (option == "LLVM 21 JIT NEON") {
+                                        safeSettingsSet("Core@@PPU LLVM JIT NEON", "true")
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+                
+                item(key = "spu_decoder_header") {
+                    PreferenceHeader(text = "SPU Decoder")
+                }
+                
+                item(key = "spu_decoder") {
+                    val spuOptions = listOf("Modified LLVM for SPU", "ASMJIT (fast)", "Interpreter (slow)", "Interpreter (fast)")
+                    var spuSelection by remember { mutableStateOf(GeneralSettings["spu_decoder"] as? String ?: "Modified LLVM for SPU") }
+                    var expanded by remember { mutableStateOf(false) }
+                    
+                    RegularPreference(
+                        title = "SPU Decoder",
+                        subtitle = { PreferenceSubtitle(text = spuSelection) },
+                        onClick = { expanded = true }
+                    )
+                    
+                    DropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        spuOptions.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(option) },
+                                onClick = {
+                                    spuSelection = option
+                                    expanded = false
+                                    GeneralSettings.setValue("spu_decoder", option)
+                                    val decoderValue = when (option) {
+                                        "Modified LLVM for SPU" -> "\"Recompiler (LLVM)\""
+                                        "ASMJIT (fast)" -> "\"Recompiler (ASMJIT)\""
+                                        "Interpreter (slow)" -> "\"Interpreter (slow)\""
+                                        else -> "\"Interpreter (fast)\""
+                                    }
+                                    safeSettingsSet("Core@@SPU Decoder", decoderValue)
+                                    if (option == "Modified LLVM for SPU") {
+                                        safeSettingsSet("Core@@SPU LLVM Optimized", "true")
+                                    }
+                                }
+                            )
+                        }
+                    }
                 }
                 
                 item(key = "core_settings_header") {
                     PreferenceHeader(text = "Core Settings")
+                }
+            }
+            
+            // Video Settings - Game Compatibility moved here
+            if (path.contains("Video") || path.endsWith("@@Video")) {
+                item(key = "game_compat_header") {
+                    PreferenceHeader(text = "Game Compatibility")
+                }
+                
+                item(key = "strict_rendering") {
+                    var strictMode by remember { mutableStateOf(GeneralSettings["strict_rendering"] as? Boolean ?: false) }
+                    SwitchPreference(
+                        checked = strictMode,
+                        title = "Strict Rendering Mode",
+                        onClick = { enabled ->
+                            strictMode = enabled
+                            GeneralSettings.setValue("strict_rendering", enabled)
+                            safeSettingsSet("Video@@Strict Rendering Mode", if (enabled) "true" else "false")
+                            safeSettingsSet("Video@@Write Color Buffers", if (enabled) "true" else "false")
+                        }
+                    )
+                }
+
+                item(key = "rsx_fifo_accuracy") {
+                    var fifoAccuracy by remember { mutableStateOf(GeneralSettings["rsx_fifo_accuracy"] as? Boolean ?: false) }
+                    SwitchPreference(
+                        checked = fifoAccuracy,
+                        title = "RSX FIFO Accuracy",
+                        onClick = { enabled ->
+                            fifoAccuracy = enabled
+                            GeneralSettings.setValue("rsx_fifo_accuracy", enabled)
+                            safeSettingsSet("Video@@RSX FIFO Accuracy", if (enabled) "\"high\"" else "\"fast\"")
+                        }
+                    )
+                }
+
+                item(key = "spu_loop_detection") {
+                    var loopDetection by remember { mutableStateOf(GeneralSettings["spu_loop_detection"] as? Boolean ?: true) }
+                    SwitchPreference(
+                        checked = loopDetection,
+                        title = "SPU Loop Detection",
+                        onClick = { enabled ->
+                            loopDetection = enabled
+                            GeneralSettings.setValue("spu_loop_detection", enabled)
+                            safeSettingsSet("Core@@SPU loop detection", if (enabled) "true" else "false")
+                        }
+                    )
+                }
+
+                item(key = "accurate_xfloat") {
+                    var accurateXfloat by remember { mutableStateOf(GeneralSettings["accurate_xfloat"] as? Boolean ?: false) }
+                    SwitchPreference(
+                        checked = accurateXfloat,
+                        title = "Accurate XFloat",
+                        onClick = { enabled ->
+                            accurateXfloat = enabled
+                            GeneralSettings.setValue("accurate_xfloat", enabled)
+                            safeSettingsSet("Core@@XFloat Accuracy", if (enabled) "\"accurate\"" else "\"approximate\"")
+                        }
+                    )
+                }
+                
+                item(key = "video_settings_header") {
+                    PreferenceHeader(text = "Video Settings")
                 }
             }
             
@@ -954,80 +1120,11 @@ fun SettingsScreen(
                 )       
             }
 
-            // Game Compatibility Settings
-            item(key = "compat_header") {
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "Game Compatibility",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                )
-            }
-
-            item(key = "strict_rendering") {
-                var strictMode by remember { mutableStateOf(GeneralSettings["strict_rendering"] as? Boolean ?: false) }
-                SwitchPreference(
-                    checked = strictMode,
-                    title = "Strict Rendering Mode",
-                    subtitle = { PreferenceSubtitle(text = "Fix graphics for MGS4, Uncharted, God of War 3") },
-                    onClick = { enabled ->
-                        strictMode = enabled
-                        GeneralSettings.setValue("strict_rendering", enabled)
-                        safeSettingsSet("Video@@Strict Rendering Mode", if (enabled) "true" else "false")
-                        safeSettingsSet("Video@@Write Color Buffers", if (enabled) "true" else "false")
-                    }
-                )
-            }
-
-            item(key = "spu_loop_detection") {
-                var loopDetection by remember { mutableStateOf(GeneralSettings["spu_loop_detection"] as? Boolean ?: true) }
-                SwitchPreference(
-                    checked = loopDetection,
-                    title = "SPU Loop Detection",
-                    subtitle = { PreferenceSubtitle(text = "Fix hangs in LBP, Heavenly Sword, Lair") },
-                    onClick = { enabled ->
-                        loopDetection = enabled
-                        GeneralSettings.setValue("spu_loop_detection", enabled)
-                        safeSettingsSet("Core@@SPU loop detection", if (enabled) "true" else "false")
-                    }
-                )
-            }
-
-            item(key = "accurate_xfloat") {
-                var accurateXfloat by remember { mutableStateOf(GeneralSettings["accurate_xfloat"] as? Boolean ?: false) }
-                SwitchPreference(
-                    checked = accurateXfloat,
-                    title = "Accurate XFloat",
-                    subtitle = { PreferenceSubtitle(text = "Fix .hack//Versus, Disgaea D2, Asura's Wrath") },
-                    onClick = { enabled ->
-                        accurateXfloat = enabled
-                        GeneralSettings.setValue("accurate_xfloat", enabled)
-                        safeSettingsSet("Core@@XFloat Accuracy", if (enabled) "\"accurate\"" else "\"approximate\"")
-                    }
-                )
-            }
-
-            item(key = "rsx_fifo_accuracy") {
-                var fifoAccuracy by remember { mutableStateOf(GeneralSettings["rsx_fifo_accuracy"] as? Boolean ?: false) }
-                SwitchPreference(
-                    checked = fifoAccuracy,
-                    title = "RSX FIFO Accuracy",
-                    subtitle = { PreferenceSubtitle(text = "Fix Castlevania HD, some visual glitches") },
-                    onClick = { enabled ->
-                        fifoAccuracy = enabled
-                        GeneralSettings.setValue("rsx_fifo_accuracy", enabled)
-                        safeSettingsSet("Video@@RSX FIFO Accuracy", if (enabled) "\"high\"" else "\"fast\"")
-                    }
-                )
-            }
-
             item(key = "hide_onscreen_controls") {
                 var hideControls by remember { mutableStateOf(GeneralSettings["hide_onscreen_controls"] as? Boolean ?: false) }
                 SwitchPreference(
                     checked = hideControls,
                     title = "Hide On-Screen Controls",
-                    subtitle = { PreferenceSubtitle(text = "Hide gamepad overlay (use with controller)") },
                     onClick = { enabled ->
                         hideControls = enabled
                         GeneralSettings.setValue("hide_onscreen_controls", enabled)
