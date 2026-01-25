@@ -791,7 +791,7 @@ fun DropUpFloatingActionButton(
                     if (installIsoLauncher != null) {
                         FloatingActionButton(
                             onClick = { installIsoLauncher.launch("*/*"); expanded = false },
-                            containerColor = MaterialTheme.colorScheme.tertiary
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
                         ) {
                             Icon(
                                 painter = painterResource(id = R.drawable.ic_album),

@@ -56,6 +56,13 @@ class RPCSXActivity : Activity() {
                     binding?.oscToggle?.setImageResource(if (pad.isInvisible) R.drawable.ic_osc_off else R.drawable.ic_show_osc)
                 }
             }
+            
+            // Apply "Hide On-Screen Controls" setting
+            val hideControls = GeneralSettings["hide_onscreen_controls"] as? Boolean ?: false
+            if (hideControls) {
+                binding?.padOverlay?.isInvisible = true
+                binding?.oscToggle?.isInvisible = true
+            }
         } catch (e: Throwable) {
             Log.e("RPCSX", "Failed to setup OSC toggle", e)
         }
