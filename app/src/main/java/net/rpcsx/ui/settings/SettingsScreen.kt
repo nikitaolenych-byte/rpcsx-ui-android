@@ -344,86 +344,22 @@ fun AdvancedSettingsScreen(
                 .fillMaxSize()
                 .padding(contentPadding),
         ) {
-            // ARM Optimization Settings - show only in Core section
+            // Core Settings - show only in Core section
+            // Note: ARM64 NEON optimizations are now baked into LLVM code (v1.5.0-neon)
+            // See: SPULLVMRecompiler.cpp, CPUTranslator.h for real NEON implementations
             if (path.contains("Core") || path.endsWith("@@Core")) {
-                item(key = "arm_opt_header") {
-                    PreferenceHeader(text = "ARM Optimization")
-                }
-                
-                item(key = "asimd_neon") {
-                    var asimdEnabled by remember { mutableStateOf(GeneralSettings["asimd_neon_enabled"] as? Boolean ?: true) }
-                    SwitchPreference(
-                        checked = asimdEnabled,
-                        title = "ASIMD (NEON)",
-                        subtitle = { PreferenceSubtitle(text = "Advanced SIMD for Cell PPU/SPU") },
-                        onClick = { enabled ->
-                            asimdEnabled = enabled
-                            GeneralSettings.setValue("asimd_neon_enabled", enabled)
-                            safeSettingsSet("Core@@Use ASIMD", if (enabled) "true" else "false")
-                            safeSettingsSet("Core@@Preferred SIMD", if (enabled) "\"NEON\"" else "\"auto\"")
-                        }
-                    )
-                }
-
-                item(key = "sve2_enabled") {
-                    var sve2Enabled by remember { mutableStateOf(GeneralSettings["sve2_enabled"] as? Boolean ?: false) }
-                    SwitchPreference(
-                        checked = sve2Enabled,
-                        title = "SVE2 (Scalable Vector Extension 2)",
-                        onClick = { enabled ->
-                            sve2Enabled = enabled
-                            GeneralSettings.setValue("sve2_enabled", enabled)
-                            safeSettingsSet("Core@@Use SVE2", if (enabled) "true" else "false")
-                            safeSettingsSet("Core@@SPU SVE2 Acceleration", if (enabled) "true" else "false")
-                        }
-                    )
-                }
-
-                item(key = "zram_swap") {
-                    val zramOptions = listOf("Off", "4 GB", "6 GB", "8 GB")
-                    var zramSelection by remember { mutableStateOf(GeneralSettings["zram_size"] as? String ?: "6 GB") }
-                    var expanded by remember { mutableStateOf(false) }
-                    
-                    RegularPreference(
-                        title = "zRAM / Swap",
-                        subtitle = { PreferenceSubtitle(text = zramSelection) },
-                        onClick = { expanded = true }
-                    )
-                    
-                    DropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false }
-                    ) {
-                        zramOptions.forEach { option ->
-                            DropdownMenuItem(
-                                text = { Text(option) },
-                                onClick = {
-                                    zramSelection = option
-                                    expanded = false
-                                    GeneralSettings.setValue("zram_size", option)
-                                    val isEnabled = option != "Off"
-                                    GeneralSettings.setValue("zram_enabled", isEnabled)
-                                    safeSettingsSet("Core@@Memory Management", if (isEnabled) "\"aggressive\"" else "\"default\"")
-                                    safeSettingsSet("Core@@Use Large Pages", if (isEnabled) "true" else "false")
-                                    safeSettingsSet("Core@@zRAM Size", "\"$option\"")
-                                }
-                            )
-                        }
-                    }
-                }
-                
                 item(key = "ppu_decoder_header") {
                     PreferenceHeader(text = "PPU Decoder")
                 }
                 
                 item(key = "ppu_decoder_custom") {
                     val ppuOptions = listOf(
-                        "Modified LLVM + JIT NEON",
+                        "LLVM Recompiler (NEON)",
                         "LLVM Recompiler",
                         "Interpreter (precise)",
                         "Interpreter (fast)"
                     )
-                    var ppuSelection by remember { mutableStateOf(GeneralSettings["ppu_decoder_mode"] as? String ?: "Modified LLVM + JIT NEON") }
+                    var ppuSelection by remember { mutableStateOf(GeneralSettings["ppu_decoder_mode"] as? String ?: "LLVM Recompiler (NEON)") }
                     var expanded by remember { mutableStateOf(false) }
                     
                     RegularPreference(
@@ -444,21 +380,10 @@ fun AdvancedSettingsScreen(
                                     expanded = false
                                     GeneralSettings.setValue("ppu_decoder_mode", option)
                                     
+                                    // Only real RPCSX config keys used here
                                     when (option) {
-                                        "Modified LLVM + JIT NEON" -> {
+                                        "LLVM Recompiler (NEON)", "LLVM Recompiler" -> {
                                             safeSettingsSet("Core@@PPU Decoder", "\"Recompiler (LLVM)\"")
-                                            safeSettingsSet("Core@@PPU LLVM Precompilation", "true")
-                                            safeSettingsSet("Core@@PPU LLVM Accurate Vector NaN", "false")
-                                            safeSettingsSet("Core@@PPU LLVM Java Mode", "false")
-                                            safeSettingsSet("Core@@PPU Set DAZ and FTZ", "true")
-                                            safeSettingsSet("Core@@PPU NEON Acceleration", "true")
-                                            safeSettingsSet("Core@@PPU JIT Block Linking", "true")
-                                            safeSettingsSet("Core@@PPU LLVM Greedy Mode", "true")
-                                        }
-                                        "LLVM Recompiler" -> {
-                                            safeSettingsSet("Core@@PPU Decoder", "\"Recompiler (LLVM)\"")
-                                            safeSettingsSet("Core@@PPU LLVM Precompilation", "true")
-                                            safeSettingsSet("Core@@PPU NEON Acceleration", "false")
                                         }
                                         "Interpreter (precise)" -> {
                                             safeSettingsSet("Core@@PPU Decoder", "\"Interpreter (static)\"")
@@ -479,13 +404,13 @@ fun AdvancedSettingsScreen(
                 
                 item(key = "spu_decoder_custom") {
                     val spuOptions = listOf(
-                        "Modified LLVM for SPU",
+                        "LLVM Recompiler (NEON)",
                         "ASMJIT Recompiler",
                         "LLVM Recompiler",
                         "Interpreter (precise)",
                         "Interpreter (fast)"
                     )
-                    var spuSelection by remember { mutableStateOf(GeneralSettings["spu_decoder_mode"] as? String ?: "Modified LLVM for SPU") }
+                    var spuSelection by remember { mutableStateOf(GeneralSettings["spu_decoder_mode"] as? String ?: "LLVM Recompiler (NEON)") }
                     var expanded by remember { mutableStateOf(false) }
                     
                     RegularPreference(
@@ -506,27 +431,13 @@ fun AdvancedSettingsScreen(
                                     expanded = false
                                     GeneralSettings.setValue("spu_decoder_mode", option)
                                     
+                                    // Only real RPCSX config keys used here
                                     when (option) {
-                                        "Modified LLVM for SPU" -> {
+                                        "LLVM Recompiler (NEON)", "LLVM Recompiler" -> {
                                             safeSettingsSet("Core@@SPU Decoder", "\"Recompiler (LLVM)\"")
-                                            safeSettingsSet("Core@@SPU LLVM Recompiler", "true")
-                                            safeSettingsSet("Core@@SPU Cache", "true")
-                                            safeSettingsSet("Core@@SPU Block Size", "\"Mega\"")
-                                            safeSettingsSet("Core@@SPU Loop Detection", "true")
-                                            safeSettingsSet("Core@@SPU NEON Acceleration", "true")
-                                            safeSettingsSet("Core@@SPU LLVM Greedy Mode", "true")
-                                            safeSettingsSet("Core@@SPU Accurate xfloat", "false")
-                                            safeSettingsSet("Core@@SPU XFloat Accuracy", "\"Relaxed\"")
                                         }
                                         "ASMJIT Recompiler" -> {
                                             safeSettingsSet("Core@@SPU Decoder", "\"Recompiler (ASMJIT)\"")
-                                            safeSettingsSet("Core@@SPU Cache", "true")
-                                            safeSettingsSet("Core@@SPU Block Size", "\"Giga\"")
-                                        }
-                                        "LLVM Recompiler" -> {
-                                            safeSettingsSet("Core@@SPU Decoder", "\"Recompiler (LLVM)\"")
-                                            safeSettingsSet("Core@@SPU Cache", "true")
-                                            safeSettingsSet("Core@@SPU NEON Acceleration", "false")
                                         }
                                         "Interpreter (precise)" -> {
                                             safeSettingsSet("Core@@SPU Decoder", "\"Interpreter (static)\"")
@@ -543,70 +454,6 @@ fun AdvancedSettingsScreen(
                 
                 item(key = "core_settings_header") {
                     PreferenceHeader(text = "Core Settings")
-                }
-            }
-            
-            // Video Settings - Game Compatibility moved here
-            if (path.contains("Video") || path.endsWith("@@Video")) {
-                item(key = "game_compat_header") {
-                    PreferenceHeader(text = "Game Compatibility")
-                }
-                
-                item(key = "strict_rendering") {
-                    var strictMode by remember { mutableStateOf(GeneralSettings["strict_rendering"] as? Boolean ?: false) }
-                    SwitchPreference(
-                        checked = strictMode,
-                        title = "Strict Rendering Mode",
-                        onClick = { enabled ->
-                            strictMode = enabled
-                            GeneralSettings.setValue("strict_rendering", enabled)
-                            safeSettingsSet("Video@@Strict Rendering Mode", if (enabled) "true" else "false")
-                            safeSettingsSet("Video@@Write Color Buffers", if (enabled) "true" else "false")
-                        }
-                    )
-                }
-
-                item(key = "rsx_fifo_accuracy") {
-                    var fifoAccuracy by remember { mutableStateOf(GeneralSettings["rsx_fifo_accuracy"] as? Boolean ?: false) }
-                    SwitchPreference(
-                        checked = fifoAccuracy,
-                        title = "RSX FIFO Accuracy",
-                        onClick = { enabled ->
-                            fifoAccuracy = enabled
-                            GeneralSettings.setValue("rsx_fifo_accuracy", enabled)
-                            safeSettingsSet("Video@@RSX FIFO Accuracy", if (enabled) "\"high\"" else "\"fast\"")
-                        }
-                    )
-                }
-
-                item(key = "spu_loop_detection") {
-                    var loopDetection by remember { mutableStateOf(GeneralSettings["spu_loop_detection"] as? Boolean ?: true) }
-                    SwitchPreference(
-                        checked = loopDetection,
-                        title = "SPU Loop Detection",
-                        onClick = { enabled ->
-                            loopDetection = enabled
-                            GeneralSettings.setValue("spu_loop_detection", enabled)
-                            safeSettingsSet("Core@@SPU loop detection", if (enabled) "true" else "false")
-                        }
-                    )
-                }
-
-                item(key = "accurate_xfloat") {
-                    var accurateXfloat by remember { mutableStateOf(GeneralSettings["accurate_xfloat"] as? Boolean ?: false) }
-                    SwitchPreference(
-                        checked = accurateXfloat,
-                        title = "Accurate XFloat",
-                        onClick = { enabled ->
-                            accurateXfloat = enabled
-                            GeneralSettings.setValue("accurate_xfloat", enabled)
-                            safeSettingsSet("Core@@XFloat Accuracy", if (enabled) "\"accurate\"" else "\"approximate\"")
-                        }
-                    )
-                }
-                
-                item(key = "video_settings_header") {
-                    PreferenceHeader(text = "Video Settings")
                 }
             }
             

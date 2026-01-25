@@ -3671,6 +3671,46 @@ public:
 	template <typename T1, typename T2, typename T3>
 	value_t<u8[16]> vperm2b(T1 a, T2 b, T3 c)
 	{
+#if defined(ARCH_ARM64)
+		// ARM64: Use TBL2 instruction for efficient 2-register table lookup
+		// TBL2 can select from two 128-bit registers, similar to x86 VPERM2B
+		value_t<u8[16]> result;
+
+		const auto data0 = a.eval(m_ir);
+		const auto data1 = b.eval(m_ir);
+		const auto index = c.eval(m_ir);
+
+		// Constant folding path
+		if (auto cv = llvm::dyn_cast<llvm::ConstantDataVector>(index))
+		{
+			v128 mask{};
+			for (u32 i = 0; i < 16; i++)
+			{
+				const u64 byte = cv->getElementAsInteger(i);
+				mask._u8[i] = byte & 0x1f;
+			}
+			result.value = llvm::ConstantDataVector::get(m_context, llvm::ArrayRef(reinterpret_cast<const u8*>(&mask), 16));
+			result.value = m_ir->CreateZExt(result.value, get_type<u32[16]>());
+			result.value = m_ir->CreateShuffleVector(data0, data1, result.value);
+			return result;
+		}
+
+		if (llvm::isa<llvm::ConstantAggregateZero>(index))
+		{
+			v128 mask{};
+			result.value = llvm::ConstantDataVector::get(m_context, llvm::ArrayRef(reinterpret_cast<const u8*>(&mask), 16));
+			result.value = m_ir->CreateZExt(result.value, get_type<u32[16]>());
+			result.value = m_ir->CreateShuffleVector(data0, data1, result.value);
+			return result;
+		}
+
+		// Use ARM64 NEON TBL2 intrinsic for runtime permutation
+		// This selects bytes from concatenation of two registers based on index
+		const auto index_masked = m_ir->CreateAnd(index, llvm::ConstantInt::get(get_type<u8[16]>(), 0x1f));
+		result.value = m_ir->CreateCall(get_intrinsic<u8[16]>(llvm::Intrinsic::aarch64_neon_tbl2), 
+			{data0, data1, index_masked});
+		return result;
+#else
 		if (!utils::has_fast_vperm2b())
 		{
 			return vperm2b256to128(a, b, c);
@@ -3709,6 +3749,7 @@ public:
 
 		result.value = m_ir->CreateCall(get_intrinsic(llvm::Intrinsic::x86_avx512_vpermi2var_qi_128), {data0, index, data1});
 		return result;
+#endif // ARCH_ARM64
 	}
 
 	// Emulate the behavior of VPERM2B by using a 256 bit wide VPERMB
@@ -3965,6 +4006,82 @@ public:
 		return llvm_calli<f32[4], T, U>{"llvm.aarch64.neon.fmin.v4f32", {std::forward<T>(a), std::forward<U>(b)}};
 #endif
 	}
+
+#if defined(ARCH_ARM64)
+	// ARM64 NEON additional intrinsics for optimized vector operations
+	
+	// Vector absolute value (integer)
+	template <typename T>
+		requires std::is_same_v<llvm_common_t<T>, s32[4]>
+	static auto vabs(T&& a)
+	{
+		return llvm_calli<s32[4], T>{"llvm.abs.v4i32", {std::forward<T>(a), llvm_const_int<bool>{false}}};
+	}
+	
+	// Vector FMA (fused multiply-add) - uses NEON FMLA instruction
+	template <typename T, typename U, typename V>
+		requires std::is_same_v<llvm_common_t<T, U, V>, f32[4]>
+	static auto vfma(T&& a, U&& b, V&& c)
+	{
+		return llvm_calli<f32[4], T, U, V>{"llvm.fma.v4f32", {std::forward<T>(a), std::forward<U>(b), std::forward<V>(c)}};
+	}
+	
+	// Vector rounding to nearest
+	template <typename T>
+		requires std::is_same_v<llvm_common_t<T>, f32[4]>
+	static auto vrndn(T&& a)
+	{
+		return llvm_calli<f32[4], T>{"llvm.aarch64.neon.frintn.v4f32", {std::forward<T>(a)}};
+	}
+	
+	// Vector truncate to zero (floor toward zero)
+	template <typename T>
+		requires std::is_same_v<llvm_common_t<T>, f32[4]>
+	static auto vrndz(T&& a)
+	{
+		return llvm_calli<f32[4], T>{"llvm.trunc.v4f32", {std::forward<T>(a)}};
+	}
+	
+	// Vector convert float to signed integer with rounding
+	template <typename T>
+		requires std::is_same_v<llvm_common_t<T>, f32[4]>
+	static auto vcvtns(T&& a)
+	{
+		return llvm_calli<s32[4], T>{"llvm.aarch64.neon.fcvtns.v4i32.v4f32", {std::forward<T>(a)}};
+	}
+	
+	// Vector convert float to unsigned integer with rounding
+	template <typename T>
+		requires std::is_same_v<llvm_common_t<T>, f32[4]>
+	static auto vcvtnu(T&& a)
+	{
+		return llvm_calli<u32[4], T>{"llvm.aarch64.neon.fcvtnu.v4i32.v4f32", {std::forward<T>(a)}};
+	}
+	
+	// Vector pairwise add - efficient for reduction operations
+	template <typename T>
+		requires std::is_same_v<llvm_common_t<T>, f32[4]>
+	static auto vpadd_f32(T&& a)
+	{
+		return llvm_calli<f32[2], T>{"llvm.aarch64.neon.faddp.v2f32", {std::forward<T>(a)}};
+	}
+	
+	// Vector saturating add (signed)
+	template <typename T, typename U>
+		requires std::is_same_v<llvm_common_t<T, U>, s32[4]>
+	static auto vqadd(T&& a, U&& b)
+	{
+		return llvm_calli<s32[4], T, U>{"llvm.sadd.sat.v4i32", {std::forward<T>(a), std::forward<U>(b)}};
+	}
+	
+	// Vector saturating subtract (signed)
+	template <typename T, typename U>
+		requires std::is_same_v<llvm_common_t<T, U>, s32[4]>
+	static auto vqsub(T&& a, U&& b)
+	{
+		return llvm_calli<s32[4], T, U>{"llvm.ssub.sat.v4i32", {std::forward<T>(a), std::forward<U>(b)}};
+	}
+#endif
 
 	template <typename T, typename U>
 		requires std::is_same_v<llvm_common_t<T, U>, u8[16]>

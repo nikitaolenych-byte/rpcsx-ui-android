@@ -62,6 +62,7 @@ const extern spu_decoder<spu_iflag> g_spu_iflag;
 
 #ifdef ARCH_ARM64
 #include "Emu/CPU/Backends/AArch64/AArch64JIT.h"
+#include <arm_neon.h>
 #endif
 
 class spu_llvm_recompiler : public spu_recompiler_base, public cpu_translator
@@ -5003,6 +5004,37 @@ public:
 		return _mm_loadu_si128(reinterpret_cast<const __m128i*>(reinterpret_cast<const u8*>(buf) + (16 - (b & 0xf))));
 	}
 #elif defined(ARCH_ARM64)
+	// ARM64 NEON implementation of quadword rotate by bytes
+	// This rotates a 128-bit vector right by (b & 0xf) bytes
+	static uint8x16_t exec_rotqby_neon(uint8x16_t a, u8 b)
+	{
+		// Create rotation amount (0-15 bytes)
+		const u8 shift = 16 - (b & 0xf);
+		
+		// Use vextq_u8 for efficient byte rotation on ARM64
+		// vextq_u8 extracts bytes from concatenation of two vectors
+		// For rotation: concat(a, a) and extract from position 'shift'
+		switch (shift)
+		{
+		case 0:  return a;
+		case 1:  return vextq_u8(a, a, 1);
+		case 2:  return vextq_u8(a, a, 2);
+		case 3:  return vextq_u8(a, a, 3);
+		case 4:  return vextq_u8(a, a, 4);
+		case 5:  return vextq_u8(a, a, 5);
+		case 6:  return vextq_u8(a, a, 6);
+		case 7:  return vextq_u8(a, a, 7);
+		case 8:  return vextq_u8(a, a, 8);
+		case 9:  return vextq_u8(a, a, 9);
+		case 10: return vextq_u8(a, a, 10);
+		case 11: return vextq_u8(a, a, 11);
+		case 12: return vextq_u8(a, a, 12);
+		case 13: return vextq_u8(a, a, 13);
+		case 14: return vextq_u8(a, a, 14);
+		case 15: return vextq_u8(a, a, 15);
+		default: return a;
+		}
+	}
 #else
 #error "Unimplemented"
 #endif

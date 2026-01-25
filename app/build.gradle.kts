@@ -28,8 +28,8 @@ android {
         applicationId = "net.rpcsx"
         minSdk = 29
         targetSdk = 35
-        versionCode = 30017
-        versionName = "${System.getenv("RX_VERSION") ?: "local"}${if (System.getenv("RX_SHA") != null) "-" + System.getenv("RX_SHA") else ""}"
+        versionCode = 30018
+        versionName = "${System.getenv("RX_VERSION") ?: "1.5.0-neon"}${if (System.getenv("RX_SHA") != null) "-" + System.getenv("RX_SHA") else ""}"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk {
@@ -37,8 +37,9 @@ android {
         }
 
         buildConfigField("String", "Version", "\"v${versionName}\"")
-        buildConfigField("String", "OptimizationTarget", "\"Snapdragon 8s Gen 3 (ARMv9-A)\"")
+        buildConfigField("String", "OptimizationTarget", "\"Snapdragon 8s Gen 3 (ARMv9-A + NEON)\"")
         buildConfigField("boolean", "EnableARMv9Optimizations", "true")
+        buildConfigField("boolean", "EnableNEONIntrinsics", "true")
     }
 
     signingConfigs {
