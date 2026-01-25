@@ -172,7 +172,8 @@ fun AppNavHost() {
     if (rpcsxLibrary == null) {
         GamesDestination(
             navigateToSettings = { },
-            drawerState
+            drawerState,
+            navigateTo = { /* no-op when library missing */ }
         )
 
         return
@@ -192,7 +193,8 @@ fun AppNavHost() {
         ) {
             GamesDestination(
                 navigateToSettings = { navController.navigate("settings") },
-                drawerState
+                drawerState,
+                navigateTo = navController::navigate
             )
         }
 
@@ -493,7 +495,8 @@ fun AppNavHost() {
 @Composable
 fun GamesDestination(
     navigateToSettings: () -> Unit,
-    drawerState: androidx.compose.material3.DrawerState
+    drawerState: androidx.compose.material3.DrawerState,
+    navigateTo: (String) -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -503,7 +506,7 @@ fun GamesDestination(
     val rpcsxLibrary by remember { RPCSX.activeLibrary }
 
     if (rpcsxLibrary == null) {
-        GamesScreen(navigateTo = navController::navigate)
+        GamesScreen(navigateTo = navigateTo)
         return
     }
 
@@ -768,7 +771,7 @@ fun GamesDestination(
             floatingActionButton = {
                 DropUpFloatingActionButton(installPkgLauncher, gameFolderPickerLauncher, installIsoLauncher)
             },
-        ) { innerPadding -> Column(modifier = Modifier.padding(innerPadding)) { GamesScreen(navigateTo = navController::navigate) } }
+        ) { innerPadding -> Column(modifier = Modifier.padding(innerPadding)) { GamesScreen(navigateTo = navigateTo) } }
     }
 }
 
