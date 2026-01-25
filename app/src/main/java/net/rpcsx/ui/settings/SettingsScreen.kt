@@ -904,7 +904,7 @@ fun SettingsScreen(
                 SwitchPreference(
                     checked = asimdEnabled,
                     title = "ASIMD (NEON)",
-                    subtitle = { PreferenceSubtitle(subtitle = "Advanced SIMD for Cell PPU/SPU emulation") },
+                    subtitle = { PreferenceSubtitle(text = "Advanced SIMD for Cell PPU/SPU emulation") },
                     onClick = { enabled ->
                         asimdEnabled = enabled
                         GeneralSettings.setValue("asimd_neon_enabled", enabled)
@@ -920,7 +920,7 @@ fun SettingsScreen(
                 SwitchPreference(
                     checked = sve2Enabled,
                     title = "SVE2 (Scalable Vector Extension 2)",
-                    subtitle = { PreferenceSubtitle(subtitle = "SVE2 for Snapdragon 8 Gen 3/4/5") },
+                    subtitle = { PreferenceSubtitle(text = "SVE2 for Snapdragon 8 Gen 3/4/5") },
                     onClick = { enabled ->
                         sve2Enabled = enabled
                         GeneralSettings.setValue("sve2_enabled", enabled)
@@ -936,7 +936,7 @@ fun SettingsScreen(
                 SwitchPreference(
                     checked = zramEnabled,
                     title = "zRAM / Swap",
-                    subtitle = { PreferenceSubtitle(subtitle = "Compressed virtual memory (4-8GB for PS3)") },
+                    subtitle = { PreferenceSubtitle(text = "Compressed virtual memory (4-8GB for PS3)") },
                     onClick = { enabled ->
                         zramEnabled = enabled
                         GeneralSettings.setValue("zram_enabled", enabled)
