@@ -236,6 +236,49 @@ private fun applySpuLLVMTurbo(): Boolean {
     return successCount > 0  // Success if at least one setting was applied
 }
 
+// Apply Call of Duty 4 runtime performance patch (settings-only)
+private fun applyCod4Patch(): Boolean {
+    if (RPCSX.activeLibrary.value == null) {
+        Log.w("Settings", "Cannot apply COD4 patch: RPCSX library not loaded")
+        return false
+    }
+
+    val updates = listOf(
+        // Prefer newer LLVM backend for PPU and SPU
+        "Core@@PPU LLVM Version" to "\"20.3\"",
+        "Core@@SPU LLVM Version" to "\"20.3\"",
+        "Core@@PPU LLVM Greedy Mode" to "true",
+
+        // Reduce accuracy for speed in COD4
+        "Core@@PPU Accurate Non-Java Mode" to "false",
+        "Core@@PPU Set Saturation Bit" to "false",
+        "Core@@Accurate Cache Line Stores" to "false",
+        "Core@@Use Accurate DFMA" to "false",
+
+        // SPU runtime performance
+        "Core@@SPU Verification" to "false",
+        "Core@@Precise SPU Verification" to "false",
+        "Core@@SPU Accurate DMA" to "false",
+        "Core@@SPU Accurate Reservations" to "false",
+        "Core@@SPU Accurate GETLLAR" to "false",
+        "Core@@SPU Accurate PUTLLUC" to "false",
+        "Core@@SPU Block Size" to "\"giga\"",
+        "Core@@SPU Threads" to "6",
+
+        // General runtime hints
+        "Core@@Max LLVM Compile Threads" to "8",
+        "Core@@Lower SPU thread priority" to "false",
+        "Core@@Relaxed ZCULL Sync" to "true"
+    )
+
+    var successCount = 0
+    for ((path, value) in updates) {
+        if (safeSettingsSet(path, value)) successCount++
+    }
+    Log.i("Settings", "COD4 Patch: applied $successCount/${updates.size} settings")
+    return successCount > 0
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdvancedSettingsScreen(
@@ -364,6 +407,17 @@ fun AdvancedSettingsScreen(
                 
                 item(key = "core_settings_header") {
                     PreferenceHeader(text = "Core Settings")
+                }
+
+                // Patch Manager entry (opens patch manager screen where user can apply RPCS3-compatible patches)
+                item(key = "patch_manager") {
+                    RegularPreference(
+                        title = "Patch Manager",
+                        subtitle = { PreferenceSubtitle(text = "Manage and apply RPCS3-compatible patches for RPCSX") },
+                        onClick = {
+                            navigateTo("patch_manager")
+                        }
+                    )
                 }
             }
             
@@ -497,8 +551,10 @@ fun AdvancedSettingsScreen(
                                     isPpuDecoder && savedNceMode == 3 -> "NCE"
                                     isPpuDecoder && ppuTurboEnabled && itemValue == "LLVM Recompiler (Legacy)" -> "LLVM Turbo"
                                     isPpuDecoder && itemValue == "LLVM Recompiler (Legacy)" -> "LLVM 19"
+                                    isPpuDecoder && itemValue.contains("20.3") -> "LLVM 20.3"
                                     isPpuDecoder && itemValue == "Interpreter (Legacy)" -> "Interpreter"
                                     isSpuDecoder && spuTurboEnabled && itemValue.contains("LLVM", ignoreCase = true) -> "LLVM Turbo"
+                                    isSpuDecoder && itemValue.contains("20.3") -> "LLVM 20.3"
                                     else -> itemValue
                                 }
 
@@ -512,7 +568,12 @@ fun AdvancedSettingsScreen(
                                             // Special handling for LLVM 20.3 - select new LLVM backend
                                             if (isPpuDecoder && value == "LLVM 20.3") {
                                                 // Set decoder to LLVM and hint the desired LLVM version (some backends read this key)
-                                                safeSettingsSet(itemPath, "\"Recompiler (LLVM)\"")
+                                                if (!safeSettingsSet(itemPath, "\"Recompiler (LLVM)\"")) {
+                                                    AlertDialogQueue.showDialog(
+                                                        context.getString(R.string.error),
+                                                        context.getString(R.string.failed_to_assign_value, value, itemPath)
+                                                    )
+                                                }
                                                 safeSettingsSet("Core@@PPU LLVM Version", "\"20.3\"")
                                                 try {
                                                     itemObject.put("value", "LLVM Recompiler (20.3)")
@@ -521,7 +582,12 @@ fun AdvancedSettingsScreen(
                                                 return@SingleSelectionDialog
                                             }
                                             if (isSpuDecoder && value == "LLVM 20.3") {
-                                                safeSettingsSet(itemPath, "\"Recompiler (LLVM)\"")
+                                                if (!safeSettingsSet(itemPath, "\"Recompiler (LLVM)\"")) {
+                                                    AlertDialogQueue.showDialog(
+                                                        context.getString(R.string.error),
+                                                        context.getString(R.string.failed_to_assign_value, value, itemPath)
+                                                    )
+                                                }
                                                 safeSettingsSet("Core@@SPU LLVM Version", "\"20.3\"")
                                                 try {
                                                     itemObject.put("value", "LLVM Recompiler (20.3)")
