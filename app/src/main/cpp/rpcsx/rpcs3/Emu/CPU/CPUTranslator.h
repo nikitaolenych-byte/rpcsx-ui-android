@@ -3672,15 +3672,16 @@ public:
 	value_t<u8[16]> vperm2b(T1 a, T2 b, T3 c)
 	{
 #if defined(ARCH_ARM64)
-		// ARM64: Use TBL2 instruction for efficient 2-register table lookup
-		// TBL2 can select from two 128-bit registers, similar to x86 VPERM2B
+		// ARM64: Emulate VPERM2B using two TBL1 calls + select
+		// VPERM2B selects from 32 bytes (a:b concatenated) using index[4:0]
+		// If index[4] == 0, select from 'a'; if index[4] == 1, select from 'b'
 		value_t<u8[16]> result;
 
 		const auto data0 = a.eval(m_ir);
 		const auto data1 = b.eval(m_ir);
 		const auto index = c.eval(m_ir);
 
-		// Constant folding path
+		// Constant folding path - use LLVM shufflevector for compile-time known indices
 		if (auto cv = llvm::dyn_cast<llvm::ConstantDataVector>(index))
 		{
 			v128 mask{};
@@ -3704,11 +3705,20 @@ public:
 			return result;
 		}
 
-		// Use ARM64 NEON TBL2 intrinsic for runtime permutation
-		// This selects bytes from concatenation of two registers based on index
-		const auto index_masked = m_ir->CreateAnd(index, llvm::ConstantInt::get(get_type<u8[16]>(), 0x1f));
-		result.value = m_ir->CreateCall(get_intrinsic<u8[16]>(llvm::Intrinsic::aarch64_neon_tbl2), 
-			{data0, data1, index_masked});
+		// Runtime path: Use two TBL1 + blend
+		// 1. Mask index to 0-15 range for each table lookup
+		const auto index_low = m_ir->CreateAnd(index, llvm::ConstantInt::get(get_type<u8[16]>(), 0x0f));
+		
+		// 2. TBL1 from first register (data0)
+		const auto from_a = m_ir->CreateCall(get_intrinsic<u8[16]>(llvm::Intrinsic::aarch64_neon_tbl1), {data0, index_low});
+		
+		// 3. TBL1 from second register (data1)
+		const auto from_b = m_ir->CreateCall(get_intrinsic<u8[16]>(llvm::Intrinsic::aarch64_neon_tbl1), {data1, index_low});
+		
+		// 4. Select based on bit 4 of index: (index & 0x10) != 0 ? from_b : from_a
+		const auto bit4_mask = m_ir->CreateAnd(index, llvm::ConstantInt::get(get_type<u8[16]>(), 0x10));
+		const auto select_b = m_ir->CreateICmpNE(bit4_mask, llvm::ConstantAggregateZero::get(get_type<u8[16]>()));
+		result.value = m_ir->CreateSelect(select_b, from_b, from_a);
 		return result;
 #else
 		if (!utils::has_fast_vperm2b())
