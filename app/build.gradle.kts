@@ -29,7 +29,7 @@ android {
         minSdk = 29
         targetSdk = 35
         versionCode = 30018
-        versionName = "${System.getenv("RX_VERSION") ?: "1.5.0-neon"}${if (System.getenv("RX_SHA") != null) "-" + System.getenv("RX_SHA") else ""}"
+        versionName = "${System.getenv("RX_VERSION") ?: "1.5.1-neon-fix"}${if (System.getenv("RX_SHA") != null) "-" + System.getenv("RX_SHA") else ""}"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk {
