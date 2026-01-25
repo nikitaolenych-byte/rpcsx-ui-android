@@ -412,89 +412,6 @@ fun AdvancedSettingsScreen(
                     }
                 }
                 
-                item(key = "ppu_decoder_header") {
-                    PreferenceHeader(text = "PPU Decoder")
-                }
-                
-                item(key = "ppu_decoder") {
-                    val ppuOptions = listOf("LLVM 21 JIT NEON", "Interpreter (slow)", "Interpreter (fast)")
-                    var ppuSelection by remember { mutableStateOf(GeneralSettings["ppu_decoder"] as? String ?: "LLVM 21 JIT NEON") }
-                    var expanded by remember { mutableStateOf(false) }
-                    
-                    RegularPreference(
-                        title = "PPU Decoder",
-                        subtitle = { PreferenceSubtitle(text = ppuSelection) },
-                        onClick = { expanded = true }
-                    )
-                    
-                    DropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false }
-                    ) {
-                        ppuOptions.forEach { option ->
-                            DropdownMenuItem(
-                                text = { Text(option) },
-                                onClick = {
-                                    ppuSelection = option
-                                    expanded = false
-                                    GeneralSettings.setValue("ppu_decoder", option)
-                                    val decoderValue = when (option) {
-                                        "LLVM 21 JIT NEON" -> "\"Recompiler (LLVM)\""
-                                        "Interpreter (slow)" -> "\"Interpreter (slow)\""
-                                        else -> "\"Interpreter (fast)\""
-                                    }
-                                    safeSettingsSet("Core@@PPU Decoder", decoderValue)
-                                    if (option == "LLVM 21 JIT NEON") {
-                                        safeSettingsSet("Core@@PPU LLVM JIT NEON", "true")
-                                    }
-                                }
-                            )
-                        }
-                    }
-                }
-                
-                item(key = "spu_decoder_header") {
-                    PreferenceHeader(text = "SPU Decoder")
-                }
-                
-                item(key = "spu_decoder") {
-                    val spuOptions = listOf("Modified LLVM for SPU", "ASMJIT (fast)", "Interpreter (slow)", "Interpreter (fast)")
-                    var spuSelection by remember { mutableStateOf(GeneralSettings["spu_decoder"] as? String ?: "Modified LLVM for SPU") }
-                    var expanded by remember { mutableStateOf(false) }
-                    
-                    RegularPreference(
-                        title = "SPU Decoder",
-                        subtitle = { PreferenceSubtitle(text = spuSelection) },
-                        onClick = { expanded = true }
-                    )
-                    
-                    DropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false }
-                    ) {
-                        spuOptions.forEach { option ->
-                            DropdownMenuItem(
-                                text = { Text(option) },
-                                onClick = {
-                                    spuSelection = option
-                                    expanded = false
-                                    GeneralSettings.setValue("spu_decoder", option)
-                                    val decoderValue = when (option) {
-                                        "Modified LLVM for SPU" -> "\"Recompiler (LLVM)\""
-                                        "ASMJIT (fast)" -> "\"Recompiler (ASMJIT)\""
-                                        "Interpreter (slow)" -> "\"Interpreter (slow)\""
-                                        else -> "\"Interpreter (fast)\""
-                                    }
-                                    safeSettingsSet("Core@@SPU Decoder", decoderValue)
-                                    if (option == "Modified LLVM for SPU") {
-                                        safeSettingsSet("Core@@SPU LLVM Optimized", "true")
-                                    }
-                                }
-                            )
-                        }
-                    }
-                }
-                
                 item(key = "core_settings_header") {
                     PreferenceHeader(text = "Core Settings")
                 }
@@ -1117,18 +1034,6 @@ fun SettingsScreen(
                     icon = { Icon(painterResource(R.drawable.gamepad), null) },
                     description = stringResource(R.string.controls_description),
                     onClick = { navigateTo("controls") }
-                )       
-            }
-
-            item(key = "hide_onscreen_controls") {
-                var hideControls by remember { mutableStateOf(GeneralSettings["hide_onscreen_controls"] as? Boolean ?: false) }
-                SwitchPreference(
-                    checked = hideControls,
-                    title = "Hide On-Screen Controls",
-                    onClick = { enabled ->
-                        hideControls = enabled
-                        GeneralSettings.setValue("hide_onscreen_controls", enabled)
-                    }
                 )
             }
 
