@@ -342,6 +342,62 @@ fun AdvancedSettingsScreen(
                 .fillMaxSize()
                 .padding(contentPadding),
         ) {
+            // ARM Optimization Settings - show only in Core section
+            if (path.contains("Core") || path.endsWith("@@Core")) {
+                item(key = "arm_opt_header") {
+                    PreferenceHeader(text = "ARM Optimization")
+                }
+                
+                item(key = "asimd_neon") {
+                    var asimdEnabled by remember { mutableStateOf(GeneralSettings["asimd_neon_enabled"] as? Boolean ?: true) }
+                    SwitchPreference(
+                        checked = asimdEnabled,
+                        title = "ASIMD (NEON)",
+                        subtitle = { PreferenceSubtitle(text = "Advanced SIMD for Cell PPU/SPU") },
+                        onClick = { enabled ->
+                            asimdEnabled = enabled
+                            GeneralSettings.setValue("asimd_neon_enabled", enabled)
+                            safeSettingsSet("Core@@Use ASIMD", if (enabled) "true" else "false")
+                            safeSettingsSet("Core@@Preferred SIMD", if (enabled) "\"NEON\"" else "\"auto\"")
+                        }
+                    )
+                }
+
+                item(key = "sve2_enabled") {
+                    var sve2Enabled by remember { mutableStateOf(GeneralSettings["sve2_enabled"] as? Boolean ?: false) }
+                    SwitchPreference(
+                        checked = sve2Enabled,
+                        title = "SVE2 (Scalable Vector Extension 2)",
+                        subtitle = { PreferenceSubtitle(text = "SVE2 for Snapdragon 8 Gen 3/4/5") },
+                        onClick = { enabled ->
+                            sve2Enabled = enabled
+                            GeneralSettings.setValue("sve2_enabled", enabled)
+                            safeSettingsSet("Core@@Use SVE2", if (enabled) "true" else "false")
+                            safeSettingsSet("Core@@SPU SVE2 Acceleration", if (enabled) "true" else "false")
+                        }
+                    )
+                }
+
+                item(key = "zram_swap") {
+                    var zramEnabled by remember { mutableStateOf(GeneralSettings["zram_enabled"] as? Boolean ?: true) }
+                    SwitchPreference(
+                        checked = zramEnabled,
+                        title = "zRAM / Swap",
+                        subtitle = { PreferenceSubtitle(text = "Compressed virtual memory (4-8GB)") },
+                        onClick = { enabled ->
+                            zramEnabled = enabled
+                            GeneralSettings.setValue("zram_enabled", enabled)
+                            safeSettingsSet("Core@@Memory Management", if (enabled) "\"aggressive\"" else "\"default\"")
+                            safeSettingsSet("Core@@Use Large Pages", if (enabled) "true" else "false")
+                        }
+                    )
+                }
+                
+                item(key = "core_settings_header") {
+                    PreferenceHeader(text = "Core Settings")
+                }
+            }
+            
             val filteredKeys =
                 settings.keys().asSequence().filter { it.contains(searchQuery, ignoreCase = true) }
                     .toList()
@@ -896,55 +952,6 @@ fun SettingsScreen(
                     description = stringResource(R.string.controls_description),
                     onClick = { navigateTo("controls") }
                 )       
-            }
-
-            // ARM Optimization Settings
-            item(key = "asimd_neon") {
-                var asimdEnabled by remember { mutableStateOf(GeneralSettings["asimd_neon_enabled"] as? Boolean ?: true) }
-                SwitchPreference(
-                    checked = asimdEnabled,
-                    title = "ASIMD (NEON)",
-                    subtitle = { PreferenceSubtitle(text = "Advanced SIMD for Cell PPU/SPU emulation") },
-                    onClick = { enabled ->
-                        asimdEnabled = enabled
-                        GeneralSettings.setValue("asimd_neon_enabled", enabled)
-                        // Apply to emulator settings
-                        safeSettingsSet("Core@@Use ASIMD", if (enabled) "true" else "false")
-                        safeSettingsSet("Core@@Preferred SIMD", if (enabled) "\"NEON\"" else "\"auto\"")
-                    }
-                )
-            }
-
-            item(key = "sve2_enabled") {
-                var sve2Enabled by remember { mutableStateOf(GeneralSettings["sve2_enabled"] as? Boolean ?: false) }
-                SwitchPreference(
-                    checked = sve2Enabled,
-                    title = "SVE2 (Scalable Vector Extension 2)",
-                    subtitle = { PreferenceSubtitle(text = "SVE2 for Snapdragon 8 Gen 3/4/5") },
-                    onClick = { enabled ->
-                        sve2Enabled = enabled
-                        GeneralSettings.setValue("sve2_enabled", enabled)
-                        // Apply to emulator settings
-                        safeSettingsSet("Core@@Use SVE2", if (enabled) "true" else "false")
-                        safeSettingsSet("Core@@SPU SVE2 Acceleration", if (enabled) "true" else "false")
-                    }
-                )
-            }
-
-            item(key = "zram_swap") {
-                var zramEnabled by remember { mutableStateOf(GeneralSettings["zram_enabled"] as? Boolean ?: true) }
-                SwitchPreference(
-                    checked = zramEnabled,
-                    title = "zRAM / Swap",
-                    subtitle = { PreferenceSubtitle(text = "Compressed virtual memory (4-8GB for PS3)") },
-                    onClick = { enabled ->
-                        zramEnabled = enabled
-                        GeneralSettings.setValue("zram_enabled", enabled)
-                        // Apply memory optimization settings
-                        safeSettingsSet("Core@@Memory Management", if (enabled) "\"aggressive\"" else "\"default\"")
-                        safeSettingsSet("Core@@Use Large Pages", if (enabled) "true" else "false")
-                    }
-                )
             }
 
             // Game Compatibility Settings
