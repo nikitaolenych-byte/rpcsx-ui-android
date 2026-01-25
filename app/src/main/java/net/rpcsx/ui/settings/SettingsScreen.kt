@@ -352,105 +352,15 @@ fun AdvancedSettingsScreen(
                     PreferenceHeader(text = "PPU Decoder")
                 }
                 
-                item(key = "ppu_decoder_custom") {
-                    val ppuOptions = listOf(
-                        "LLVM Recompiler (NEON)",
-                        "LLVM Recompiler",
-                        "Interpreter (precise)",
-                        "Interpreter (fast)"
-                    )
-                    var ppuSelection by remember { mutableStateOf(GeneralSettings["ppu_decoder_mode"] as? String ?: "LLVM Recompiler (NEON)") }
-                    var expanded by remember { mutableStateOf(false) }
-                    
-                    RegularPreference(
-                        title = "PPU Decoder",
-                        subtitle = { PreferenceSubtitle(text = ppuSelection) },
-                        onClick = { expanded = true }
-                    )
-                    
-                    DropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false }
-                    ) {
-                        ppuOptions.forEach { option ->
-                            DropdownMenuItem(
-                                text = { Text(option) },
-                                onClick = {
-                                    ppuSelection = option
-                                    expanded = false
-                                    GeneralSettings.setValue("ppu_decoder_mode", option)
-                                    
-                                    // Only real RPCSX config keys used here
-                                    when (option) {
-                                        "LLVM Recompiler (NEON)", "LLVM Recompiler" -> {
-                                            safeSettingsSet("Core@@PPU Decoder", "\"Recompiler (LLVM)\"")
-                                        }
-                                        "Interpreter (precise)" -> {
-                                            safeSettingsSet("Core@@PPU Decoder", "\"Interpreter (static)\"")
-                                        }
-                                        "Interpreter (fast)" -> {
-                                            safeSettingsSet("Core@@PPU Decoder", "\"Interpreter (dynamic)\"")
-                                        }
-                                    }
-                                }
-                            )
-                        }
-                    }
-                }
+                // Duplicate custom PPU selector removed. Use original settings JSON
+                // (the enum handling below will inject LLVM/Turbo/NCE/20.3 options).
                 
                 item(key = "spu_decoder_header") {
                     PreferenceHeader(text = "SPU Decoder")
                 }
                 
-                item(key = "spu_decoder_custom") {
-                    val spuOptions = listOf(
-                        "LLVM Recompiler (NEON)",
-                        "ASMJIT Recompiler",
-                        "LLVM Recompiler",
-                        "Interpreter (precise)",
-                        "Interpreter (fast)"
-                    )
-                    var spuSelection by remember { mutableStateOf(GeneralSettings["spu_decoder_mode"] as? String ?: "LLVM Recompiler (NEON)") }
-                    var expanded by remember { mutableStateOf(false) }
-                    
-                    RegularPreference(
-                        title = "SPU Decoder",
-                        subtitle = { PreferenceSubtitle(text = spuSelection) },
-                        onClick = { expanded = true }
-                    )
-                    
-                    DropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false }
-                    ) {
-                        spuOptions.forEach { option ->
-                            DropdownMenuItem(
-                                text = { Text(option) },
-                                onClick = {
-                                    spuSelection = option
-                                    expanded = false
-                                    GeneralSettings.setValue("spu_decoder_mode", option)
-                                    
-                                    // Only real RPCSX config keys used here
-                                    when (option) {
-                                        "LLVM Recompiler (NEON)", "LLVM Recompiler" -> {
-                                            safeSettingsSet("Core@@SPU Decoder", "\"Recompiler (LLVM)\"")
-                                        }
-                                        "ASMJIT Recompiler" -> {
-                                            safeSettingsSet("Core@@SPU Decoder", "\"Recompiler (ASMJIT)\"")
-                                        }
-                                        "Interpreter (precise)" -> {
-                                            safeSettingsSet("Core@@SPU Decoder", "\"Interpreter (static)\"")
-                                        }
-                                        "Interpreter (fast)" -> {
-                                            safeSettingsSet("Core@@SPU Decoder", "\"Interpreter (dynamic)\"")
-                                        }
-                                    }
-                                }
-                            )
-                        }
-                    }
-                }
+                // Duplicate custom SPU selector removed. Use original settings JSON
+                // (the enum handling below will inject LLVM/Turbo/20.3 options).
                 
                 item(key = "core_settings_header") {
                     PreferenceHeader(text = "Core Settings")
@@ -562,6 +472,18 @@ fun AdvancedSettingsScreen(
                                 if (isSpuDecoder && !variants.contains("LLVM Turbo")) {
                                     variants.add(0, "LLVM Turbo") // Add at top
                                 }
+
+                                // Add LLVM 20.3 option (binds to new LLVM backend) to original enums
+                                if (isPpuDecoder && !variants.contains("LLVM 20.3")) {
+                                    // Place before LLVM 19 if present
+                                    val llvm19Index = variants.indexOf("LLVM 19")
+                                    variants.add(if (llvm19Index >= 0) llvm19Index else variants.size, "LLVM 20.3")
+                                }
+                                if (isSpuDecoder && !variants.contains("LLVM 20.3")) {
+                                    // Place after Turbo for SPU
+                                    val turboIndex = variants.indexOf("LLVM Turbo")
+                                    variants.add(if (turboIndex >= 0) turboIndex + 1 else 0, "LLVM 20.3")
+                                }
                                 
                                 // Reactive state for turbo flags - updates UI immediately
                                 var ppuTurboEnabled by remember { mutableStateOf(GeneralSettings["ppu_llvm_turbo"] as? Boolean ?: false) }
@@ -587,6 +509,26 @@ fun AdvancedSettingsScreen(
                                         icon = null,
                                         title = key + if (itemValue == def) "" else " *",
                                         onValueChange = { value ->
+                                            // Special handling for LLVM 20.3 - select new LLVM backend
+                                            if (isPpuDecoder && value == "LLVM 20.3") {
+                                                // Set decoder to LLVM and hint the desired LLVM version (some backends read this key)
+                                                safeSettingsSet(itemPath, "\"Recompiler (LLVM)\"")
+                                                safeSettingsSet("Core@@PPU LLVM Version", "\"20.3\"")
+                                                try {
+                                                    itemObject.put("value", "LLVM Recompiler (20.3)")
+                                                    itemValue = "LLVM Recompiler (20.3)"
+                                                } catch (e: Throwable) { }
+                                                return@SingleSelectionDialog
+                                            }
+                                            if (isSpuDecoder && value == "LLVM 20.3") {
+                                                safeSettingsSet(itemPath, "\"Recompiler (LLVM)\"")
+                                                safeSettingsSet("Core@@SPU LLVM Version", "\"20.3\"")
+                                                try {
+                                                    itemObject.put("value", "LLVM Recompiler (20.3)")
+                                                    itemValue = "LLVM Recompiler (20.3)"
+                                                } catch (e: Throwable) { }
+                                                return@SingleSelectionDialog
+                                            }
                                             // Special handling for LLVM Turbo - PPU
                                             if (isPpuDecoder && value == "LLVM Turbo") {
                                                 safeSettingsSet(itemPath, "\"LLVM Recompiler (Legacy)\"")
