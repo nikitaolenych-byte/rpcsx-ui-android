@@ -412,6 +412,135 @@ fun AdvancedSettingsScreen(
                     }
                 }
                 
+                item(key = "ppu_decoder_header") {
+                    PreferenceHeader(text = "PPU Decoder")
+                }
+                
+                item(key = "ppu_decoder_custom") {
+                    val ppuOptions = listOf(
+                        "Modified LLVM + JIT NEON",
+                        "LLVM Recompiler",
+                        "Interpreter (precise)",
+                        "Interpreter (fast)"
+                    )
+                    var ppuSelection by remember { mutableStateOf(GeneralSettings["ppu_decoder_mode"] as? String ?: "Modified LLVM + JIT NEON") }
+                    var expanded by remember { mutableStateOf(false) }
+                    
+                    RegularPreference(
+                        title = "PPU Decoder",
+                        subtitle = { PreferenceSubtitle(text = ppuSelection) },
+                        onClick = { expanded = true }
+                    )
+                    
+                    DropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        ppuOptions.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(option) },
+                                onClick = {
+                                    ppuSelection = option
+                                    expanded = false
+                                    GeneralSettings.setValue("ppu_decoder_mode", option)
+                                    
+                                    when (option) {
+                                        "Modified LLVM + JIT NEON" -> {
+                                            safeSettingsSet("Core@@PPU Decoder", "\"Recompiler (LLVM)\"")
+                                            safeSettingsSet("Core@@PPU LLVM Precompilation", "true")
+                                            safeSettingsSet("Core@@PPU LLVM Accurate Vector NaN", "false")
+                                            safeSettingsSet("Core@@PPU LLVM Java Mode", "false")
+                                            safeSettingsSet("Core@@PPU Set DAZ and FTZ", "true")
+                                            safeSettingsSet("Core@@PPU NEON Acceleration", "true")
+                                            safeSettingsSet("Core@@PPU JIT Block Linking", "true")
+                                            safeSettingsSet("Core@@PPU LLVM Greedy Mode", "true")
+                                        }
+                                        "LLVM Recompiler" -> {
+                                            safeSettingsSet("Core@@PPU Decoder", "\"Recompiler (LLVM)\"")
+                                            safeSettingsSet("Core@@PPU LLVM Precompilation", "true")
+                                            safeSettingsSet("Core@@PPU NEON Acceleration", "false")
+                                        }
+                                        "Interpreter (precise)" -> {
+                                            safeSettingsSet("Core@@PPU Decoder", "\"Interpreter (static)\"")
+                                        }
+                                        "Interpreter (fast)" -> {
+                                            safeSettingsSet("Core@@PPU Decoder", "\"Interpreter (dynamic)\"")
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+                
+                item(key = "spu_decoder_header") {
+                    PreferenceHeader(text = "SPU Decoder")
+                }
+                
+                item(key = "spu_decoder_custom") {
+                    val spuOptions = listOf(
+                        "Modified LLVM for SPU",
+                        "ASMJIT Recompiler",
+                        "LLVM Recompiler",
+                        "Interpreter (precise)",
+                        "Interpreter (fast)"
+                    )
+                    var spuSelection by remember { mutableStateOf(GeneralSettings["spu_decoder_mode"] as? String ?: "Modified LLVM for SPU") }
+                    var expanded by remember { mutableStateOf(false) }
+                    
+                    RegularPreference(
+                        title = "SPU Decoder",
+                        subtitle = { PreferenceSubtitle(text = spuSelection) },
+                        onClick = { expanded = true }
+                    )
+                    
+                    DropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        spuOptions.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(option) },
+                                onClick = {
+                                    spuSelection = option
+                                    expanded = false
+                                    GeneralSettings.setValue("spu_decoder_mode", option)
+                                    
+                                    when (option) {
+                                        "Modified LLVM for SPU" -> {
+                                            safeSettingsSet("Core@@SPU Decoder", "\"Recompiler (LLVM)\"")
+                                            safeSettingsSet("Core@@SPU LLVM Recompiler", "true")
+                                            safeSettingsSet("Core@@SPU Cache", "true")
+                                            safeSettingsSet("Core@@SPU Block Size", "\"Mega\"")
+                                            safeSettingsSet("Core@@SPU Loop Detection", "true")
+                                            safeSettingsSet("Core@@SPU NEON Acceleration", "true")
+                                            safeSettingsSet("Core@@SPU LLVM Greedy Mode", "true")
+                                            safeSettingsSet("Core@@SPU Accurate xfloat", "false")
+                                            safeSettingsSet("Core@@SPU XFloat Accuracy", "\"Relaxed\"")
+                                        }
+                                        "ASMJIT Recompiler" -> {
+                                            safeSettingsSet("Core@@SPU Decoder", "\"Recompiler (ASMJIT)\"")
+                                            safeSettingsSet("Core@@SPU Cache", "true")
+                                            safeSettingsSet("Core@@SPU Block Size", "\"Giga\"")
+                                        }
+                                        "LLVM Recompiler" -> {
+                                            safeSettingsSet("Core@@SPU Decoder", "\"Recompiler (LLVM)\"")
+                                            safeSettingsSet("Core@@SPU Cache", "true")
+                                            safeSettingsSet("Core@@SPU NEON Acceleration", "false")
+                                        }
+                                        "Interpreter (precise)" -> {
+                                            safeSettingsSet("Core@@SPU Decoder", "\"Interpreter (static)\"")
+                                        }
+                                        "Interpreter (fast)" -> {
+                                            safeSettingsSet("Core@@SPU Decoder", "\"Interpreter (dynamic)\"")
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+                
                 item(key = "core_settings_header") {
                     PreferenceHeader(text = "Core Settings")
                 }
