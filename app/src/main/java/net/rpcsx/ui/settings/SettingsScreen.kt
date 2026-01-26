@@ -394,7 +394,7 @@ fun AdvancedSettingsScreen(
     var showCustomInput by remember { mutableStateOf(false) }
     var customCpuValue by remember { mutableStateOf(GeneralSettings["llvm_cpu_core_custom"] as? String ?: "") }
     var llvmCpuCoreValue by remember { mutableStateOf(GeneralSettings["llvm_cpu_core"] as? String ?: "Auto") }
-    val llvmCpuCoreVariants = listOf("Auto", "Big core", "Little core", "Custom")
+    val llvmCpuCoreVariants = remember { detectCpuCoreVariants(context) }
 
     val topBarScrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
     Scaffold(
@@ -507,9 +507,12 @@ fun AdvancedSettingsScreen(
                                         // Map display value to an internal token written to native settings
                                         val internal = when (value) {
                                             "Auto" -> "auto"
-                                            "Big core" -> "big"
-                                            "Little core" -> "little"
-                                            else -> "custom"
+                                            else -> {
+                                                // Normalize label into safe token (strip counts, non-alnum -> underscore)
+                                                value.replace(Regex("\\s+x\\d+$"), "")
+                                                    .replace(Regex("[^A-Za-z0-9_-]"), "_")
+                                                    .lowercase()
+                                            }
                                         }
 
                                         if (!safeSettingsSet("Core@@LLVM CPU Core", "\"$internal\"")) {
