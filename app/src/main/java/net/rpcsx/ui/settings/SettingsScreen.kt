@@ -331,6 +331,8 @@ fun AdvancedSettingsScreen(
 
     // UI state for LLVM CPU core picker
     var showCpuCoreDialog by remember { mutableStateOf(false) }
+    var showCustomInput by remember { mutableStateOf(false) }
+    var customCpuValue by remember { mutableStateOf(GeneralSettings["llvm_cpu_core_custom"] as? String ?: "") }
     var llvmCpuCoreValue by remember { mutableStateOf(GeneralSettings["llvm_cpu_core"] as? String ?: "Auto") }
     val llvmCpuCoreVariants = listOf("Auto", "Big core", "Little core", "Custom")
 
@@ -448,42 +450,9 @@ fun AdvancedSettingsScreen(
                                     onValueChange = { value ->
                                         // If user selects Custom, show an input sheet next
                                         if (value == "Custom") {
+                                            // open custom input modal (controlled by state)
                                             showCpuCoreDialog = false
-                                            // show a small custom-input sheet
-                                            scope.launch {
-                                                // open a second modal for custom value
-                                                var customValue by mutableStateOf(GeneralSettings["llvm_cpu_core_custom"] as? String ?: "")
-                                                ModalBottomSheet(onDismissRequest = {}) {
-                                                    Column(modifier = Modifier.padding(12.dp)) {
-                                                        Text(text = "Enter custom LLVM CPU token")
-                                                        Spacer(modifier = Modifier.height(8.dp))
-                                                        BasicTextField(
-                                                            value = customValue,
-                                                            onValueChange = { customValue = it },
-                                                            modifier = Modifier
-                                                                .fillMaxWidth()
-                                                                .padding(4.dp)
-                                                        )
-                                                        Spacer(modifier = Modifier.height(8.dp))
-                                                        Button(onClick = {
-                                                            val internal = customValue.ifEmpty { "custom" }
-                                                            if (!safeSettingsSet("Core@@LLVM CPU Core", "\"$internal\"")) {
-                                                                AlertDialogQueue.showDialog(
-                                                                    context.getString(R.string.error),
-                                                                    context.getString(R.string.failed_to_assign_value, customValue, "Core@@LLVM CPU Core")
-                                                                )
-                                                            } else {
-                                                                GeneralSettings.setValue("llvm_cpu_core", "Custom")
-                                                                GeneralSettings.setValue("llvm_cpu_core_custom", customValue)
-                                                                llvmCpuCoreValue = "Custom"
-                                                            }
-                                                            showCpuCoreDialog = false
-                                                        }) {
-                                                            Text(text = "Save")
-                                                        }
-                                                    }
-                                                }
-                                            }
+                                            showCustomInput = true
                                             return@SingleSelectionDialog
                                         }
 
@@ -508,6 +477,39 @@ fun AdvancedSettingsScreen(
                                     },
                                     onLongClick = {}
                                 )
+                            }
+                        }
+                    }
+                    // Custom input modal (rendered from composable scope)
+                    if (showCustomInput) {
+                        ModalBottomSheet(onDismissRequest = { showCustomInput = false }) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(text = "Enter custom LLVM CPU token")
+                                Spacer(modifier = Modifier.height(8.dp))
+                                BasicTextField(
+                                    value = customCpuValue,
+                                    onValueChange = { customCpuValue = it },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(4.dp)
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Button(onClick = {
+                                    val internal = customCpuValue.ifEmpty { "custom" }
+                                    if (!safeSettingsSet("Core@@LLVM CPU Core", "\"$internal\"")) {
+                                        AlertDialogQueue.showDialog(
+                                            context.getString(R.string.error),
+                                            context.getString(R.string.failed_to_assign_value, customCpuValue, "Core@@LLVM CPU Core")
+                                        )
+                                    } else {
+                                        GeneralSettings.setValue("llvm_cpu_core", "Custom")
+                                        GeneralSettings.setValue("llvm_cpu_core_custom", customCpuValue)
+                                        llvmCpuCoreValue = "Custom"
+                                    }
+                                    showCustomInput = false
+                                }) {
+                                    Text(text = "Save")
+                                }
                             }
                         }
                     }
