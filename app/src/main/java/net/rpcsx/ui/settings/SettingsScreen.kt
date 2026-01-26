@@ -77,6 +77,7 @@ import androidx.documentfile.provider.DocumentFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import android.content.Context
 import net.rpcsx.R
 import net.rpcsx.RPCSX
 import net.rpcsx.UserRepository
@@ -279,6 +280,19 @@ private fun applyCod4Patch(): Boolean {
     return successCount > 0
 }
 
+// Safety helper: restore PPU/SPU decoder settings to known-working values
+private fun restoreDecodersToSafeDefaults(): Boolean {
+    if (RPCSX.activeLibrary.value == null) return false
+    var ok = true
+    // Force decoders to legacy LLVM tokens which are widely supported in builds
+    ok = ok && safeSettingsSet("Core@@PPU Decoder", "\"LLVM Recompiler (Legacy)\"")
+    ok = ok && safeSettingsSet("Core@@SPU Decoder", "\"LLVM Recompiler (Legacy)\"")
+    // Hint the older LLVM version to avoid version-mismatch in native code
+    ok = ok && safeSettingsSet("Core@@PPU LLVM Version", "\"19\"")
+    ok = ok && safeSettingsSet("Core@@SPU LLVM Version", "\"19\"")
+    return ok
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdvancedSettingsScreen(
@@ -314,6 +328,11 @@ fun AdvancedSettingsScreen(
                 }
             }
         }
+
+    // UI state for LLVM CPU core picker
+    var showCpuCoreDialog by remember { mutableStateOf(false) }
+    var llvmCpuCoreValue by remember { mutableStateOf(GeneralSettings["llvm_cpu_core"] as? String ?: "Auto") }
+    val llvmCpuCoreVariants = listOf("Auto", "Big core", "Little core", "Custom")
 
     val topBarScrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
     Scaffold(
@@ -366,6 +385,19 @@ fun AdvancedSettingsScreen(
                     )
                 }
             }, actions = {
+                // Emergency fixer: restore decoder defaults if native modules fail
+                IconButton(onClick = {
+                    val ctx = context
+                    val scope = scope
+                    scope.launch {
+                        val success = withContext(Dispatchers.IO) {
+                            restoreDecodersToSafeDefaults()
+                        }
+                        Toast.makeText(ctx, if (success) "Decoders restored to safe defaults" else "Failed to restore decoders", Toast.LENGTH_LONG).show()
+                    }
+                }) {
+                    Icon(imageVector = Icons.Filled.Person, contentDescription = "Fix Decoders")
+                }
                 IconButton(
                     onClick = {
                         if (isSearching) {
@@ -393,6 +425,92 @@ fun AdvancedSettingsScreen(
             if (path.contains("Core") || path.endsWith("@@Core")) {
                 item(key = "core_settings_header") {
                     PreferenceHeader(text = "Core Settings")
+                }
+                // LLVM CPU selector inside Core section (affinity hint for LLVM JIT)
+                item(key = "llvm_cpu_core_setting") {
+                    // Show preference row with current value
+                    RegularPreference(
+                        title = "LLVM CPU",
+                        leadingIcon = null,
+                        onClick = { showCpuCoreDialog = true }
+                    )
+                    PreferenceValue(text = llvmCpuCoreValue)
+
+                    // Selection dialog
+                    if (showCpuCoreDialog) {
+                        ModalBottomSheet(onDismissRequest = { showCpuCoreDialog = false }) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                SingleSelectionDialog(
+                                    currentValue = llvmCpuCoreValue,
+                                    values = llvmCpuCoreVariants,
+                                    icon = null,
+                                    title = "Select LLVM CPU Core",
+                                    onValueChange = { value ->
+                                        // If user selects Custom, show an input sheet next
+                                        if (value == "Custom") {
+                                            showCpuCoreDialog = false
+                                            // show a small custom-input sheet
+                                            scope.launch {
+                                                // open a second modal for custom value
+                                                var customValue by mutableStateOf(GeneralSettings["llvm_cpu_core_custom"] as? String ?: "")
+                                                ModalBottomSheet(onDismissRequest = {}) {
+                                                    Column(modifier = Modifier.padding(12.dp)) {
+                                                        Text(text = "Enter custom LLVM CPU token")
+                                                        Spacer(modifier = Modifier.height(8.dp))
+                                                        BasicTextField(
+                                                            value = customValue,
+                                                            onValueChange = { customValue = it },
+                                                            modifier = Modifier
+                                                                .fillMaxWidth()
+                                                                .padding(4.dp)
+                                                        )
+                                                        Spacer(modifier = Modifier.height(8.dp))
+                                                        Button(onClick = {
+                                                            val internal = customValue.ifEmpty { "custom" }
+                                                            if (!safeSettingsSet("Core@@LLVM CPU Core", "\"$internal\"")) {
+                                                                AlertDialogQueue.showDialog(
+                                                                    context.getString(R.string.error),
+                                                                    context.getString(R.string.failed_to_assign_value, customValue, "Core@@LLVM CPU Core")
+                                                                )
+                                                            } else {
+                                                                GeneralSettings.setValue("llvm_cpu_core", "Custom")
+                                                                GeneralSettings.setValue("llvm_cpu_core_custom", customValue)
+                                                                llvmCpuCoreValue = "Custom"
+                                                            }
+                                                            showCpuCoreDialog = false
+                                                        }) {
+                                                            Text(text = "Save")
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            return@SingleSelectionDialog
+                                        }
+
+                                        // Map display value to an internal token written to native settings
+                                        val internal = when (value) {
+                                            "Auto" -> "auto"
+                                            "Big core" -> "big"
+                                            "Little core" -> "little"
+                                            else -> "custom"
+                                        }
+
+                                        if (!safeSettingsSet("Core@@LLVM CPU Core", "\"$internal\"")) {
+                                            AlertDialogQueue.showDialog(
+                                                context.getString(R.string.error),
+                                                context.getString(R.string.failed_to_assign_value, value, "Core@@LLVM CPU Core")
+                                            )
+                                        } else {
+                                            GeneralSettings.setValue("llvm_cpu_core", value)
+                                            llvmCpuCoreValue = value
+                                        }
+                                        showCpuCoreDialog = false
+                                    },
+                                    onLongClick = {}
+                                )
+                            }
+                        }
+                    }
                 }
             }
             
