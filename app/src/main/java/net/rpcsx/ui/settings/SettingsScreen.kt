@@ -30,7 +30,6 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
@@ -293,6 +292,66 @@ private fun restoreDecodersToSafeDefaults(): Boolean {
     return ok
 }
 
+// Detect CPU core variants for the device and present friendly names
+private fun detectCpuCoreVariants(context: Context): List<String> {
+    try {
+        val cpuinfoFile = File("/proc/cpuinfo")
+        if (cpuinfoFile.exists()) {
+            val text = cpuinfoFile.readText()
+            // Look for Cortex names (e.g. Cortex-X1, Cortex-A78)
+            val regex = Regex("(?i)cortex[- ]?[a-z0-9]+")
+            val matches = regex.findAll(text).map { m ->
+                // Normalize to 'Cortex-X1' style
+                val raw = m.value.replace("cortex ", "Cortex-", ignoreCase = true)
+                    .replace("cortex-", "Cortex-", ignoreCase = true)
+                raw.replaceFirstChar { it.uppercaseChar() }
+            }.toList()
+
+            if (matches.isNotEmpty()) {
+                val counts = matches.groupingBy { it }.eachCount()
+                val variants = ArrayList<String>()
+                variants.add("Auto")
+                for ((name, count) in counts) {
+                    variants.add(if (count > 1) "$name x$count" else name)
+                }
+                variants.add("Custom")
+                return variants
+            }
+        }
+    } catch (e: Throwable) {
+        // ignore and fallback
+    }
+
+    // Fallback: group CPUs by max frequency (clusters)
+    try {
+        val cpuCount = Runtime.getRuntime().availableProcessors()
+        val freqMap = mutableMapOf<Int, Int>()
+        for (i in 0 until cpuCount) {
+            val freqFile = File("/sys/devices/system/cpu/cpu$i/cpufreq/cpuinfo_max_freq")
+            if (freqFile.exists()) {
+                val freq = freqFile.readText().trim().toIntOrNull() ?: continue
+                freqMap[freq] = freqMap.getOrDefault(freq, 0) + 1
+            }
+        }
+        if (freqMap.isNotEmpty()) {
+            val variants = ArrayList<String>()
+            variants.add("Auto")
+            val sorted = freqMap.entries.sortedByDescending { it.key }
+            for ((freq, count) in sorted) {
+                val mhz = freq / 1000
+                variants.add(if (count > 1) "Cluster @$mhz MHz x$count" else "Cluster @$mhz MHz")
+            }
+            variants.add("Custom")
+            return variants
+        }
+    } catch (e: Throwable) {
+        // ignore
+    }
+
+    // Final fallback
+    return listOf("Auto", "Big core", "Little core", "Custom")
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdvancedSettingsScreen(
@@ -387,19 +446,7 @@ fun AdvancedSettingsScreen(
                     )
                 }
             }, actions = {
-                // Emergency fixer: restore decoder defaults if native modules fail
-                IconButton(onClick = {
-                    val ctx = context
-                    val scope = scope
-                    scope.launch {
-                        val success = withContext(Dispatchers.IO) {
-                            restoreDecodersToSafeDefaults()
-                        }
-                        Toast.makeText(ctx, if (success) "Decoders restored to safe defaults" else "Failed to restore decoders", Toast.LENGTH_LONG).show()
-                    }
-                }) {
-                    Icon(imageVector = Icons.Filled.Person, contentDescription = "Fix Decoders")
-                }
+                // (decoder fixer removed)
                 IconButton(
                     onClick = {
                         if (isSearching) {
