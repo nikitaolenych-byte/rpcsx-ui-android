@@ -111,6 +111,14 @@ class MainActivity : ComponentActivity() {
                     GameRepository.load()
                 }
 
+                // Attempt to restore safe decoder settings on startup if native library present.
+                try {
+                    val restored = net.rpcsx.utils.DecoderUtils.restoreDecodersToSafeDefaults()
+                    if (!restored) Log.i("RPCSX", "Decoder restore reported failure or not applicable")
+                } catch (e: Throwable) {
+                    Log.e("RPCSX", "Error restoring decoders on startup", e)
+                }
+
                 RPCSX.initialized = true
 
                 thread {
