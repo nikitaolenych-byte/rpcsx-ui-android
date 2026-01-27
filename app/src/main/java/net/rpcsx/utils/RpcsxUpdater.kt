@@ -135,13 +135,29 @@ object RpcsxUpdater {
 
     fun installUpdate(context: Context, updateFile: File): Boolean {
         val restart = {
-            val packageManager = context.packageManager
-            val intent = packageManager.getLaunchIntentForPackage(context.packageName)
-            val mainIntent = Intent.makeRestartActivityTask(intent!!.component)
-            mainIntent.setPackage(context.packageName)
-            context.startActivity(mainIntent)
-            GeneralSettings.sync()
-            exitProcess(0)
+            try {
+                val packageManager = context.packageManager
+                var intent = packageManager.getLaunchIntentForPackage(context.packageName)
+                if (intent == null) {
+                    intent = Intent(Intent.ACTION_MAIN)
+                    intent.addCategory(Intent.CATEGORY_LAUNCHER)
+                    intent.setPackage(context.packageName)
+                }
+                // Ensure a clean task and new task flags so activity restarts properly
+                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                context.startActivity(intent)
+                GeneralSettings.sync()
+                // Allow activity to start before force-exiting the process
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    try {
+                        exitProcess(0)
+                    } catch (e: Throwable) {
+                        Log.e("RPCSX-UI", "exit failed: ${e.message}")
+                    }
+                }, 300)
+            } catch (e: Throwable) {
+                Log.e("RPCSX-UI", "Failed to restart app: ${e.message}")
+            }
         }
 
         val prevLibrary = GeneralSettings["rpcsx_library"] as? String
