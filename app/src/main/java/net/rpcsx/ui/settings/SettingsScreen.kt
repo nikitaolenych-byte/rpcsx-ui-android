@@ -97,75 +97,14 @@ import net.rpcsx.utils.FileUtil
 import net.rpcsx.utils.GeneralSettings
 import net.rpcsx.utils.InputBindingPrefs
 import net.rpcsx.utils.RpcsxUpdater
+import net.rpcsx.utils.safeSettingsSet
+import net.rpcsx.utils.displayToCpuToken
+import net.rpcsx.utils.mapCpuPartToName
 import org.json.JSONObject
 import java.io.File
 import kotlin.math.ceil
 
-// Safe wrapper for RPCSX native calls
-private fun safeSettingsSet(path: String, value: String): Boolean {
-    // Check if library is loaded
-    if (RPCSX.activeLibrary.value == null) {
-        Log.w("Settings", "Cannot set $path: RPCSX library not loaded")
-        return false
-    }
-    return try {
-        val result = RPCSX.instance.settingsSet(path, value)
-        if (!result) {
-            Log.w("Settings", "settingsSet returned false for $path = $value")
-        }
-        result
-    } catch (e: Throwable) {
-        Log.e("Settings", "Error setting $path to $value: ${e.message}")
-        false
-    }
-}
-
-// Map common ARM "CPU part" hex codes to Cortex names (best-effort)
-private fun mapCpuPartToName(partHex: String): String? {
-    return when (partHex.lowercase().removePrefix("0x")) {
-        "d03" -> "Cortex-A53"
-        "d04" -> "Cortex-A35"
-        "d05" -> "Cortex-A55"
-        "d07" -> "Cortex-A57"
-        "d08" -> "Cortex-A72"
-        "d09" -> "Cortex-A73"
-        "d0a" -> "Cortex-A75"
-        "d0b" -> "Cortex-A76"
-        "d0d" -> "Cortex-A77"
-        "d41" -> "Neoverse-N1"
-        "c0f" -> "Cortex-X1"
-        "d4a" -> "Cortex-X2"
-        else -> null
-    }
-}
-
-// Convert a human label to the token format expected by native settings
-private fun displayToCpuToken(label: String): String {
-    // If label already contains a Cortex-like name, normalise to e.g. "cortex-x1"
-    val cortexRegex = Regex("(?i)(cortex[- ]?[xA-Za-z0-9]+)")
-    cortexRegex.find(label)?.let { m ->
-        return m.value.replace(" ", "-").lowercase()
-    }
-
-    // If label contains an explicit CPU# like CPU0
-    val cpuNumRegex = Regex("CPU(\\d+)", RegexOption.IGNORE_CASE)
-    cpuNumRegex.find(label)?.let { m ->
-        return "cpu${m.groupValues[1]}"
-    }
-
-    // If it's a cluster/frequency fallback (e.g. CoreCluster@3014 MHz x4), convert to cluster token
-    val mhzRegex = Regex("(\\d{3,5})\\s*MHz", RegexOption.IGNORE_CASE)
-    mhzRegex.find(label)?.let { m ->
-        val mhz = m.groupValues[1]
-        return "cluster-${mhz}mhz"
-    }
-
-    // Generic fallback: strip counts, replace non-alnum with '-', lowercase
-    return label.replace(Regex("\\s+x\\d+$"), "")
-        .replace(Regex("[^A-Za-z0-9_-]"), "-")
-        .trim('-')
-        .lowercase()
-}
+// (use shared helpers from net.rpcsx.utils for native safety and CPU mapping)
 
 // Native setNCEMode not available - settings only
 // private fun safeSetNCEMode(mode: Int) {
@@ -502,7 +441,7 @@ fun AdvancedSettingsScreen(
                     }
 
                     try {
-                        val libVer = try { RPCSX.instance.getLibraryVersion(target.path) } catch (e: Throwable) { null }
+                        val libVer = net.rpcsx.utils.safeNativeCall { RPCSX.instance.getLibraryVersion(target.path) }
                         if (libVer != null) {
                             try {
                                 RpcsxUpdater.installUpdate(context, target)
@@ -1230,7 +1169,7 @@ fun SettingsScreen(
                     description = stringResource(R.string.custom_driver_description),
                     onClick = {
                         try {
-                            if (RPCSX.instance.supportsCustomDriverLoading()) {
+                            if (net.rpcsx.utils.safeNativeCall { RPCSX.instance.supportsCustomDriverLoading() } == true) {
                                 navigateTo("drivers")
                             } else {
                                 AlertDialogQueue.showDialog(

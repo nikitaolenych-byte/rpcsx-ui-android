@@ -27,6 +27,7 @@ import net.rpcsx.R
 import net.rpcsx.Digital1Flags
 import net.rpcsx.Digital2Flags
 import net.rpcsx.RPCSX
+import net.rpcsx.utils.safeNativeCall
 import net.rpcsx.utils.GeneralSettings
 import net.rpcsx.utils.GeneralSettings.int
 import kotlin.math.min
@@ -389,14 +390,16 @@ class PadOverlay(context: Context?, attrs: AttributeSet?) : SurfaceView(context,
                 }
             }
 
-            RPCSX.instance.overlayPadData(
-                state.digital[0],
-                state.digital[1],
-                state.leftStickX,
-                state.leftStickY,
-                state.rightStickX,
-                state.rightStickY
-            )
+            net.rpcsx.utils.safeNativeCall {
+                RPCSX.instance.overlayPadData(
+                    state.digital[0],
+                    state.digital[1],
+                    state.leftStickX,
+                    state.leftStickY,
+                    state.rightStickX,
+                    state.rightStickY
+                )
+            }
 
             if (!hit && (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_POINTER_DOWN)) {
                 val xInFloatingArea = x > buttonSize * 2 && x < totalWidth - buttonSize * 2

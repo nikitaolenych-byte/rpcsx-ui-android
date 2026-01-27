@@ -4,6 +4,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.core.text.isDigitsOnly
 import net.rpcsx.utils.GeneralSettings
+import net.rpcsx.utils.safeNativeCall
 import java.io.File
 import kotlin.concurrent.thread
 
@@ -42,8 +43,9 @@ class UserRepository {
         fun load() {
             updateList()
             instance.activeUser.value = getUserFromSettings()
-            if (instance.activeUser.value != RPCSX.instance.getUser()) {
-                instance.activeUser.value = RPCSX.instance.getUser()
+            val current = safeNativeCall { RPCSX.instance.getUser() }
+            if (current != null && instance.activeUser.value != current) {
+                instance.activeUser.value = current
             }
         }
 
@@ -128,7 +130,7 @@ class UserRepository {
         }
 
         fun loginUser(userId: String) {
-            RPCSX.instance.loginUser(userId)
+            safeNativeCall { RPCSX.instance.loginUser(userId) }
             instance.activeUser.value = userId
             GeneralSettings.setValue("active_user", userId)
             GameRepository.queueRefresh()

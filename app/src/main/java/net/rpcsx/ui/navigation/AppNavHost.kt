@@ -188,6 +188,14 @@ fun AppNavHost() {
             }
         )
     }
+    // When native library becomes available apply saved LLVM CPU token
+    LaunchedEffect(rpcsxLibrary) {
+        if (rpcsxLibrary != null) {
+            try {
+                net.rpcsx.utils.applySavedLlvmCpu()
+            } catch (e: Throwable) { }
+        }
+    }
     val refreshSettings: () -> Unit = {
         val s = net.rpcsx.utils.safeNativeCall { RPCSX.instance.settingsGet("") }
         settings.value = if (s != null) JSONObject(s) else JSONObject()

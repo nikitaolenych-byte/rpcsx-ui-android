@@ -26,6 +26,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import net.rpcsx.R
 import net.rpcsx.RPCSX
+import net.rpcsx.utils.safeNativeCall
 import net.rpcsx.ui.settings.components.core.PreferenceHeader
 import net.rpcsx.ui.settings.components.preference.RegularPreference
 import net.rpcsx.ui.settings.components.preference.SliderPreference
@@ -67,10 +68,10 @@ fun RSXSettingsScreen(
             }
             
             item(key = "rsx_enabled") {
-                var rsxEnabled by remember { 
+                var rsxEnabled by remember {
                     mutableStateOf(
-                        try { RPCSX.instance.rsxIsRunning() } catch (e: Throwable) { false }
-                    ) 
+                        net.rpcsx.utils.safeNativeCall { RPCSX.instance.rsxIsRunning() } ?: false
+                    )
                 }
                 SwitchPreference(
                     checked = rsxEnabled,
@@ -79,13 +80,13 @@ fun RSXSettingsScreen(
                     onClick = { enabled ->
                         try {
                             if (enabled) {
-                                val success = RPCSX.instance.rsxStart()
+                                val success = net.rpcsx.utils.safeNativeCall { RPCSX.instance.rsxStart() } ?: false
                                 if (success) {
                                     rsxEnabled = true
                                     Toast.makeText(context, context.getString(R.string.rsx_status_on), Toast.LENGTH_SHORT).show()
                                 }
                             } else {
-                                RPCSX.instance.rsxStop()
+                                net.rpcsx.utils.safeNativeCall { RPCSX.instance.rsxStop() }
                                 rsxEnabled = false
                                 Toast.makeText(context, context.getString(R.string.rsx_status_off), Toast.LENGTH_SHORT).show()
                             }
@@ -98,10 +99,10 @@ fun RSXSettingsScreen(
             }
             
             item(key = "rsx_thread_count") {
-                var threadCount by remember { 
+                var threadCount by remember {
                     mutableStateOf(
-                        try { RPCSX.instance.rsxGetThreadCount().toFloat() } catch (e: Throwable) { 8f }
-                    ) 
+                        (net.rpcsx.utils.safeNativeCall { RPCSX.instance.rsxGetThreadCount() }?.toFloat()) ?: 8f
+                    )
                 }
                 SliderPreference(
                     value = threadCount,
@@ -111,7 +112,7 @@ fun RSXSettingsScreen(
                     onValueChange = { value ->
                         try {
                             val count = value.toInt()
-                            RPCSX.instance.rsxSetThreadCount(count)
+                            net.rpcsx.utils.safeNativeCall { RPCSX.instance.rsxSetThreadCount(count) }
                             threadCount = value
                             GeneralSettings.setValue("rsx_thread_count", count)
                         } catch (e: Throwable) {
@@ -125,14 +126,14 @@ fun RSXSettingsScreen(
             }
             
             item(key = "rsx_fps_stats") {
-                val rsxRunning = try { RPCSX.instance.rsxIsRunning() } catch (e: Throwable) { false }
-                val fps = if (rsxRunning) { try { RPCSX.instance.getRSXFPS() } catch (e: Throwable) { 0 } } else 0
+                val rsxRunning = net.rpcsx.utils.safeNativeCall { RPCSX.instance.rsxIsRunning() } ?: false
+                val fps = if (rsxRunning) { net.rpcsx.utils.safeNativeCall { RPCSX.instance.getRSXFPS() } ?: 0 } else 0
                 RegularPreference(
                     title = stringResource(R.string.rsx_stats),
                     subtitle = { Text(if (rsxRunning) "FPS: $fps" else stringResource(R.string.rsx_status_off)) },
                     onClick = {
                         try {
-                            val stats = RPCSX.instance.rsxGetStats()
+                            val stats = net.rpcsx.utils.safeNativeCall { RPCSX.instance.rsxGetStats() } ?: "RSX stats not available"
                             Toast.makeText(context, stats, Toast.LENGTH_LONG).show()
                         } catch (e: Throwable) {
                             Toast.makeText(context, "RSX stats not available", Toast.LENGTH_SHORT).show()

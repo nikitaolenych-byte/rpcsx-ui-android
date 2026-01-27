@@ -8,6 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import net.rpcsx.R
 import net.rpcsx.RPCSX
+import net.rpcsx.utils.safeNativeCall
 import net.rpcsx.dialogs.AlertDialogQueue
 import net.rpcsx.ui.channels.DevRpcsxChannel
 import java.io.File
@@ -20,7 +21,8 @@ object RpcsxUpdater {
             return null
         }
 
-        return "v" + RPCSX.instance.getVersion().trim().removeSuffix(" Draft").trim() + "-" + GeneralSettings["rpcsx_installed_arch"]
+        val ver = safeNativeCall { RPCSX.instance.getVersion() } ?: return null
+        return "v" + ver.trim().removeSuffix(" Draft").trim() + "-" + GeneralSettings["rpcsx_installed_arch"]
     }
 
     fun getFileArch(file: File): String? {

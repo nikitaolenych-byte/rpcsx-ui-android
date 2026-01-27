@@ -22,6 +22,7 @@ import net.rpcsx.PrecompilerServiceAction
 import net.rpcsx.ProgressRepository
 import net.rpcsx.R
 import net.rpcsx.RPCSX
+import net.rpcsx.utils.safeNativeCall
 import net.rpcsx.provider.AppDataDocumentProvider
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
@@ -56,7 +57,7 @@ object FileUtil {
 
                 if (paramSfo != null) {
                     val installDir =
-                        RPCSX.instance.getDirInstallPath(paramSfo.parcelFileDescriptor.fd)
+                        safeNativeCall { RPCSX.instance.getDirInstallPath(paramSfo.parcelFileDescriptor.fd) }
                     paramSfo.close()
 
                     if (installDir != null) {
@@ -91,7 +92,7 @@ object FileUtil {
                 val progress = ProgressRepository.create(context, context.getString(R.string.installing_dir))
                 GameRepository.add(arrayOf(GameInfo("$")), progress)
                 copyDirUriToInternalStorage(context, it.uri, it.targetPath, progress)
-                RPCSX.instance.collectGameInfo(it.targetPath, -1L)
+                safeNativeCall { RPCSX.instance.collectGameInfo(it.targetPath, -1L) }
             }
         }
     }

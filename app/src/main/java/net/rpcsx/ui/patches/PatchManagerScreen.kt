@@ -26,6 +26,7 @@ import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.launch
 import net.rpcsx.GameRepository
 import net.rpcsx.RPCSX
+import net.rpcsx.utils.safeSettingsSet
 
 data class PatchEntry(val id: String, val title: String, val description: String, val apply: (String?) -> Boolean)
 
@@ -40,11 +41,11 @@ fun PatchManagerScreen(navigateBack: () -> Unit, gamePath: String?) {
     val registry = listOf(
         PatchEntry(id = "cod4_runtime", title = "Call of Duty 4 - Runtime Patch", description = "Apply runtime settings tuned for COD4") { path ->
             try {
-                RPCSX.instance.settingsSet("Core@@PPU LLVM Version", "\"20.3\"")
-                RPCSX.instance.settingsSet("Core@@SPU LLVM Version", "\"20.3\"")
-                RPCSX.instance.settingsSet("Core@@PPU LLVM Greedy Mode", "true")
-                RPCSX.instance.settingsSet("Core@@PPU Accurate Non-Java Mode", "false")
-                RPCSX.instance.settingsSet("Core@@Use Accurate DFMA", "false")
+                safeSettingsSet("Core@@PPU LLVM Version", "\"20.3\"")
+                safeSettingsSet("Core@@SPU LLVM Version", "\"20.3\"")
+                safeSettingsSet("Core@@PPU LLVM Greedy Mode", "true")
+                safeSettingsSet("Core@@PPU Accurate Non-Java Mode", "false")
+                safeSettingsSet("Core@@Use Accurate DFMA", "false")
                 true
             } catch (e: Throwable) {
                 Log.e("PatchManager", "apply cod4: ${e.message}")
@@ -146,10 +147,10 @@ fun PatchManagerScreen(navigateBack: () -> Unit, gamePath: String?) {
 
                                         val nameLower = (matchedGame.info.name.value ?: "").lowercase()
                                         if (nameLower.contains("call of duty 4") || href.lowercase().contains("cod4") || text.lowercase().contains("cod4")) {
-                                            RPCSX.instance.settingsSet("Core@@PPU LLVM Version", "\"20.3\"")
-                                            RPCSX.instance.settingsSet("Core@@SPU LLVM Version", "\"20.3\"")
-                                            RPCSX.instance.settingsSet("Core@@PPU LLVM Greedy Mode", "true")
-                                            RPCSX.instance.settingsSet("Core@@PPU Accurate Non-Java Mode", "false")
+                                            safeSettingsSet("Core@@PPU LLVM Version", "\"20.3\"")
+                                            safeSettingsSet("Core@@SPU LLVM Version", "\"20.3\"")
+                                            safeSettingsSet("Core@@PPU LLVM Greedy Mode", "true")
+                                            safeSettingsSet("Core@@PPU Accurate Non-Java Mode", "false")
                                             status = "Imported and applied COD4 runtime settings"
                                         }
                                     } catch (e: Throwable) {

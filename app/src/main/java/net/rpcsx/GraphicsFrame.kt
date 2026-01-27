@@ -5,6 +5,7 @@ import android.util.AttributeSet
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import kotlin.concurrent.thread
+import net.rpcsx.utils.safeNativeCall
 
 class GraphicsFrame : SurfaceView, SurfaceHolder.Callback {
     constructor(context: Context) : super(context) {
@@ -33,14 +34,14 @@ class GraphicsFrame : SurfaceView, SurfaceHolder.Callback {
     }
 
     override fun surfaceCreated(p0: SurfaceHolder) {
-        RPCSX.instance.surfaceEvent(p0.surface, 0)
+        safeNativeCall { RPCSX.instance.surfaceEvent(p0.surface, 0) }
     }
 
     override fun surfaceChanged(p0: SurfaceHolder, p1: Int, p2: Int, p3: Int) {
-        RPCSX.instance.surfaceEvent(p0.surface, 1)
+        safeNativeCall { RPCSX.instance.surfaceEvent(p0.surface, 1) }
     }
 
     override fun surfaceDestroyed(p0: SurfaceHolder) {
-        RPCSX.instance.surfaceEvent(p0.surface, 2)
+        safeNativeCall { RPCSX.instance.surfaceEvent(p0.surface, 2) }
     }
 }
