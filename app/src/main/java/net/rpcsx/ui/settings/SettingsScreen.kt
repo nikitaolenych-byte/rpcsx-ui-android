@@ -120,6 +120,53 @@ private fun safeSettingsSet(path: String, value: String): Boolean {
     }
 }
 
+// Map common ARM "CPU part" hex codes to Cortex names (best-effort)
+private fun mapCpuPartToName(partHex: String): String? {
+    return when (partHex.lowercase().removePrefix("0x")) {
+        "d03" -> "Cortex-A53"
+        "d04" -> "Cortex-A35"
+        "d05" -> "Cortex-A55"
+        "d07" -> "Cortex-A57"
+        "d08" -> "Cortex-A72"
+        "d09" -> "Cortex-A73"
+        "d0a" -> "Cortex-A75"
+        "d0b" -> "Cortex-A76"
+        "d0d" -> "Cortex-A77"
+        "d41" -> "Neoverse-N1"
+        "c0f" -> "Cortex-X1"
+        "d4a" -> "Cortex-X2"
+        else -> null
+    }
+}
+
+// Convert a human label to the token format expected by native settings
+private fun displayToCpuToken(label: String): String {
+    // If label already contains a Cortex-like name, normalise to e.g. "cortex-x1"
+    val cortexRegex = Regex("(?i)(cortex[- ]?[xA-Za-z0-9]+)")
+    cortexRegex.find(label)?.let { m ->
+        return m.value.replace(" ", "-").lowercase()
+    }
+
+    // If label contains an explicit CPU# like CPU0
+    val cpuNumRegex = Regex("CPU(\\d+)", RegexOption.IGNORE_CASE)
+    cpuNumRegex.find(label)?.let { m ->
+        return "cpu${m.groupValues[1]}"
+    }
+
+    // If it's a cluster/frequency fallback (e.g. CoreCluster@3014 MHz x4), convert to cluster token
+    val mhzRegex = Regex("(\\d{3,5})\\s*MHz", RegexOption.IGNORE_CASE)
+    mhzRegex.find(label)?.let { m ->
+        val mhz = m.groupValues[1]
+        return "cluster-${mhz}mhz"
+    }
+
+    // Generic fallback: strip counts, replace non-alnum with '-', lowercase
+    return label.replace(Regex("\\s+x\\d+$"), "")
+        .replace(Regex("[^A-Za-z0-9_-]"), "-")
+        .trim('-')
+        .lowercase()
+}
+
 // Native setNCEMode not available - settings only
 // private fun safeSetNCEMode(mode: Int) {
 //     try {
@@ -298,24 +345,92 @@ private fun detectCpuCoreVariants(context: Context): List<String> {
     try {
         val cpuinfoFile = File("/proc/cpuinfo")
         if (cpuinfoFile.exists()) {
-            val text = cpuinfoFile.readText()
-            // Look for Cortex names (e.g. Cortex-X1, Cortex-A78)
-            val regex = Regex("(?i)cortex[- ]?[a-z0-9]+")
-            val matches = regex.findAll(text).map { m ->
-                // Normalize to 'Cortex-X1' style
-                val raw = m.value.replace("cortex ", "Cortex-", ignoreCase = true)
-                    .replace("cortex-", "Cortex-", ignoreCase = true)
-                raw.replaceFirstChar { it.uppercaseChar() }
-            }.toList()
+                val text = cpuinfoFile.readText()
 
-            if (matches.isNotEmpty()) {
-                val counts = matches.groupingBy { it }.eachCount()
-                val variants = ArrayList<String>()
-                for ((name, count) in counts) {
-                    variants.add(if (count > 1) "$name x$count" else name)
+                // 1) Look for explicit Cortex names in free-form text
+                val cortexRegex = Regex("(?i)cortex[- ]?[a-z0-9]+")
+                val matches = cortexRegex.findAll(text).map { m ->
+                    val raw = m.value.replace("cortex ", "Cortex-", ignoreCase = true)
+                        .replace("cortex-", "Cortex-", ignoreCase = true)
+                    raw.replaceFirstChar { it.uppercaseChar() }
+                }.toList()
+
+                if (matches.isNotEmpty()) {
+                    val counts = matches.groupingBy { it }.eachCount()
+                    val variants = ArrayList<String>()
+                    for ((name, count) in counts) {
+                        variants.add(if (count > 1) "$name x$count" else name)
+                    }
+                    return variants
                 }
-                return variants
-            }
+
+                // 2) Parse per-processor blocks and try to map 'CPU part' or model name -> Cortex
+                try {
+                    val blocks = mutableMapOf<Int, MutableList<String>>()
+                    var cur = -1
+                    for (line in text.lines()) {
+                        val procMatch = Regex("^processor\\s*:\\s*(\\d+)", RegexOption.IGNORE_CASE).find(line)
+                        if (procMatch != null) {
+                            cur = procMatch.groupValues[1].toInt()
+                            blocks[cur] = ArrayList()
+                            continue
+                        }
+                        if (cur >= 0) blocks[cur]?.add(line)
+                    }
+
+                    val names = ArrayList<String>()
+                    for ((_, lines) in blocks) {
+                        var found: String? = null
+                        // cpu part
+                        for (l in lines) {
+                            val cpuPartMatch = Regex("(?i)cpu part\\s*:\\s*(0x[0-9a-fA-F]+|[0-9a-fA-F]+)").find(l)
+                            if (cpuPartMatch != null) {
+                                val part = cpuPartMatch.groupValues[1]
+                                val mapped = mapCpuPartToName(part)
+                                if (mapped != null) {
+                                    found = mapped
+                                    break
+                                }
+                            }
+                        }
+                        if (found == null) {
+                            // check model name / processor line for cortex keyword
+                            for (l in lines) {
+                                val cortex = cortexRegex.find(l)
+                                if (cortex != null) {
+                                    val raw = cortex.value.replace("cortex ", "Cortex-", ignoreCase = true).replace("cortex-", "Cortex-", ignoreCase = true)
+                                    found = raw.replaceFirstChar { it.uppercaseChar() }
+                                    break
+                                }
+                            }
+                        }
+                        if (found == null) {
+                            // last-ditch: look for 'model name' or 'Processor' entries
+                            for (l in lines) {
+                                val m = Regex("(?i)(model name|processor)\\s*:\\s*(.+)").find(l)
+                                if (m != null) {
+                                    val v = m.groupValues[2].trim()
+                                    if (v.isNotEmpty()) {
+                                        found = v.split(Regex("\\s+"))[0]
+                                        break
+                                    }
+                                }
+                            }
+                        }
+                        if (found != null) names.add(found)
+                    }
+
+                    if (names.isNotEmpty()) {
+                        val counts = names.groupingBy { it }.eachCount()
+                        val variants = ArrayList<String>()
+                        for ((name, count) in counts) {
+                            variants.add(if (count > 1) "$name x$count" else name)
+                        }
+                        return variants
+                    }
+                } catch (e: Throwable) {
+                    // ignore and continue to frequency fallback
+                }
         }
     } catch (e: Throwable) {
         // ignore and fallback
@@ -502,12 +617,10 @@ fun AdvancedSettingsScreen(
                                     icon = null,
                                     title = "Select LLVM CPU Core",
                                     onValueChange = { value ->
-                                        // Normalize label into safe token (strip counts, non-alnum -> underscore)
-                                        val internal = value.replace(Regex("\\s+x\\d+$"), "")
-                                            .replace(Regex("[^A-Za-z0-9_-]"), "_")
-                                            .lowercase()
+                                        // Convert display label into a named token where possible
+                                        val token = displayToCpuToken(value)
 
-                                        if (!safeSettingsSet("Core@@LLVM CPU Core", "\"$internal\"")) {
+                                        if (!safeSettingsSet("Core@@LLVM CPU Core", "\"$token\"")) {
                                             AlertDialogQueue.showDialog(
                                                 context.getString(R.string.error),
                                                 context.getString(R.string.failed_to_assign_value, value, "Core@@LLVM CPU Core")
