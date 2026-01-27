@@ -311,11 +311,9 @@ private fun detectCpuCoreVariants(context: Context): List<String> {
             if (matches.isNotEmpty()) {
                 val counts = matches.groupingBy { it }.eachCount()
                 val variants = ArrayList<String>()
-                variants.add("Auto")
                 for ((name, count) in counts) {
                     variants.add(if (count > 1) "$name x$count" else name)
                 }
-                variants.add("Custom")
                 return variants
             }
         }
@@ -336,21 +334,27 @@ private fun detectCpuCoreVariants(context: Context): List<String> {
         }
         if (freqMap.isNotEmpty()) {
             val variants = ArrayList<String>()
-            variants.add("Auto")
             val sorted = freqMap.entries.sortedByDescending { it.key }
+            var idx = 0
             for ((freq, count) in sorted) {
                 val mhz = freq / 1000
-                variants.add(if (count > 1) "Cluster @$mhz MHz x$count" else "Cluster @$mhz MHz")
+                // Fallback names by cluster index if real core names are not available
+                variants.add(if (count > 1) "CoreCluster@$mhz MHz x$count" else "Core@$mhz MHz")
+                idx++
             }
-            variants.add("Custom")
             return variants
         }
     } catch (e: Throwable) {
         // ignore
     }
 
-    // Final fallback
-    return listOf("Auto", "Big core", "Little core", "Custom")
+    // Final fallback: provide explicit CPU# names
+    val cpuCount = Runtime.getRuntime().availableProcessors()
+    val fallback = ArrayList<String>()
+    for (i in 0 until cpuCount) {
+        fallback.add("CPU$i")
+    }
+    return fallback
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -391,9 +395,7 @@ fun AdvancedSettingsScreen(
 
     // UI state for LLVM CPU core picker
     var showCpuCoreDialog by remember { mutableStateOf(false) }
-    var showCustomInput by remember { mutableStateOf(false) }
-    var customCpuValue by remember { mutableStateOf(GeneralSettings["llvm_cpu_core_custom"] as? String ?: "") }
-    var llvmCpuCoreValue by remember { mutableStateOf(GeneralSettings["llvm_cpu_core"] as? String ?: "Auto") }
+    var llvmCpuCoreValue by remember { mutableStateOf(GeneralSettings["llvm_cpu_core"] as? String ?: "") }
     val llvmCpuCoreVariants = remember { detectCpuCoreVariants(context) }
 
     val topBarScrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
@@ -478,13 +480,12 @@ fun AdvancedSettingsScreen(
                 }
                 // LLVM CPU selector inside Core section (affinity hint for LLVM JIT)
                 item(key = "llvm_cpu_core_setting") {
-                    // Show preference row with current value
+                    // Show preference row
                     RegularPreference(
                         title = "LLVM CPU",
                         leadingIcon = null,
                         onClick = { showCpuCoreDialog = true }
                     )
-                    PreferenceValue(text = llvmCpuCoreValue)
 
                     // Selection dialog
                     if (showCpuCoreDialog) {
@@ -496,24 +497,10 @@ fun AdvancedSettingsScreen(
                                     icon = null,
                                     title = "Select LLVM CPU Core",
                                     onValueChange = { value ->
-                                        // If user selects Custom, show an input sheet next
-                                        if (value == "Custom") {
-                                            // open custom input modal (controlled by state)
-                                            showCpuCoreDialog = false
-                                            showCustomInput = true
-                                            return@SingleSelectionDialog
-                                        }
-
-                                        // Map display value to an internal token written to native settings
-                                        val internal = when (value) {
-                                            "Auto" -> "auto"
-                                            else -> {
-                                                // Normalize label into safe token (strip counts, non-alnum -> underscore)
-                                                value.replace(Regex("\\s+x\\d+$"), "")
-                                                    .replace(Regex("[^A-Za-z0-9_-]"), "_")
-                                                    .lowercase()
-                                            }
-                                        }
+                                        // Normalize label into safe token (strip counts, non-alnum -> underscore)
+                                        val internal = value.replace(Regex("\\s+x\\d+$"), "")
+                                            .replace(Regex("[^A-Za-z0-9_-]"), "_")
+                                            .lowercase()
 
                                         if (!safeSettingsSet("Core@@LLVM CPU Core", "\"$internal\"")) {
                                             AlertDialogQueue.showDialog(
