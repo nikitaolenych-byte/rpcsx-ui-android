@@ -119,37 +119,51 @@ private fun safeSettingsSet(path: String, value: String): Boolean {
         false
     }
 }
+// Map common CPU part hex codes to Cortex family names. Returns null if unknown.
+private fun mapCpuPartToName(partHex: String): String? {
+    return when (partHex.lowercase()) {
+        "d03" -> "Cortex-A53"
+        "d04" -> "Cortex-A35"
+        "d07" -> "Cortex-A57"
+        "d08" -> "Cortex-A72"
+        "d09" -> "Cortex-A73"
+        "d0a" -> "Cortex-A75"
+        "d0b" -> "Cortex-A76"
+        "d0c" -> "Cortex-A77"
+        "d0d" -> "Cortex-A78"
+        "d41" -> "Cortex-A78C"
+        "d44" -> "Cortex-X1"
+        "d49" -> "Cortex-X2"
+        "d4a" -> "Cortex-X3"
+        else -> null
+    }
+}
 
 // Native setNCEMode not available - settings only
 // private fun safeSetNCEMode(mode: Int) {
 //     try {
-//         RPCSX.instance.setNCEMode(mode)
-//     } catch (e: Throwable) {
-//         Log.e("Settings", "Error setting NCE mode to $mode: ${e.message}")
-//     }
-// }
 
-private fun applyPpuLLVMTurbo(): Boolean {
-    // Check if library is loaded first
-    if (RPCSX.activeLibrary.value == null) {
-        Log.w("Settings", "Cannot apply PPU Turbo: RPCSX library not loaded")
-        return false
+    // Fallback: try to read CPU part identifiers from /proc/cpuinfo and map to Cortex names
+    try {
+        val cpuinfoFile = File("/proc/cpuinfo")
+        if (cpuinfoFile.exists()) {
+            val text = cpuinfoFile.readText()
+            // Find all CPU part hex identifiers (e.g. "CPU part\t: 0xd0b")
+            val partRegex = Regex("(?i)cpu part\\s*:\\s*0x?([0-9a-f]+)")
+            val parts = partRegex.findAll(text).map { it.groupValues[1].lowercase() }.toList()
+            if (parts.isNotEmpty()) {
+                val counts = parts.groupingBy { it }.eachCount()
+                val variants = ArrayList<String>()
+                for ((part, count) in counts) {
+                    val name = mapCpuPartToName(part) ?: "CPUpart-$part"
+                    variants.add(if (count > 1) "$name x$count" else name)
+                }
+                return variants
+            }
+        }
+    } catch (e: Throwable) {
+        // ignore
     }
-    
-    // Latest RPCS3 optimizations (Jan 2026)
-    val updates = listOf(
-        // Core LLVM optimizations
-        "Core@@PPU LLVM Greedy Mode" to "true",
-        "Core@@LLVM Precompilation" to "true",
-        "Core@@Set DAZ and FTZ" to "true",
-        "Core@@Thread Scheduler Mode" to "\"alt\"",
-        
-        // PPU performance (disable accuracy for speed)
-        "Core@@PPU LLVM Java Mode Handling" to "true",
-        "Core@@PPU Accurate Non-Java Mode" to "false",
-        "Core@@PPU Set Saturation Bit" to "false",
-        "Core@@PPU Set FPCC Bits" to "false",
-        "Core@@PPU Fixup Vector NaN Values" to "false",
         "Core@@PPU Accurate Vector NaN Values" to "false",
         "Core@@Accurate Cache Line Stores" to "false",
         "Core@@Accurate PPU 128-byte Reservation Op Max Length" to "0",
@@ -357,6 +371,36 @@ private fun detectCpuCoreVariants(context: Context): List<String> {
     return fallback
 }
 
+// Convert a display label (e.g. "Cortex-X1 x4" or "CoreCluster@3014 MHz")
+// into a native token expected by RPCSX for Core@@LLVM CPU Core.
+// Preferred tokens: cortex-x1, cortex-a735, cpu0, etc.
+private fun displayToCpuToken(label: String): String {
+    // Strip trailing counts like ' x4'
+    val base = label.replace(Regex("\\s+x\\d+$"), "").trim()
+
+    // Cortex family: Cortex-X1, Cortex A78, Cortex-A735
+    val cortexRegex = Regex("(?i)cortex[- ]?([a-z0-9]+)")
+    cortexRegex.find(base)?.let { m ->
+        val family = m.groupValues[1].lowercase()
+        return "cortex-$family"
+    }
+
+    // Plain CPU fallback: CPU0, CPU1
+    val cpuRegex = Regex("^CPU(\\d+)", RegexOption.IGNORE_CASE)
+    cpuRegex.find(base)?.let { m ->
+        return "cpu${m.groupValues[1]}"
+    }
+
+    // Frequency/cluster labels like '@3014 MHz' or '3014 MHz' -> fall back to cluster-<mhz>
+    val mhzRegex = Regex("(\\d+)\\s*MHz", RegexOption.IGNORE_CASE)
+    mhzRegex.find(base)?.let { m ->
+        return "cluster-${m.groupValues[1]}mhz"
+    }
+
+    // Generic token: sanitize to lowercase, keep dash/underscore
+    return base.replace(Regex("[^A-Za-z0-9_-]"), "-").lowercase()
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdvancedSettingsScreen(
@@ -502,12 +546,10 @@ fun AdvancedSettingsScreen(
                                     icon = null,
                                     title = "Select LLVM CPU Core",
                                     onValueChange = { value ->
-                                        // Normalize label into safe token (strip counts, non-alnum -> underscore)
-                                        val internal = value.replace(Regex("\\s+x\\d+$"), "")
-                                            .replace(Regex("[^A-Za-z0-9_-]"), "_")
-                                            .lowercase()
+                                        // Convert display label into expected native token (e.g. cortex-x1)
+                                        val token = displayToCpuToken(value)
 
-                                        if (!safeSettingsSet("Core@@LLVM CPU Core", "\"$internal\"")) {
+                                        if (!safeSettingsSet("Core@@LLVM CPU Core", "\"$token\"")) {
                                             AlertDialogQueue.showDialog(
                                                 context.getString(R.string.error),
                                                 context.getString(R.string.failed_to_assign_value, value, "Core@@LLVM CPU Core")
