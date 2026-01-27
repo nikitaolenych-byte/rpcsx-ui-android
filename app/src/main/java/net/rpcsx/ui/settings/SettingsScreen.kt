@@ -501,8 +501,23 @@ fun AdvancedSettingsScreen(
                         FileUtil.saveFile(context, uri, target.path)
                     }
 
-                    if (RPCSX.instance.getLibraryVersion(target.path) != null) {
-                        RpcsxUpdater.installUpdate(context, target)
+                    try {
+                        val libVer = try { RPCSX.instance.getLibraryVersion(target.path) } catch (e: Throwable) { null }
+                        if (libVer != null) {
+                            try {
+                                RpcsxUpdater.installUpdate(context, target)
+                            } catch (e: Throwable) {
+                                Log.e("Settings", "Failed to install RPCSX lib: ${e.message}")
+                                AlertDialogQueue.showDialog(
+                                    context.getString(R.string.error),
+                                    "Failed to install RPCSX library: ${e.message}"
+                                )
+                            }
+                        } else {
+                            Log.w("Settings", "Provided library at ${target.path} did not report a version")
+                        }
+                    } catch (e: Throwable) {
+                        Log.e("Settings", "Error while validating RPCSX library: ${e.message}")
                     }
                 }
             }
