@@ -395,8 +395,13 @@ fun AdvancedSettingsScreen(
 
     // UI state for LLVM CPU core picker
     var showCpuCoreDialog by remember { mutableStateOf(false) }
-    var llvmCpuCoreValue by remember { mutableStateOf(GeneralSettings["llvm_cpu_core"] as? String ?: "") }
-    val llvmCpuCoreVariants = remember { detectCpuCoreVariants(context) }
+    val llvmCpuCoreVariants = remember { detectCpuCoreVariants(context).ifEmpty { listOf("CPU0") } }
+    var llvmCpuCoreValue by remember {
+        mutableStateOf(
+            (GeneralSettings["llvm_cpu_core"] as? String)?.takeIf { llvmCpuCoreVariants.contains(it) }
+                ?: llvmCpuCoreVariants.firstOrNull() ?: ""
+        )
+    }
 
     val topBarScrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
     Scaffold(
