@@ -168,9 +168,10 @@ object RpcsxUpdater {
 
         Log.e("RPCSX-UI", "registered update file ${GeneralSettings["rpcsx_library"]}")
 
-        if (prevLibrary == null) {
-            restart()
-        }
+        // Do not auto-restart immediately after registering an update. Prompt the user
+        // to restart so the app can cleanly shutdown and reload the native library.
+        // Auto-restarting here has caused crashes on some devices when the new native
+        // library is not yet fully ready. Let the user confirm restart like aps3e.
 
         GeneralSettings["rpcsx_prev_library"] = prevLibrary
         GeneralSettings["rpcsx_prev_installed_arch"] = prevArch
