@@ -178,9 +178,19 @@ fun AppNavHost() {
         return
     }
 
-    val settings = remember { mutableStateOf(JSONObject(RPCSX.instance.settingsGet(""))) }
+    val settings = remember {
+        mutableStateOf(
+            try {
+                val s = net.rpcsx.utils.safeNativeCall { RPCSX.instance.settingsGet("") }
+                if (s != null) JSONObject(s) else JSONObject()
+            } catch (e: Throwable) {
+                JSONObject()
+            }
+        )
+    }
     val refreshSettings: () -> Unit = {
-        settings.value = JSONObject(RPCSX.instance.settingsGet(""))
+        val s = net.rpcsx.utils.safeNativeCall { RPCSX.instance.settingsGet("") }
+        settings.value = if (s != null) JSONObject(s) else JSONObject()
     }
 
     NavHost(

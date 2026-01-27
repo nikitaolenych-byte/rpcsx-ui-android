@@ -570,7 +570,8 @@ fun GamesScreen(navigateTo: (String) -> Unit = {}) {
 
                     FileUtil.saveFile(context, uri, target.path)
 
-                    if (RPCSX.instance.getLibraryVersion(target.path) != null) {
+                    val libVer = net.rpcsx.utils.safeNativeCall { RPCSX.instance.getLibraryVersion(target.path) }
+                    if (libVer != null) {
                         RpcsxUpdater.installUpdate(context, target)
                     } else {
                         rpcsxInstallLibraryFailed = true
