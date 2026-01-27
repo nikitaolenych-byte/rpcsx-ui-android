@@ -518,39 +518,7 @@ fun AdvancedSettingsScreen(
                             }
                         }
                     }
-                    // Custom input modal (rendered from composable scope)
-                    if (showCustomInput) {
-                        ModalBottomSheet(onDismissRequest = { showCustomInput = false }) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Text(text = "Enter custom LLVM CPU token")
-                                Spacer(modifier = Modifier.height(8.dp))
-                                BasicTextField(
-                                    value = customCpuValue,
-                                    onValueChange = { customCpuValue = it },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(4.dp)
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Button(onClick = {
-                                    val internal = customCpuValue.ifEmpty { "custom" }
-                                    if (!safeSettingsSet("Core@@LLVM CPU Core", "\"$internal\"")) {
-                                        AlertDialogQueue.showDialog(
-                                            context.getString(R.string.error),
-                                            context.getString(R.string.failed_to_assign_value, customCpuValue, "Core@@LLVM CPU Core")
-                                        )
-                                    } else {
-                                        GeneralSettings.setValue("llvm_cpu_core", "Custom")
-                                        GeneralSettings.setValue("llvm_cpu_core_custom", customCpuValue)
-                                        llvmCpuCoreValue = "Custom"
-                                    }
-                                    showCustomInput = false
-                                }) {
-                                    Text(text = "Save")
-                                }
-                            }
-                        }
-                    }
+                    // (custom input removed — selection uses only detected core names)
                 }
             }
             
