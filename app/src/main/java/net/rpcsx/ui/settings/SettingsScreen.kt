@@ -546,19 +546,28 @@ fun AdvancedSettingsScreen(
                                     icon = null,
                                     title = "Select LLVM CPU Core",
                                     onValueChange = { value ->
-                                        // Convert display label into expected native token (e.g. cortex-x1)
-                                        val token = displayToCpuToken(value)
+                                        try {
+                                            // Convert display label into expected native token (e.g. cortex-x1)
+                                            val token = displayToCpuToken(value)
 
-                                        if (!safeSettingsSet("Core@@LLVM CPU Core", "\"$token\"")) {
+                                            if (!safeSettingsSet("Core@@LLVM CPU Core", "\"$token\"")) {
+                                                AlertDialogQueue.showDialog(
+                                                    context.getString(R.string.error),
+                                                    context.getString(R.string.failed_to_assign_value, value, "Core@@LLVM CPU Core")
+                                                )
+                                            } else {
+                                                GeneralSettings.setValue("llvm_cpu_core", value)
+                                                llvmCpuCoreValue = value
+                                            }
+                                        } catch (e: Throwable) {
+                                            android.util.Log.e("Settings", "Failed setting LLVM CPU core: ${e.message}")
                                             AlertDialogQueue.showDialog(
                                                 context.getString(R.string.error),
-                                                context.getString(R.string.failed_to_assign_value, value, "Core@@LLVM CPU Core")
+                                                context.getString(R.string.failed_to_assign_value, value, "Core@@LLVM CPU Core") + "\n${e.message}"
                                             )
-                                        } else {
-                                            GeneralSettings.setValue("llvm_cpu_core", value)
-                                            llvmCpuCoreValue = value
+                                        } finally {
+                                            showCpuCoreDialog = false
                                         }
-                                        showCpuCoreDialog = false
                                     },
                                     onLongClick = {}
                                 )
