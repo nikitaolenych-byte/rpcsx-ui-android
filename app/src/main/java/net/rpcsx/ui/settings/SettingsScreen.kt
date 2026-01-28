@@ -599,11 +599,8 @@ fun AdvancedSettingsScreen(
                                         }
 
                                         if (!applied) {
-                                            // Log native failure and notify non-modally; selection is still saved locally.
+                                            // Log native failure only; do not show UI error. Preference saved locally.
                                             android.util.Log.w("Settings", "Failed to apply LLVM CPU core to native (tried ${candidates.size} formats): $value")
-                                            if (RPCSX.activeLibrary.value != null) {
-                                                Toast.makeText(context, context.getString(R.string.saved_locally_native_failed), Toast.LENGTH_SHORT).show()
-                                            }
                                         }
 
                                         showCpuCoreDialog = false
