@@ -591,6 +591,27 @@ fun AdvancedSettingsScreen(
                                             try {
                                                 if (safeSettingsSet("Core@@LLVM CPU Core", c)) {
                                                     applied = true
+                                                    android.util.Log.i("Settings", "Applied LLVM CPU native value for Core@@LLVM CPU Core: $c (from display '$value')")
+
+                                                    // Read back native settings and system info for debugging
+                                                    try {
+                                                        val settingsJson = net.rpcsx.utils.safeNativeCall { RPCSX.instance.settingsGet("") }
+                                                        if (settingsJson != null) {
+                                                            android.util.Log.i("Settings", "Native settings snapshot after write: $settingsJson")
+                                                        } else {
+                                                            android.util.Log.w("Settings", "settingsGet returned null after writing LLVM CPU core")
+                                                        }
+                                                    } catch (e: Throwable) {
+                                                        android.util.Log.e("Settings", "Error reading native settings after write: ${e.message}", e)
+                                                    }
+
+                                                    try {
+                                                        val sys = net.rpcsx.utils.safeNativeCall { RPCSX.instance.systemInfo() }
+                                                        if (sys != null) android.util.Log.i("Settings", "Native systemInfo after write: $sys")
+                                                    } catch (e: Throwable) {
+                                                        android.util.Log.e("Settings", "Error calling systemInfo after write: ${e.message}", e)
+                                                    }
+
                                                     break
                                                 }
                                             } catch (e: Throwable) {
