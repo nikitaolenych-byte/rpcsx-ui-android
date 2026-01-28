@@ -49,7 +49,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableDoubleStateOf
+import andтакroidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -281,7 +281,37 @@ private fun restoreDecodersToSafeDefaults(): Boolean {
 
 // Detect CPU core variants for the device and present friendly names
 private fun detectCpuCoreVariants(context: Context): List<String> {
+    // First try to read CPU description from native systemInfo() if native lib is loaded.
     try {
+        if (RPCSX.activeLibrary.value != null) {
+            try {
+                val sys = net.rpcsx.utils.safeNativeCall { RPCSX.instance.systemInfo() }
+                if (!sys.isNullOrEmpty()) {
+                    val text = sys
+
+                    // 1) Look for explicit Cortex names in free-form text
+                    val cortexRegex = Regex("(?i)cortex[- ]?[a-z0-9]+")
+                    val matches = cortexRegex.findAll(text).map { m ->
+                        val raw = m.value.replace("cortex ", "Cortex-", ignoreCase = true)
+                            .replace("cortex-", "Cortex-", ignoreCase = true)
+                        raw.replaceFirstChar { it.uppercaseChar() }
+                    }.toList()
+
+                    if (matches.isNotEmpty()) {
+                        val counts = matches.groupingBy { it }.eachCount()
+                        val variants = ArrayList<String>()
+                        for ((name, count) in counts) {
+                            variants.add(if (count > 1) "$name x$count" else name)
+                        }
+                        return variants
+                    }
+                    // fallback to further parsing of systemInfo below if needed
+                }
+            } catch (e: Throwable) {
+                // ignore native systemInfo errors and fallback to /proc parsing
+            }
+        }
+
         val cpuinfoFile = File("/proc/cpuinfo")
         if (cpuinfoFile.exists()) {
                 val text = cpuinfoFile.readText()
