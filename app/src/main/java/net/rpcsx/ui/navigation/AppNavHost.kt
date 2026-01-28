@@ -680,21 +680,30 @@ fun GamesDestination(
                                         if (info.isEmpty() || info.startsWith("(failed to read")) return "$info\n\nSelected LLVM CPU: $selected"
                                         // Look for common CPU section markers and insert after first match
                                         val markers = listOf("CPU", "Processor", "Hardware", "Model name")
-                                        val lines = info.lines().toMutableList()
+                                        // Remove any existing LLVM CPU lines to avoid duplicates
+                                        val filtered = info.lines().filter { line ->
+                                            val l = line.lowercase()
+                                            !(l.contains("llvm cpu") || l.contains("selected llvm cpu") || l.contains("core@@llvm cpu"))
+                                        }.toMutableList()
+
                                         var inserted = false
-                                        for (i in lines.indices) {
-                                            val l = lines[i]
+                                        for (i in filtered.indices) {
+                                            val l = filtered[i]
                                             for (m in markers) {
                                                 if (l.contains(m, ignoreCase = true)) {
                                                     // insert after this line
-                                                    lines.add(i + 1, "Selected LLVM CPU: $selected")
+                                                    filtered.add(i + 1, "Selected LLVM CPU: $selected")
                                                     inserted = true
                                                     break
                                                 }
                                             }
                                             if (inserted) break
                                         }
-                                        return if (inserted) lines.joinToString("\n") else "$info\n\nSelected LLVM CPU: $selected"
+                                        val result = if (inserted) filtered.joinToString("\n") else {
+                                            // append at end
+                                            filtered.joinToString("\n") + "\n\nSelected LLVM CPU: $selected"
+                                        }
+                                        return result
                                     }
 
                                     val message = mergeSelectedCpu(sysInfo ?: "", selectedLlvm)
