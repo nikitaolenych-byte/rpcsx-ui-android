@@ -580,7 +580,9 @@ fun AdvancedSettingsScreen(
                                         var applied = false
                                         val candidates = listOf(
                                             "\"$token\"",
+                                            "'${token}'",
                                             "\"${value.trim()}\"",
+                                            "'${value.trim()}'",
                                             token,
                                             value.trim()
                                         )
@@ -596,12 +598,12 @@ fun AdvancedSettingsScreen(
                                             }
                                         }
 
-                                        if (!applied && RPCSX.activeLibrary.value != null) {
-                                            // Native attempted but none of the formats worked — surface as error
-                                            AlertDialogQueue.showDialog(
-                                                context.getString(R.string.error),
-                                                context.getString(R.string.failed_to_assign_value, value, "Core@@LLVM CPU Core")
-                                            )
+                                        if (!applied) {
+                                            // Log native failure and notify non-modally; selection is still saved locally.
+                                            android.util.Log.w("Settings", "Failed to apply LLVM CPU core to native (tried ${candidates.size} formats): $value")
+                                            if (RPCSX.activeLibrary.value != null) {
+                                                Toast.makeText(context, context.getString(R.string.saved_locally_native_failed), Toast.LENGTH_SHORT).show()
+                                            }
                                         }
 
                                         showCpuCoreDialog = false

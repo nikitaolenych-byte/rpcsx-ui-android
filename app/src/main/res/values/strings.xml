@@ -119,6 +119,7 @@
     <string name="download_channels">Download Channels</string>
     <string name="enable_haptic_feedback">Enable Haptic Feedback</string>
     <string name="failed_to_assign_value">Failed to assign value %1$s to %2$s</string>
+    <string name="saved_locally_native_failed">Saved locally; native write failed</string>
     <string name="failed_to_reset_key">Failed to reset %1$s</string>
     <string name="failed_to_view_internal_dir">Failed to view internal directory</string>
     <string name="gamepad_overlay">Gamepad Overlay</string>
