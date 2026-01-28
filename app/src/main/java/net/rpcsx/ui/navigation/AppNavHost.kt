@@ -103,6 +103,7 @@ import net.rpcsx.ui.settings.ControllerSettings
 import net.rpcsx.ui.settings.SettingsScreen
 import net.rpcsx.ui.user.UsersScreen
 import net.rpcsx.utils.FileUtil
+import net.rpcsx.utils.GeneralSettings
 import net.rpcsx.utils.RpcsxUpdater
 import org.json.JSONObject
 
@@ -665,9 +666,19 @@ fun GamesDestination(
                         selected = false,
                         icon = { Icon(painterResource(R.drawable.perm_device_information), contentDescription = null) },
                         onClick = {
+                            // Build a device info message that includes the native systemInfo
+                            // and the currently selected LLVM CPU (from GeneralSettings)
+                            val sysInfo = try {
+                                RPCSX.instance.systemInfo()
+                            } catch (e: Throwable) {
+                                "(failed to read systemInfo: ${e.message})"
+                            }
+                            val selectedLlvm = (GeneralSettings["llvm_cpu_core"] as? String) ?: "(none)"
+                            val message = "$sysInfo\n\nSelected LLVM CPU: $selectedLlvm"
+
                             AlertDialogQueue.showDialog(
                                 context.getString(R.string.device_info),
-                                RPCSX.instance.systemInfo(),
+                                message,
                                 confirmText = context.getString(android.R.string.copy),
                                 dismissText = context.getString(R.string.close),
                                 onConfirm = {
@@ -675,7 +686,7 @@ fun GamesDestination(
                                         context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                     val clip = ClipData.newPlainText(
                                         context.getString(R.string.device_info),
-                                        RPCSX.instance.systemInfo()
+                                        message
                                     )
                                     clipboard.setPrimaryClip(clip)
                                     Toast.makeText(
