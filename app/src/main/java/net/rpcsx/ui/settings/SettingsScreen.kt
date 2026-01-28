@@ -494,12 +494,30 @@ fun AdvancedSettingsScreen(
 
     // UI state for LLVM CPU core picker
     var showCpuCoreDialog by remember { mutableStateOf(false) }
-    val llvmCpuCoreVariants = remember { detectCpuCoreVariants(context).ifEmpty { listOf("CPU0") } }
+
+    // Keep variants reactive: recompute when native library status changes so
+    // `systemInfo()` results are picked up after native loads.
+    var llvmCpuCoreVariants by remember { mutableStateOf(detectCpuCoreVariants(context).ifEmpty { listOf("CPU0") }) }
+
     var llvmCpuCoreValue by remember {
         mutableStateOf(
             (GeneralSettings["llvm_cpu_core"] as? String)?.takeIf { llvmCpuCoreVariants.contains(it) }
                 ?: llvmCpuCoreVariants.firstOrNull() ?: ""
         )
+    }
+
+    // Recompute variants when native library becomes available or changes
+    LaunchedEffect(RPCSX.activeLibrary.value) {
+        try {
+            val newVariants = detectCpuCoreVariants(context).ifEmpty { listOf("CPU0") }
+            if (newVariants != llvmCpuCoreVariants) {
+                llvmCpuCoreVariants = newVariants
+                val saved = GeneralSettings["llvm_cpu_core"] as? String
+                llvmCpuCoreValue = saved?.takeIf { newVariants.contains(it) } ?: newVariants.firstOrNull() ?: ""
+            }
+        } catch (e: Throwable) {
+            android.util.Log.w("Settings", "Failed to refresh LLVM CPU variants: ${e.message}")
+        }
     }
 
     val topBarScrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
