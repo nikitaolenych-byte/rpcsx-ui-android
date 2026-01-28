@@ -571,18 +571,21 @@ fun AdvancedSettingsScreen(
                                     icon = null,
                                     title = "Select LLVM CPU Core",
                                     onValueChange = { value ->
-                                        // Convert display label into a named token where possible
-                                        val token = displayToCpuToken(value)
+                                        // Store UI preference immediately so selection always 'sticks'
+                                        GeneralSettings.setValue("llvm_cpu_core", value)
+                                        llvmCpuCoreValue = value
 
-                                        if (!safeSettingsSet("Core@@LLVM CPU Core", "\"$token\"")) {
+                                        // Try to apply to native settings; do not show error when native lib is absent
+                                        val token = displayToCpuToken(value)
+                                        val applied = safeSettingsSet("Core@@LLVM CPU Core", "\"$token\"")
+                                        if (!applied && RPCSX.activeLibrary.value != null) {
+                                            // Native attempted but failed — surface as error
                                             AlertDialogQueue.showDialog(
                                                 context.getString(R.string.error),
                                                 context.getString(R.string.failed_to_assign_value, value, "Core@@LLVM CPU Core")
                                             )
-                                        } else {
-                                            GeneralSettings.setValue("llvm_cpu_core", value)
-                                            llvmCpuCoreValue = value
                                         }
+
                                         showCpuCoreDialog = false
                                     },
                                     onLongClick = {}
