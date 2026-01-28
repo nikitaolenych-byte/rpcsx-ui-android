@@ -669,12 +669,35 @@ fun GamesDestination(
                             // Build a device info message that includes the native systemInfo
                             // and the currently selected LLVM CPU (from GeneralSettings)
                             val sysInfo = try {
-                                RPCSX.instance.systemInfo()
-                            } catch (e: Throwable) {
-                                "(failed to read systemInfo: ${e.message})"
-                            }
-                            val selectedLlvm = (GeneralSettings["llvm_cpu_core"] as? String) ?: "(none)"
-                            val message = "$sysInfo\n\nSelected LLVM CPU: $selectedLlvm"
+                                        RPCSX.instance.systemInfo()
+                                    } catch (e: Throwable) {
+                                        "(failed to read systemInfo: ${e.message})"
+                                    }
+                                    val selectedLlvm = (GeneralSettings["llvm_cpu_core"] as? String) ?: "(none)"
+
+                                    // Try to inject the selected LLVM CPU into the systemInfo output
+                                    fun mergeSelectedCpu(info: String, selected: String): String {
+                                        if (info.isEmpty() || info.startsWith("(failed to read")) return "$info\n\nSelected LLVM CPU: $selected"
+                                        // Look for common CPU section markers and insert after first match
+                                        val markers = listOf("CPU", "Processor", "Hardware", "Model name")
+                                        val lines = info.lines().toMutableList()
+                                        var inserted = false
+                                        for (i in lines.indices) {
+                                            val l = lines[i]
+                                            for (m in markers) {
+                                                if (l.contains(m, ignoreCase = true)) {
+                                                    // insert after this line
+                                                    lines.add(i + 1, "Selected LLVM CPU: $selected")
+                                                    inserted = true
+                                                    break
+                                                }
+                                            }
+                                            if (inserted) break
+                                        }
+                                        return if (inserted) lines.joinToString("\n") else "$info\n\nSelected LLVM CPU: $selected"
+                                    }
+
+                                    val message = mergeSelectedCpu(sysInfo ?: "", selectedLlvm)
 
                             AlertDialogQueue.showDialog(
                                 context.getString(R.string.device_info),
