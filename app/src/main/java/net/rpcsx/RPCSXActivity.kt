@@ -149,38 +149,31 @@ class RPCSXActivity : Activity() {
         Log.i("RPCSX", "Applying optimal performance settings...")
         
         // PPU settings - LLVM is faster than Interpreter
-        safeSettingsSet("Core@@PPU Decoder", "\"LLVM Recompiler (Legacy)\"")
-        safeSettingsSet("Core@@PPU LLVM Greedy Mode", "true")
-        safeSettingsSet("Core@@LLVM Precompilation", "true")
+        net.rpcsx.utils.safeSettingsSet("Core@@PPU Decoder", "\"LLVM Recompiler (Legacy)\"")
+        net.rpcsx.utils.safeSettingsSet("Core@@PPU LLVM Greedy Mode", "true")
+        net.rpcsx.utils.safeSettingsSet("Core@@LLVM Precompilation", "true")
         
         // SPU settings - Giga block size for best performance
-        safeSettingsSet("Core@@SPU Decoder", "\"LLVM Recompiler (Legacy)\"")
-        safeSettingsSet("Core@@SPU Block Size", "\"giga\"")
-        safeSettingsSet("Core@@Preferred SPU Threads", "6")
+        net.rpcsx.utils.safeSettingsSet("Core@@SPU Decoder", "\"LLVM Recompiler (Legacy)\"")
+        net.rpcsx.utils.safeSettingsSet("Core@@SPU Block Size", "\"giga\"")
+        net.rpcsx.utils.safeSettingsSet("Core@@Preferred SPU Threads", "6")
         
         // Disable accuracy options for speed
-        safeSettingsSet("Core@@Set DAZ and FTZ", "true")
-        safeSettingsSet("Core@@SPU Accurate DMA", "false")
-        safeSettingsSet("Core@@SPU Accurate Reservations", "false")
-        safeSettingsSet("Core@@Accurate Cache Line Stores", "false")
+        net.rpcsx.utils.safeSettingsSet("Core@@Set DAZ and FTZ", "true")
+        net.rpcsx.utils.safeSettingsSet("Core@@SPU Accurate DMA", "false")
+        net.rpcsx.utils.safeSettingsSet("Core@@SPU Accurate Reservations", "false")
+        net.rpcsx.utils.safeSettingsSet("Core@@Accurate Cache Line Stores", "false")
         
         // GPU/Video optimizations
-        safeSettingsSet("Video@@Frame Limit", "Off")
-        safeSettingsSet("Video@@VSync", "false")
-        safeSettingsSet("Video@@Strict Rendering Mode", "false")
-        safeSettingsSet("Video@@Disable Vertex Cache", "false")
+        net.rpcsx.utils.safeSettingsSet("Video@@Frame Limit", "Off")
+        net.rpcsx.utils.safeSettingsSet("Video@@VSync", "false")
+        net.rpcsx.utils.safeSettingsSet("Video@@Strict Rendering Mode", "false")
+        net.rpcsx.utils.safeSettingsSet("Video@@Disable Vertex Cache", "false")
         
         Log.i("RPCSX", "Performance settings applied")
     }
     
-    private fun safeSettingsSet(path: String, value: String): Boolean {
-        return try {
-            RPCSX.instance.settingsSet(path, value)
-        } catch (e: Throwable) {
-            Log.w("RPCSX", "Setting $path not available: ${e.message}")
-            false
-        }
-    }
+    // Use shared net.rpcsx.utils.safeSettingsSet to safely write native settings
 
     private fun keyCodeToPadBit(keyCode: Int): Pair<Int, Int> {
         val event = inputBindings[keyCode] ?: Pair(0, 0)

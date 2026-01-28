@@ -19,6 +19,8 @@ import net.rpcsx.utils.RpcsxUpdater
 import net.rpcsx.utils.ApkInstaller
 import java.io.File
 import kotlin.concurrent.thread
+import net.rpcsx.utils.safeNativeCall
+import net.rpcsx.utils.safeSettingsSet
 
 class MainActivity : ComponentActivity() {
     private lateinit var unregisterUsbEventListener: () -> Unit
@@ -262,11 +264,7 @@ class MainActivity : ComponentActivity() {
             GeneralSettings.sync()
 
             // Apply RSX thread count to native layer (takes effect on next init)
-                try {
-                    RPCSX.instance.rsxSetThreadCount(8)
-                } catch (e: Throwable) {
-                    Log.e("RPCSX", "Failed to set RSX thread count", e)
-                }
+                net.rpcsx.utils.safeNativeCall { RPCSX.instance.rsxSetThreadCount(8) }
 
             // LLVM performance tweaks
             safeSettingsSet("Core@@PPU LLVM Greedy Mode", "true")
@@ -278,14 +276,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun safeSettingsSet(path: String, value: String): Boolean {
-        return try {
-            RPCSX.instance.settingsSet(path, value)
-        } catch (e: Throwable) {
-            Log.e("RPCSX", "Error setting $path to $value", e)
-            false
-        }
-    }
+    // Use shared safeSettingsSet from net.rpcsx.utils
 
     /**
      * Enable native ARMv9 optimizations if supported by device.
