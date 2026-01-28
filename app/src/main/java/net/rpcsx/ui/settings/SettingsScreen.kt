@@ -575,11 +575,29 @@ fun AdvancedSettingsScreen(
                                         GeneralSettings.setValue("llvm_cpu_core", value)
                                         llvmCpuCoreValue = value
 
-                                        // Try to apply to native settings; do not show error when native lib is absent
+                                        // Try several write formats for native settings to maximise compatibility.
                                         val token = displayToCpuToken(value)
-                                        val applied = safeSettingsSet("Core@@LLVM CPU Core", "\"$token\"")
+                                        var applied = false
+                                        val candidates = listOf(
+                                            "\"$token\"",
+                                            "\"${value.trim()}\"",
+                                            token,
+                                            value.trim()
+                                        )
+
+                                        for (c in candidates) {
+                                            try {
+                                                if (safeSettingsSet("Core@@LLVM CPU Core", c)) {
+                                                    applied = true
+                                                    break
+                                                }
+                                            } catch (e: Throwable) {
+                                                // continue trying other formats
+                                            }
+                                        }
+
                                         if (!applied && RPCSX.activeLibrary.value != null) {
-                                            // Native attempted but failed — surface as error
+                                            // Native attempted but none of the formats worked — surface as error
                                             AlertDialogQueue.showDialog(
                                                 context.getString(R.string.error),
                                                 context.getString(R.string.failed_to_assign_value, value, "Core@@LLVM CPU Core")
