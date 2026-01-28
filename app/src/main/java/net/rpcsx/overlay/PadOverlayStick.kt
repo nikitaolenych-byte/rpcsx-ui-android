@@ -68,7 +68,7 @@ class PadOverlayStick(
                 }
             } else {
 
-                for (i in 0..<event.pointerCount) {
+                for (i in 0 until event.pointerCount) {
                     if (locked == event.getPointerId(i)) {
                         activePointerIndex = i
                         break

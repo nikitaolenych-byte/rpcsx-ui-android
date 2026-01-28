@@ -216,14 +216,14 @@ class PadOverlayDpad(
 
             var activePointerIndex = pointerIndex
 
-            if (locked[touchIndex] != -1 && action == MotionEvent.ACTION_MOVE) {
-                activePointerIndex = -1
-                for (i in 0..<event.pointerCount) {
-                    if (locked[touchIndex] == event.getPointerId(i)) {
-                        activePointerIndex = i
-                        break
+                if (locked[touchIndex] != -1 && action == MotionEvent.ACTION_MOVE) {
+                    activePointerIndex = -1
+                    for (i in 0 until event.pointerCount) {
+                        if (locked[touchIndex] == event.getPointerId(i)) {
+                            activePointerIndex = i
+                            break
+                        }
                     }
-                }
 
                 if (activePointerIndex == -1) {
                     continue

@@ -49,7 +49,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import andтакroidx.compose.runtime.mutableDoubleStateOf
+import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -732,7 +732,7 @@ fun AdvancedSettingsScreen(
                                 val def = itemObject.getString("default")
                                 val variantsJson = itemObject.getJSONArray("variants")
                                 val variants = ArrayList<String>()
-                                for (i in 0..<variantsJson.length()) {
+                                for (i in 0 until variantsJson.length()) {
                                     variants.add(variantsJson.getString(i))
                                 }
                                 
