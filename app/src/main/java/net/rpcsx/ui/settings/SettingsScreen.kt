@@ -804,6 +804,11 @@ fun AdvancedSettingsScreen(
                                 // Reactive state for turbo flags - updates UI immediately
                                 var ppuTurboEnabled by remember { mutableStateOf(GeneralSettings["ppu_llvm_turbo"] as? Boolean ?: false) }
                                 var spuTurboEnabled by remember { mutableStateOf(GeneralSettings["spu_llvm_turbo"] as? Boolean ?: false) }
+
+                                // Persisted requested LLVM versions (user intent) so the UI can show
+                                // `LLVM 20.3` even when native stores legacy token names.
+                                val savedPpuRequested = GeneralSettings["ppu_requested_llvm_version"] as? String
+                                val savedSpuRequested = GeneralSettings["spu_requested_llvm_version"] as? String
                                 
                                 // Check if NCE mode is active (use cached value for performance)
                                 val savedNceMode = net.rpcsx.utils.GeneralSettings.nceMode
@@ -813,10 +818,10 @@ fun AdvancedSettingsScreen(
                                     isPpuDecoder && savedNceMode == 3 -> "NCE"
                                     isPpuDecoder && ppuTurboEnabled && itemValue == "LLVM Recompiler (Legacy)" -> "LLVM Turbo"
                                     isPpuDecoder && itemValue == "LLVM Recompiler (Legacy)" -> "LLVM 19"
-                                    isPpuDecoder && itemValue.contains("20.3") -> "LLVM 20.3"
+                                    isPpuDecoder && (itemValue.contains("20.3") || savedPpuRequested == "20.3") -> "LLVM 20.3"
                                     isPpuDecoder && itemValue == "Interpreter (Legacy)" -> "Interpreter"
                                     isSpuDecoder && spuTurboEnabled && itemValue.contains("LLVM", ignoreCase = true) -> "LLVM Turbo"
-                                    isSpuDecoder && itemValue.contains("20.3") -> "LLVM 20.3"
+                                    isSpuDecoder && (itemValue.contains("20.3") || savedSpuRequested == "20.3") -> "LLVM 20.3"
                                     else -> itemValue
                                 }
 
@@ -839,9 +844,11 @@ fun AdvancedSettingsScreen(
                                                     )
                                                 }
                                                 safeSettingsSet("Core@@PPU LLVM Version", "\"20.3\"")
+                                                // Persist user intent so UI shows 20.3 even if native stores legacy token
+                                                GeneralSettings.setValue("ppu_requested_llvm_version", "20.3")
                                                 try {
-                                                    itemObject.put("value", "LLVM Recompiler (Legacy)")
-                                                    // Keep a marker that 20.3 was requested so display logic shows it
+                                                    // Persist value with 20.3 marker so UI shows LLVM 20.3 on reload
+                                                    itemObject.put("value", "LLVM Recompiler (Legacy) 20.3")
                                                     itemValue = "LLVM Recompiler (Legacy) 20.3"
                                                 } catch (e: Throwable) { }
                                                 return@SingleSelectionDialog
@@ -855,11 +862,13 @@ fun AdvancedSettingsScreen(
                                                     safeSettingsSet(itemPath, "\"LLVM Recompiler (Legacy)\"")
                                                 }
                                                 safeSettingsSet("Core@@SPU LLVM Version", "\"20.3\"")
+                                                // Persist user intent for SPU
+                                                GeneralSettings.setValue("spu_requested_llvm_version", "20.3")
                                                 try {
-                                                    // Prefer to show generic LLVM token if it succeeded, otherwise legacy
-                                                    val current = try { itemObject.getString("value") } catch (_: Throwable) { null }
-                                                    if (current == null || !current.contains("LLVM")) itemObject.put("value", "Recompiler (LLVM)")
-                                                    itemValue = (itemObject.getString("value") + " 20.3")
+                                                    // Persist SPU value including version hint so UI shows 20.3 on reload
+                                                    val preferred = "Recompiler (LLVM) 20.3"
+                                                    itemObject.put("value", preferred)
+                                                    itemValue = preferred
                                                 } catch (e: Throwable) { }
                                                 return@SingleSelectionDialog
                                             }
@@ -957,6 +966,11 @@ fun AdvancedSettingsScreen(
                                                             android.util.Log.e("Settings", "Failed to save NCE mode: ${e.message}")
                                                         }
                                                     }
+                                                    // Clear requested-version markers when user picks a non-20.3 backend
+                                                    try {
+                                                        if (isPpuDecoder) GeneralSettings.setValue("ppu_requested_llvm_version", null)
+                                                        if (isSpuDecoder) GeneralSettings.setValue("spu_requested_llvm_version", null)
+                                                    } catch (_: Throwable) {}
                                                 } catch (e: Throwable) {
                                                     android.util.Log.e("Settings", "Error updating PPU decoder: ${e.message}")
                                                 }
