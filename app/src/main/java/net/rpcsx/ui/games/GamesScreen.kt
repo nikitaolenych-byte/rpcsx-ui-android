@@ -140,11 +140,6 @@ fun GameItem(game: Game, navigateTo: (String) -> Unit) {
     val showCustomConfig = remember { mutableStateOf(false) }
     val customConfigJson = remember { mutableStateOf<JSONObject?>(null) }
     val customConfigGamePath = remember { mutableStateOf<String?>(null) }
-
-    // UI state for per-game/global/default advanced settings and action dialog
-    val showCustomConfig = remember { mutableStateOf(false) }
-    val customConfigJson = remember { mutableStateOf<JSONObject?>(null) }
-    val customConfigGamePath = remember { mutableStateOf<String?>(null) }
     val advancedMode = remember { mutableStateOf<String?>(null) } // "game" | "global" | "default"
     val showActionDialog = remember { mutableStateOf(false) }
 

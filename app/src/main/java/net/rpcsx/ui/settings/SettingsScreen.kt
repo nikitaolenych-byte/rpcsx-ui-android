@@ -49,7 +49,6 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import andйroidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -1105,7 +1104,7 @@ fun AdvancedSettingsScreen(
 
                             "float" -> {
                                 var itemValue by remember {
-                                    mutableDoubleStateOf(
+                                    mutableStateOf(
                                         itemObject.getString(
                                             "value"
                                         ).toDouble()
