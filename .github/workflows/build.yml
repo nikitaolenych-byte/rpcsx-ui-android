@@ -59,6 +59,19 @@ jobs:
         distribution: 'temurin'
         java-version: 17
 
+    - name: Export JAVA_HOME
+      run: echo "JAVA_HOME=${{ steps.setup-java.outputs.java-home }}" >> $GITHUB_ENV
+
+    - name: Verify Java version
+      run: |
+        echo "Java version check:"
+        java -version 2>&1
+        JAVA_VER=$(java -version 2>&1 | head -1 | grep -oP 'version "\\K[0-9]+' | head -1)
+        if [ "$JAVA_VER" != "17" ]; then
+          echo "❌ ERROR: Java version $JAVA_VER found, but Java 17 is required!"
+          exit 1
+        fi
+
     - name: Decode Keystore
       env:
         KEYSTORE_ENCODED: ${{ secrets.KEYSTORE }}
