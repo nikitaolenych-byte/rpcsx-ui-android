@@ -520,6 +520,49 @@ fun AdvancedSettingsScreen(
         }
     }
 
+    // When native library loads, apply saved preferences to native (best-effort)
+    LaunchedEffect(RPCSX.activeLibrary.value) {
+        try {
+            // Apply saved LLVM CPU preference to native if present
+            val savedLlvm = GeneralSettings["llvm_cpu_core"] as? String
+            if (!savedLlvm.isNullOrBlank() && RPCSX.activeLibrary.value != null) {
+                val token = displayToCpuToken(savedLlvm)
+                val candidates = listOf(
+                    "\"$token\"",
+                    "'${token}'",
+                    "\"${savedLlvm.trim()}\"",
+                    "'${savedLlvm.trim()}'",
+                    token,
+                    savedLlvm.trim()
+                )
+                var applied = false
+                for (c in candidates) {
+                    try {
+                        if (safeSettingsSet("Core@@LLVM CPU Core", c)) {
+                            applied = true
+                            android.util.Log.i("Settings", "Applied saved LLVM CPU to native: $c")
+                            break
+                        }
+                    } catch (_: Throwable) { }
+                }
+                if (!applied) android.util.Log.w("Settings", "Could not apply saved LLVM CPU to native: $savedLlvm")
+            }
+
+            // Apply saved SVE2 flag automatically (no visible toggle)
+            val savedSve2 = GeneralSettings["enable_sve2"] as? Boolean ?: false
+            try {
+                if (RPCSX.activeLibrary.value != null) {
+                    safeSettingsSet("Core@@NCE Enable SVE2", if (savedSve2) "true" else "false")
+                    android.util.Log.i("Settings", "Applied saved SVE2=${savedSve2} to native")
+                }
+            } catch (e: Throwable) {
+                android.util.Log.w("Settings", "Failed to apply SVE2 to native: ${e.message}")
+            }
+        } catch (e: Throwable) {
+            android.util.Log.w("Settings", "Error applying saved native prefs: ${e.message}")
+        }
+    }
+
     val topBarScrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
     Scaffold(
         modifier = Modifier
@@ -681,6 +724,9 @@ fun AdvancedSettingsScreen(
                     }
                     // (custom input removed — selection uses only detected core names)
                 }
+
+                // SVE2 is applied automatically based on device capability and saved preference.
+                // No manual toggle is shown here to avoid user confusion or unsafe toggles.
             }
             
             val filteredKeys =

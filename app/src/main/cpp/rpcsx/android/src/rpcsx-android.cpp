@@ -2522,8 +2522,9 @@ extern "C" bool _rpcsx_installKey(JNIEnv *env, int fd, long progressId,
 extern "C" std::string _rpcsx_systemInfo() {
   std::string result;
 
-  fmt::append(result, "%s\n\nLLVM CPU: %s\n\n", utils::get_system_info(),
-              fallback_cpu_detection());
+  // Native system info no longer includes the LLVM CPU override line —
+  // UI will inject the selected LLVM CPU when displaying Device Info.
+  fmt::append(result, "%s\n\n", utils::get_system_info());
 
   {
     vk::instance device_enum_context;
