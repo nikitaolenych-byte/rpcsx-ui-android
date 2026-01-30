@@ -74,9 +74,16 @@ import net.rpcsx.R
 import net.rpcsx.RPCSX
 import net.rpcsx.RPCSXActivity
 import net.rpcsx.dialogs.AlertDialogQueue
+import net.rpcsx.ui.settings.AdvancedSettingsScreen
+import org.json.JSONObject
+import net.rpcsx.utils.GeneralSettings
+import net.rpcsx.utils.applySavedGameConfig
 import net.rpcsx.utils.FileUtil
 import net.rpcsx.utils.RpcsxUpdater
 import net.rpcsx.utils.UiUpdater
+import net.rpcsx.utils.GeneralSettings
+import net.rpcsx.utils.applySettingsSnapshot
+import net.rpcsx.utils.applySavedGameConfig
 import java.io.File
 import kotlin.concurrent.thread
 
@@ -131,6 +138,56 @@ fun GameItem(game: Game, navigateTo: (String) -> Unit) {
             }
         }
 
+    val showCustomConfig = remember { mutableStateOf(false) }
+    val customConfigJson = remember { mutableStateOf<JSONObject?>(null) }
+    val customConfigGamePath = remember { mutableStateOf<String?>(null) }
+
+    fun showCustomConfigForGame(context: android.content.Context, json: JSONObject, path: String) {
+        customConfigJson.value = json
+        customConfigGamePath.value = path
+        showCustomConfig.value = true
+    }
+
+    // UI state for per-game/global/default advanced settings and action dialog
+    val showCustomConfig = remember { mutableStateOf(false) }
+    val customConfigJson = remember { mutableStateOf<JSONObject?>(null) }
+    val customConfigGamePath = remember { mutableStateOf<String?>(null) }
+    val advancedMode = remember { mutableStateOf<String?>(null) } // "game" | "global" | "default"
+    val showActionDialog = remember { mutableStateOf(false) }
+
+    fun showCustomConfigForGame(context: android.content.Context, json: JSONObject, path: String) {
+        customConfigJson.value = json
+        customConfigGamePath.value = path
+        advancedMode.value = "game"
+        showCustomConfig.value = true
+    }
+
+    fun openGlobalConfig() {
+        try {
+            val saved = GeneralSettings["global_config"] as? String
+            val json = if (!saved.isNullOrBlank()) JSONObject(saved) else JSONObject()
+            customConfigJson.value = json
+            customConfigGamePath.value = null
+            advancedMode.value = "global"
+            showCustomConfig.value = true
+        } catch (e: Throwable) {
+            android.util.Log.e("Games", "Failed to open global config: ${e.message}")
+        }
+    }
+
+    fun openDefaultSettings() {
+        try {
+            val sys = net.rpcsx.utils.safeNativeCall { RPCSX.instance.settingsGet("") }
+            val json = if (!sys.isNullOrBlank()) JSONObject(sys) else JSONObject()
+            customConfigJson.value = json
+            customConfigGamePath.value = null
+            advancedMode.value = "default"
+            showCustomConfig.value = true
+        } catch (e: Throwable) {
+            android.util.Log.e("Games", "Failed to open default settings: ${e.message}")
+        }
+    }
+
     Column {
         DropdownMenu(
             expanded = menuExpanded.value, onDismissRequest = { menuExpanded.value = false }) {
@@ -152,6 +209,29 @@ fun GameItem(game: Game, navigateTo: (String) -> Unit) {
                                 title = "Game Patches",
                                 message = "Visit wiki.rpcs3.net for patches for $gameName"
                             )
+                        }
+                    }
+                )
+                // Custom Configuration (per-game)
+                DropdownMenuItem(
+                    text = { Text("Custom Configuration") },
+                    leadingIcon = { Icon(ImageVector.vectorResource(R.drawable.ic_settings), contentDescription = null) },
+                    onClick = {
+                        menuExpanded.value = false
+                        // prepare settings JSONObject (saved per-game or native snapshot)
+                        try {
+                            val savedKey = "game_config::${game.info.path}"
+                            val saved = GeneralSettings[savedKey] as? String
+                            val json = if (!saved.isNullOrBlank()) {
+                                JSONObject(saved)
+                            } else {
+                                val sys = net.rpcsx.utils.safeNativeCall { RPCSX.instance.settingsGet("") }
+                                if (!sys.isNullOrBlank()) JSONObject(sys) else JSONObject()
+                            }
+                            // show AdvancedSettingsScreen via state
+                            showCustomConfigForGame(context, json, game.info.path)
+                        } catch (e: Throwable) {
+                            android.util.Log.e("Games", "Failed to open custom config: ${e.message}")
                         }
                     }
                 )
@@ -187,6 +267,80 @@ fun GameItem(game: Game, navigateTo: (String) -> Unit) {
                     }
                 )
             }
+        }
+
+        // Advanced settings overlay for per-game/global/default configs
+        if (showCustomConfig.value && customConfigJson.value != null) {
+            AdvancedSettingsScreen(
+                navigateBack = {
+                    try {
+                        when (advancedMode.value) {
+                            "game" -> {
+                                val key = "game_config::${customConfigGamePath.value}"
+                                GeneralSettings.setValue(key, customConfigJson.value.toString())
+                                // apply immediately
+                                applySettingsSnapshot(customConfigJson.value.toString())
+                                android.util.Log.i("Games", "Saved and applied custom config for ${customConfigGamePath.value}")
+                            }
+                            "global" -> {
+                                GeneralSettings.setValue("global_config", customConfigJson.value.toString())
+                                applySettingsSnapshot(customConfigJson.value.toString())
+                                android.util.Log.i("Games", "Saved and applied global config")
+                            }
+                            "default" -> {
+                                // Do not persist default/system snapshot
+                                android.util.Log.i("Games", "Closed default/system settings viewer")
+                            }
+                        }
+                    } catch (e: Throwable) {
+                        android.util.Log.e("Games", "Failed to save/apply config: ${e.message}")
+                    }
+                    showCustomConfig.value = false
+                },
+                navigateTo = {},
+                settings = customConfigJson.value!!,
+                path = if (advancedMode.value == "game") "Game@@${customConfigGamePath.value}" else ""
+            )
+        }
+
+        // Actions dialog shown when tapping a game (Play / Global Config / Default Settings)
+        if (showActionDialog.value) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { showActionDialog.value = false },
+                title = { Text(game.info.name.value ?: "Game") },
+                text = { Text("Choose action") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        // Play: apply global then game config, then launch
+                        try {
+                            val global = GeneralSettings["global_config"] as? String
+                            if (!global.isNullOrBlank()) applySettingsSnapshot(global)
+                        } catch (_: Throwable) {}
+                        try {
+                            applySavedGameConfig(game.info.path)
+                        } catch (_: Throwable) {}
+
+                        GameRepository.onBoot(game)
+                        val emulatorWindow = Intent(context, RPCSXActivity::class.java)
+                        emulatorWindow.putExtra("path", game.info.path)
+                        context.startActivity(emulatorWindow)
+                        showActionDialog.value = false
+                    }) { Text("Play") }
+                },
+                dismissButton = {
+                    Row {
+                        TextButton(onClick = {
+                            openGlobalConfig()
+                            showActionDialog.value = false
+                        }) { Text("Global Config") }
+                        TextButton(onClick = {
+                            openDefaultSettings()
+                            showActionDialog.value = false
+                        }) { Text("Default Settings") }
+                        TextButton(onClick = { showActionDialog.value = false }) { Text("Cancel") }
+                    }
+                }
+            )
         }
 
                 Card(
@@ -229,6 +383,12 @@ fun GameItem(game: Game, navigateTo: (String) -> Unit) {
                             )
                         } else {
                             GameRepository.onBoot(game)
+                            // Apply per-game saved config (best-effort) before launching
+                            try {
+                                applySavedGameConfig(game.info.path)
+                            } catch (e: Throwable) {
+                                android.util.Log.w("Games", "Failed to apply saved game config: ${e.message}")
+                            }
                             val emulatorWindow = Intent(
                                 context, RPCSXActivity::class.java
                             )
