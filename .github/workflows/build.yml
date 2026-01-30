@@ -54,6 +54,7 @@ jobs:
           ${{ runner.os }}-android-
             
     - name: Setup Java
+      id: setup-java
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
