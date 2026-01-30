@@ -77,11 +77,9 @@ import net.rpcsx.dialogs.AlertDialogQueue
 import net.rpcsx.ui.settings.AdvancedSettingsScreen
 import org.json.JSONObject
 import net.rpcsx.utils.GeneralSettings
-import net.rpcsx.utils.applySavedGameConfig
 import net.rpcsx.utils.FileUtil
 import net.rpcsx.utils.RpcsxUpdater
 import net.rpcsx.utils.UiUpdater
-import net.rpcsx.utils.GeneralSettings
 import net.rpcsx.utils.applySettingsSnapshot
 import net.rpcsx.utils.applySavedGameConfig
 import java.io.File
@@ -138,15 +136,10 @@ fun GameItem(game: Game, navigateTo: (String) -> Unit) {
             }
         }
 
+    // UI state for per-game/global/default advanced settings and action dialog
     val showCustomConfig = remember { mutableStateOf(false) }
     val customConfigJson = remember { mutableStateOf<JSONObject?>(null) }
     val customConfigGamePath = remember { mutableStateOf<String?>(null) }
-
-    fun showCustomConfigForGame(context: android.content.Context, json: JSONObject, path: String) {
-        customConfigJson.value = json
-        customConfigGamePath.value = path
-        showCustomConfig.value = true
-    }
 
     // UI state for per-game/global/default advanced settings and action dialog
     val showCustomConfig = remember { mutableStateOf(false) }
