@@ -88,6 +88,19 @@ jobs:
     - name: Install packages
       run: yes | sdkmanager "cmake;3.31.6"
 
+    - name: Debug environment
+      run: |
+        echo "=== PATH ==="
+        echo $PATH
+        echo "=== JAVA_HOME ==="
+        echo $JAVA_HOME
+        echo "=== java -version ==="
+        java -version 2>&1 || true
+        echo "=== gradle --version (wrapper) ==="
+        ./gradlew --version || true
+        echo "=== sdkmanager --version ==="
+        sdkmanager --version || true
+
     - name: Export Variables (Draft)
       if: github.event_name != 'workflow_dispatch' || inputs.releaseTag == 'Draft'
       run: |
@@ -107,7 +120,17 @@ jobs:
         CMAKE_C_COMPILER_LAUNCHER: "ccache"
         CMAKE_CXX_COMPILER_LAUNCHER: "ccache"
       run: |
-        ./gradlew assembleRelease
+        set -x
+        ./gradlew assembleRelease --stacktrace --info 2>&1 | tee gradle-build.log
+        BUILD_EXIT=${PIPESTATUS[0]}
+        if [ $BUILD_EXIT -ne 0 ]; then
+          echo "Gradle build failed with code $BUILD_EXIT - uploading log"
+          ls -la
+          cat gradle-build.log | tail -n 200 || true
+          # upload log as an artifact for debugging
+          echo "::set-output name=build-log::gradle-build.log" || true
+          exit $BUILD_EXIT
+        fi
   
     - name: Build release artifacts
       uses: actions/upload-artifact@v4
