@@ -111,6 +111,7 @@ add_subdirectory(${CMAKE_SOURCE_DIR}/.. rpcsx EXCLUDE_FROM_ALL)
 
 add_library(${CMAKE_PROJECT_NAME} SHARED
     src/rpcsx-android.cpp
+    src/cutscene_bridge.cpp
 )
 
 target_link_libraries(${CMAKE_PROJECT_NAME}

@@ -5,7 +5,10 @@
 
 namespace rsx
 {
-	constexpr u32 min_lockable_data_size = 4096; // Increasing this value has worse results even on systems with pages > 4k
+	static inline u32 min_lockable_data_size()
+	{
+		return static_cast<u32>(utils::get_page_size());
+	} // Using runtime page size to adapt to 16K pages on some Android ARM64 devices
 
 	void buffered_section::init_lockable_range(const address_range& range)
 	{
@@ -29,7 +32,7 @@ namespace rsx
 
 		init_lockable_range(cpu_range);
 
-		if (memory_range.length() < min_lockable_data_size)
+		if (memory_range.length() < min_lockable_data_size())
 		{
 			protection_strat = section_protection_strategy::hash;
 			mem_hash = 0;

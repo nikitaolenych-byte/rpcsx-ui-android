@@ -21,6 +21,7 @@ import java.io.File
 import kotlin.concurrent.thread
 import net.rpcsx.utils.safeNativeCall
 import net.rpcsx.utils.safeSettingsSet
+import net.rpcsx.media.CutsceneBridge
 
 class MainActivity : ComponentActivity() {
     private lateinit var unregisterUsbEventListener: () -> Unit
@@ -28,6 +29,13 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         GeneralSettings.init(this)
+
+        // Initialize CutsceneBridge so native code can request playback
+        try {
+            CutsceneBridge.init(applicationContext)
+        } catch (e: Throwable) {
+            // Non-fatal
+        }
 
         WindowCompat.setDecorFitsSystemWindows(window, false)
 

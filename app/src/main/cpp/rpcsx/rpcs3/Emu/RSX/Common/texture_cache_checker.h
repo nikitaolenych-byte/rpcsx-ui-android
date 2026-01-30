@@ -3,6 +3,8 @@
 #ifdef TEXTURE_CACHE_DEBUG
 
 #include "../rsx_utils.h"
+#include <vector>
+#include "util/vm.hpp"
 
 namespace rsx
 {
@@ -82,36 +84,48 @@ namespace rsx
 		};
 		static_assert(sizeof(per_page_info_t) <= 4, "page_info_elmnt must be less than 4-bytes in size");
 
-		// 4GB memory space / 4096 bytes per page = 1048576 pages
-		// Initialized to utils::protection::rw
-		static constexpr usz num_pages = 0x1'0000'0000 / 4096;
-		per_page_info_t _info[num_pages]{0};
+		// Runtime page-size-aware storage for per-page info
+		size_t page_size_;
+		size_t num_pages_;
+		std::vector<per_page_info_t> _info; // allocated at runtime
+
+		tex_cache_checker_t()
+		{
+			page_size_ = static_cast<size_t>(utils::get_page_size());
+			num_pages_ = 0x1'0000'0000u / page_size_;
+			_info.resize(num_pages_);
+		}
 
 		static_assert(static_cast<u32>(utils::protection::rw) == 0, "utils::protection::rw must have value 0 for the above constructor to work");
 
-		static constexpr usz rsx_address_to_index(u32 address)
+		inline usz rsx_address_to_index(u32 address) const
 		{
-			return (address / 4096);
+			return (address / static_cast<u32>(page_size_));
 		}
 
-		static constexpr u32 index_to_rsx_address(usz idx)
+		inline u32 index_to_rsx_address(usz idx) const
 		{
-			return static_cast<u32>(idx * 4096);
+			return static_cast<u32>(idx * page_size_);
 		}
 
-		constexpr per_page_info_t* rsx_address_to_info_pointer(u32 address)
+		inline per_page_info_t* rsx_address_to_info_pointer(u32 address)
 		{
 			return &(_info[rsx_address_to_index(address)]);
 		}
 
-		constexpr const per_page_info_t* rsx_address_to_info_pointer(u32 address) const
+		inline const per_page_info_t* rsx_address_to_info_pointer(u32 address) const
 		{
 			return &(_info[rsx_address_to_index(address)]);
 		}
 
-		constexpr u32 info_pointer_to_address(const per_page_info_t* ptr) const
+		inline u32 info_pointer_to_address_index(const per_page_info_t* ptr) const
 		{
-			return index_to_rsx_address(static_cast<usz>(ptr - _info));
+			return static_cast<u32>(ptr - _info.data());
+		}
+
+		inline u32 info_index_to_rsx_address(usz idx) const
+		{
+			return index_to_rsx_address(idx);
 		}
 
 		std::string prot_to_str(utils::protection prot) const
@@ -131,9 +145,11 @@ namespace rsx
 			AUDIT(range.is_page_range());
 			AUDIT(prot == utils::protection::no || prot == utils::protection::ro || prot == utils::protection::rw);
 
-			for (per_page_info_t* ptr = rsx_address_to_info_pointer(range.start); ptr <= rsx_address_to_info_pointer(range.end); ptr++)
+			const usz start = rsx_address_to_index(range.start);
+			const usz end = rsx_address_to_index(range.end);
+			for (usz i = start; i <= end; ++i)
 			{
-				ptr->set_protection(prot);
+				_info[i].set_protection(prot);
 			}
 		}
 
@@ -144,9 +160,9 @@ namespace rsx
 
 		void reset_refcount()
 		{
-			for (per_page_info_t* ptr = rsx_address_to_info_pointer(0); ptr <= rsx_address_to_info_pointer(0xFFFFFFFF); ptr++)
+			for (usz i = 0; i < num_pages_; ++i)
 			{
-				ptr->reset_refcount();
+				_info[i].reset_refcount();
 			}
 		}
 
@@ -155,9 +171,11 @@ namespace rsx
 			AUDIT(range.is_page_range());
 			AUDIT(prot == utils::protection::no || prot == utils::protection::ro);
 
-			for (per_page_info_t* ptr = rsx_address_to_info_pointer(range.start); ptr <= rsx_address_to_info_pointer(range.end); ptr++)
+			const usz start = rsx_address_to_index(range.start);
+			const usz end = rsx_address_to_index(range.end);
+			for (usz i = start; i <= end; ++i)
 			{
-				ptr->add(prot);
+				_info[i].add(prot);
 			}
 		}
 
@@ -166,9 +184,11 @@ namespace rsx
 			AUDIT(range.is_page_range());
 			AUDIT(prot == utils::protection::no || prot == utils::protection::ro);
 
-			for (per_page_info_t* ptr = rsx_address_to_info_pointer(range.start); ptr <= rsx_address_to_info_pointer(range.end); ptr++)
+			const usz start = rsx_address_to_index(range.start);
+			const usz end = rsx_address_to_index(range.end);
+			for (usz i = start; i <= end; ++i)
 			{
-				ptr->remove(prot);
+				_info[i].remove(prot);
 			}
 		}
 
@@ -180,10 +200,12 @@ namespace rsx
 
 			u8 no = 0;
 			u8 ro = 0;
-			for (const per_page_info_t* ptr = rsx_address_to_info_pointer(range.start); ptr <= rsx_address_to_info_pointer(range.end); ptr++)
+			const usz start = rsx_address_to_index(range.start);
+			const usz end = rsx_address_to_index(range.end);
+			for (usz i = start; i <= end; ++i)
 			{
-				no = std::max(no, ptr->no);
-				ro = std::max(ro, ptr->ro);
+				no = std::max(no, _info[i].no);
+				ro = std::max(ro, _info[i].ro);
 			}
 
 			return {no, ro};
@@ -192,32 +214,33 @@ namespace rsx
 		void check_unprotected(const address_range& range, bool allow_ro = false, bool must_be_empty = true) const
 		{
 			AUDIT(range.is_page_range());
-			for (const per_page_info_t* ptr = rsx_address_to_info_pointer(range.start); ptr <= rsx_address_to_info_pointer(range.end); ptr++)
+			const usz start = rsx_address_to_index(range.start);
+			const usz end = rsx_address_to_index(range.end);
+			for (usz i = start; i <= end; ++i)
 			{
-				const auto prot = ptr->get_protection();
+				const auto prot = _info[i].get_protection();
 				if (prot != utils::protection::rw && (!allow_ro || prot != utils::protection::ro))
 				{
-					const u32 addr = info_pointer_to_address(ptr);
-					fmt::throw_exception("Page at addr=0x%8x should be RW%s: Prot=%s, RO=%d, NA=%d", addr, allow_ro ? " or RO" : "", prot_to_str(prot), ptr->ro, ptr->no);
+					const u32 addr = info_index_to_rsx_address(i);
+					fmt::throw_exception("Page at addr=0x%8x should be RW%s: Prot=%s, RO=%d, NA=%d", addr, allow_ro ? " or RO" : "", prot_to_str(prot), _info[i].ro, _info[i].no);
 				}
 
-				if (must_be_empty && (ptr->no > 0 ||
-										 (!allow_ro && ptr->ro > 0)))
+				if (must_be_empty && (_info[i].no > 0 || (!allow_ro && _info[i].ro > 0)))
 				{
-					const u32 addr = info_pointer_to_address(ptr);
-					fmt::throw_exception("Page at addr=0x%8x should not have any NA%s sections: Prot=%s, RO=%d, NA=%d", addr, allow_ro ? " or RO" : "", prot_to_str(prot), ptr->ro, ptr->no);
+					const u32 addr = info_index_to_rsx_address(i);
+					fmt::throw_exception("Page at addr=0x%8x should not have any NA%s sections: Prot=%s, RO=%d, NA=%d", addr, allow_ro ? " or RO" : "", prot_to_str(prot), _info[i].ro, _info[i].no);
 				}
 			}
 		}
 
 		void verify() const
 		{
-			for (usz idx = 0; idx < num_pages; idx++)
+			for (usz idx = 0; idx < num_pages_; idx++)
 			{
 				auto& elmnt = _info[idx];
 				if (!elmnt.verify())
 				{
-					const u32 addr = index_to_rsx_address(idx);
+					const u32 addr = info_index_to_rsx_address(idx);
 					const utils::protection prot = elmnt.get_protection();
 					fmt::throw_exception("Protection verification failed at addr=0x%x: Prot=%s, RO=%d, NA=%d", addr, prot_to_str(prot), elmnt.ro, elmnt.no);
 				}

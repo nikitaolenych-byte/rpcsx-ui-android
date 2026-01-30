@@ -34,7 +34,13 @@ class GraphicsFrame : SurfaceView, SurfaceHolder.Callback {
     }
 
     override fun surfaceCreated(p0: SurfaceHolder) {
+        // Inform native layer about the surface and also provide it to CutscenePlayer
         safeNativeCall { RPCSX.instance.surfaceEvent(p0.surface, 0) }
+        try {
+            net.rpcsx.media.CutscenePlayer.setSurface(p0.surface)
+        } catch (e: Throwable) {
+            android.util.Log.w("GraphicsFrame", "Failed to set cutscene surface", e)
+        }
     }
 
     override fun surfaceChanged(p0: SurfaceHolder, p1: Int, p2: Int, p3: Int) {
@@ -43,5 +49,10 @@ class GraphicsFrame : SurfaceView, SurfaceHolder.Callback {
 
     override fun surfaceDestroyed(p0: SurfaceHolder) {
         safeNativeCall { RPCSX.instance.surfaceEvent(p0.surface, 2) }
+        try {
+            net.rpcsx.media.CutscenePlayer.setSurface(null)
+        } catch (e: Throwable) {
+            android.util.Log.w("GraphicsFrame", "Failed to clear cutscene surface", e)
+        }
     }
 }

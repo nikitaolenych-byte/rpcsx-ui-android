@@ -539,6 +539,11 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* /* reserved */) {
   }
 
   rpcsx::crash::InstallSignalHandlers();
+
+  // Inform cutscene bridge (and other modules) about JavaVM
+  extern void rpcsx_set_jvm(JavaVM* vm);
+  rpcsx_set_jvm(vm);
+
   return JNI_VERSION_1_6;
 }
 

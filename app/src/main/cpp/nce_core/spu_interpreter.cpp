@@ -207,12 +207,20 @@ void SPUInterpreter::LQD(SPUState& state, SPUInstruction inst) {
     
     // Load 128-bit from Local Store (Big Endian)
     uint8_t* src = state.local_store + addr;
-    // SIMD copy for 16 bytes
+    // SIMD load and byte-reverse using NEON for Big Endian
+#if defined(__ARM_NEON) || defined(__aarch64__)
+    uint8x16_t v = vld1q_u8(src);
+    // Reverse within 8-byte lanes then swap halves to get full 16-byte reverse
+    uint8x16_t rev = vrev64q_u8(v);
+    rev = vextq_u8(rev, rev, 8);
+    vst1q_u8(state.gpr[rt].u8, rev);
+#else
+    // Fallback: SIMD copy for 16 bytes then scalar reverse
     rpcsx::simd::memcpy_simd(state.gpr[rt].u8, src, 16);
-    // Reverse for Big Endian
     for (int i = 0; i < 8; i++) {
         std::swap(state.gpr[rt].u8[i], state.gpr[rt].u8[15 - i]);
     }
+#endif
 }
 
 void SPUInterpreter::LQX(SPUState& state, SPUInstruction inst) {
@@ -223,10 +231,17 @@ void SPUInterpreter::LQX(SPUState& state, SPUInstruction inst) {
     uint32_t addr = (state.gpr[ra].u32[3] + state.gpr[rb].u32[3]) & 0x3FFF0;
     
     uint8_t* src = state.local_store + addr;
+#if defined(__ARM_NEON) || defined(__aarch64__)
+    uint8x16_t v = vld1q_u8(src);
+    uint8x16_t rev = vrev64q_u8(v);
+    rev = vextq_u8(rev, rev, 8);
+    vst1q_u8(state.gpr[rt].u8, rev);
+#else
     rpcsx::simd::memcpy_simd(state.gpr[rt].u8, src, 16);
     for (int i = 0; i < 8; i++) {
         std::swap(state.gpr[rt].u8[i], state.gpr[rt].u8[15 - i]);
     }
+#endif
 }
 
 void SPUInterpreter::STQD(SPUState& state, SPUInstruction inst) {
@@ -237,10 +252,17 @@ void SPUInterpreter::STQD(SPUState& state, SPUInstruction inst) {
     uint32_t addr = (state.gpr[ra].u32[3] + (i10 << 4)) & 0x3FFF0;
     
     uint8_t* dst = state.local_store + addr;
-    // Reverse for Big Endian
+    // SIMD store with byte-reverse using NEON for Big Endian
+#if defined(__ARM_NEON) || defined(__aarch64__)
+    uint8x16_t v = vld1q_u8(state.gpr[rt].u8);
+    uint8x16_t rev = vrev64q_u8(v);
+    rev = vextq_u8(rev, rev, 8);
+    vst1q_u8(dst, rev);
+#else
     uint8_t tmp[16];
     for (int i = 0; i < 16; i++) tmp[i] = state.gpr[rt].u8[15 - i];
     rpcsx::simd::memcpy_simd(dst, tmp, 16);
+#endif
 }
 
 void SPUInterpreter::STQX(SPUState& state, SPUInstruction inst) {
@@ -251,9 +273,16 @@ void SPUInterpreter::STQX(SPUState& state, SPUInstruction inst) {
     uint32_t addr = (state.gpr[ra].u32[3] + state.gpr[rb].u32[3]) & 0x3FFF0;
     
     uint8_t* dst = state.local_store + addr;
+#if defined(__ARM_NEON) || defined(__aarch64__)
+    uint8x16_t v = vld1q_u8(state.gpr[rt].u8);
+    uint8x16_t rev = vrev64q_u8(v);
+    rev = vextq_u8(rev, rev, 8);
+    vst1q_u8(dst, rev);
+#else
     uint8_t tmp[16];
     for (int i = 0; i < 16; i++) tmp[i] = state.gpr[rt].u8[15 - i];
     rpcsx::simd::memcpy_simd(dst, tmp, 16);
+#endif
 }
 
 // ============================================================================
