@@ -5,6 +5,10 @@
 #include "cellSail.h"
 #include "cellPamf.h"
 
+// Bridge to Android playback (implemented in rpcsx/android/src/cutscene_bridge.cpp)
+extern "C" void rpcsx_request_playback(const char* path);
+extern "C" void rpcsx_request_stop();
+
 LOG_CHANNEL(cellSail);
 
 template <>
@@ -835,7 +839,8 @@ error_code cellSailPlayerCreateDescriptor(vm::ptr<CellSailPlayer> pSelf, s32 str
 		std::string uri = pUri.get_ptr();
 		if (uri.starts_with("x-cell-fs://"))
 		{
-			if (fs::file f{vfs::get(uri.substr(12))})
+			std::string vfsPath = vfs::get(uri.substr(12));
+			if (fs::file f{vfsPath})
 			{
 				u32 size = ::size32(f);
 				u32 buffer = vm::alloc(size, vm::main);
@@ -848,6 +853,13 @@ error_code cellSailPlayerCreateDescriptor(vm::ptr<CellSailPlayer> pSelf, s32 str
 
 				descriptor->buffer = buffer;
 				descriptor->sp_ = sp_;
+
+				// Notify Android to play the movie file (best-effort)
+				try {
+					rpcsx_request_playback(vfsPath.c_str());
+				} catch (...) {
+					cellSail.warning("rpcsx_request_playback threw while trying to play %s", vfsPath.c_str());
+				}
 			}
 			else
 			{
@@ -887,6 +899,15 @@ error_code cellSailPlayerRemoveDescriptor(vm::ptr<CellSailPlayer> pSelf, vm::ptr
 		// TODO: Figure out how properly free a descriptor. Use game specified memory dealloc function?
 		// delete &pSelf->registeredDescriptors[pSelf->descriptors];
 		pSelf->descriptors--;
+
+		// If we've removed the last descriptor, notify Android to stop playback
+		if (pSelf->descriptors == 0) {
+			try {
+				rpcsx_request_stop();
+			} catch(...) {
+				cellSail.warning("rpcsx_request_stop threw while removing descriptor");
+			}
+		}
 	}
 
 	return pSelf->descriptors;
