@@ -14,6 +14,10 @@ object CutsceneBridge {
         Log.i(TAG, "Initialized CutsceneBridge with application context")
     }
 
+    // Expose application context for compatibility helpers
+    @JvmStatic
+    fun getAppContext(): Context? = appContext
+
     @JvmStatic
     fun playFromNative(path: String) {
         val ctx = appContext ?: run {

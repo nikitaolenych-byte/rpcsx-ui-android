@@ -18,7 +18,42 @@ object CutscenePlayer {
         try {
             val useSurface = surface ?: pendingSurface.get()
             if (useSurface != null) mp.setSurface(useSurface)
-            mp.setDataSource(path)
+            // Better compatibility: prefer Uri/FileDescriptor when possible
+            val ctx = CutsceneBridge.getAppContext()
+            var dataSet = false
+            try {
+                if (ctx != null) {
+                    val uri = when {
+                        path.startsWith("content://") -> android.net.Uri.parse(path)
+                        path.startsWith("file://") -> android.net.Uri.parse(path)
+                        path.startsWith("http://") || path.startsWith("https://") -> android.net.Uri.parse(path)
+                        else -> null
+                    }
+
+                    if (uri != null) {
+                        try {
+                            if (uri.scheme == "content" || uri.scheme == "file") {
+                                val afd = ctx.contentResolver.openFileDescriptor(uri, "r")
+                                if (afd != null) {
+                                    try {
+                                        mp.setDataSource(afd.fileDescriptor)
+                                        dataSet = true
+                                    } finally {
+                                        try { afd.close() } catch (_: Throwable) {}
+                                    }
+                                }
+                            } else {
+                                mp.setDataSource(ctx, uri)
+                                dataSet = true
+                            }
+                        } catch (_: Throwable) {
+                            // fallback to direct path below
+                        }
+                    }
+                }
+            } catch (_: Throwable) {}
+
+            if (!dataSet) mp.setDataSource(path)
             mp.isLooping = false
             mp.setOnPreparedListener {
                 try {
@@ -43,6 +78,19 @@ object CutscenePlayer {
         } catch (e: IOException) {
             Log.e(TAG, "Failed to set data source: ${e.message}")
             mp.release()
+            // As last resort, try launching external player via Intent
+            try {
+                val ctx = CutsceneBridge.getAppContext()
+                if (ctx != null) {
+                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                        setDataAndType(android.net.Uri.parse(path), "video/*")
+                        addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    ctx.startActivity(intent)
+                    return
+                }
+            } catch (_: Throwable) {}
+
             onComplete?.invoke()
         }
     }
