@@ -104,6 +104,49 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+# Optional TensorFlow Lite integration for NBTC
+option(NBTC_WITH_TFLITE "Enable TensorFlow Lite support for NBTC (requires TFLITE_DIR or jniLibs)" OFF)
+if(NBTC_WITH_TFLITE)
+    # Prefer explicit TFLITE_DIR if provided
+    if(DEFINED TFLITE_DIR)
+        message(STATUS "NBTC: TFLite enabled, using TFLITE_DIR=${TFLITE_DIR}")
+        target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${TFLITE_DIR}/include)
+        if(EXISTS "${TFLITE_DIR}/lib/libtensorflowlite_c.so")
+            target_link_libraries(${CMAKE_PROJECT_NAME} PUBLIC ${TFLITE_DIR}/lib/libtensorflowlite_c.so)
+            target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE HAVE_TFLITE=1)
+        else()
+            message(WARNING "NBTC: libtensorflowlite_c.so not found under TFLITE_DIR/lib; will try jniLibs fallback")
+        endif()
+    endif()
+
+    # If not set via TFLITE_DIR, check for prebuilt .so in app's jniLibs for current ABI
+    if(NOT DEFINED HAVE_TFLITE)
+        if(DEFINED ANDROID_ABI)
+            set(JNILIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../jniLibs/${ANDROID_ABI}")
+            set(JNILIB_PATH "${JNILIB_DIR}/libtensorflowlite_c.so")
+            if(EXISTS "${JNILIB_PATH}")
+                message(STATUS "NBTC: Found libtensorflowlite_c.so in jniLibs (${JNILIB_PATH}) — linking")
+                target_link_libraries(${CMAKE_PROJECT_NAME} PUBLIC ${JNILIB_PATH})
+                target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE HAVE_TFLITE=1)
+                # Also add include hint if a common include exists next to jniLibs
+                if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../jniLibs/include")
+                    target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../jniLibs/include)
+                endif()
+            else()
+                message(WARNING "NBTC: libtensorflowlite_c.so not found in jniLibs for ABI ${ANDROID_ABI} (${JNILIB_PATH})")
+            endif()
+        else()
+            message(WARNING "NBTC: ANDROID_ABI not defined; cannot probe jniLibs for prebuilt TFLite library")
+        endif()
+    endif()
+
+    if(NOT DEFINED HAVE_TFLITE)
+        message(WARNING "NBTC: TensorFlow Lite not found — NBTC will run in prototype mode")
+    endif()
+else()
+    message(STATUS "NBTC: TensorFlow Lite integration disabled (NBTC_WITH_TFLITE=OFF)")
+endif()
+
 message(STATUS "==================================================")
 message(STATUS "RPCSX Android Build Configuration")
 message(STATUS "==================================================")

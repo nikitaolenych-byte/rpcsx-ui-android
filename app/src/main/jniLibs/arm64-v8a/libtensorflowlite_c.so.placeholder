@@ -1,0 +1,3 @@
+PLACEHOLDER for libtensorflowlite_c.so (arm64-v8a)
+Replace this file with the real libtensorflowlite_c.so for arm64-v8a.
+Do not leave this placeholder for real builds.
