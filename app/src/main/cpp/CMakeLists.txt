@@ -68,6 +68,8 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
     ppu_interceptor.cpp
     nce_hook.cpp
     rpcsx/android/src/cutscene_bridge.cpp
+    rpcsx/android/src/nbtc_engine.cpp
+    rpcsx/android/src/nbtc_jni.cpp
 )
 
 # Apply optimization flags
