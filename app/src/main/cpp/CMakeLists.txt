@@ -72,6 +72,16 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
     nbtc_engine/nbtc_engine.cpp
 )
 
+# If NBTC_WITH_TFLITE requested but no system or jniLibs lib found, compile a small stub
+if(NBTC_WITH_TFLITE)
+    if(NOT DEFINED HAVE_TFLITE)
+        message(STATUS "NBTC: No system TFLite libs found — compiling stub implementation to allow builds")
+        target_sources(${CMAKE_PROJECT_NAME} PRIVATE tflite_stub/tflite_stub.c)
+        target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tflite_stub)
+        target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE HAVE_TFLITE=1)
+    endif()
+endif()
+
 # Apply optimization flags
 target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE
     $<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>>:${OPT_FLAGS}>
