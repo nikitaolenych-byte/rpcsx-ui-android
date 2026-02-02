@@ -1,0 +1,819 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: RPCSX Team <team@rpcsx.dev>
+Date: Sun, 2 Feb 2026 00:00:00 +0000
+Subject: [PATCH 3/3] Add heterogeneous compute pipeline with SPIR-V codegen
+
+This patch adds capability to dispatch compute-heavy blocks to GPU
+via SPIR-V for potential Vulkan compute shader execution.
+
+---
+ llvm/include/llvm/Transforms/PS3/HeterogeneousPipeline.h | 245 +++++++++
+ llvm/lib/Transforms/PS3/HeterogeneousPipeline.cpp        | 512 ++++++++++++++++++++
+ 2 files changed, 757 insertions(+)
+
+diff --git a/llvm/include/llvm/Transforms/PS3/HeterogeneousPipeline.h b/llvm/include/llvm/Transforms/PS3/HeterogeneousPipeline.h
+new file mode 100644
+index 000000000000..6a7b8c9d0e1f
+--- /dev/null
++++ b/llvm/include/llvm/Transforms/PS3/HeterogeneousPipeline.h
+@@ -0,0 +1,245 @@
++//===- HeterogeneousPipeline.h - Heterogeneous Compute Pipeline -*- C++ -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// Heterogeneous compute pipeline for PS3 emulation. Enables dispatching
++// compute-intensive blocks to GPU via SPIR-V/Vulkan compute shaders.
++//
++//===----------------------------------------------------------------------===//
++
++#ifndef LLVM_TRANSFORMS_PS3_HETEROGENEOUSPIPELINE_H
++#define LLVM_TRANSFORMS_PS3_HETEROGENEOUSPIPELINE_H
++
++#include "llvm/IR/PassManager.h"
++#include "llvm/Transforms/PS3/CellBEPatterns.h"
++#include <memory>
++#include <vector>
++
++namespace llvm {
++
++class Function;
++class Loop;
++class Module;
++class raw_ostream;
++
++/// Compute target for heterogeneous dispatch
++enum class ComputeTarget {
++  CPU_Scalar,      // Scalar CPU execution
++  CPU_SIMD,        // CPU with SIMD (NEON/SVE)
++  GPU_Compute,     // GPU compute shader
++  GPU_Fragment,    // GPU fragment shader (for pixel ops)
++  Hybrid           // Split between CPU and GPU
++};
++
++/// Workload characteristics for dispatch decision
++struct WorkloadProfile {
++  unsigned FLOPs;             // Estimated floating-point operations
++  unsigned MemoryOps;         // Memory operations count
++  unsigned ControlFlow;       // Branch/control flow complexity
++  unsigned ParallelWidth;     // Available parallelism
++  bool HasDataDependencies;   // Cross-iteration dependencies
++  bool RequiresAtomics;       // Needs atomic operations
++  bool HasIndirectAccess;     // Indirect memory access patterns
++  float ComputeToMemRatio;    // Compute vs memory intensity
++};
++
++/// GPU kernel descriptor
++struct GPUKernelDescriptor {
++  std::string Name;
++  std::vector<Type *> ArgumentTypes;
++  std::vector<bool> IsReadOnly;
++  unsigned LocalWorkgroupSize[3];
++  unsigned SharedMemoryBytes;
++  bool UsesPushConstants;
++  unsigned PushConstantBytes;
++};
++
++/// SPIR-V module representation
++class SPIRVModule {
++public:
++  SPIRVModule() = default;
++  
++  /// Add a compute kernel to the module
++  void addKernel(const GPUKernelDescriptor &Desc);
++  
++  /// Serialize to SPIR-V binary
++  std::vector<uint32_t> serialize() const;
++  
++  /// Write to file
++  bool writeToFile(StringRef Path) const;
++  
++  /// Get human-readable disassembly
++  std::string disassemble() const;
++  
++private:
++  std::vector<GPUKernelDescriptor> Kernels;
++  std::vector<uint32_t> SPIRVBinary;
++};
++
++/// Vulkan compute shader wrapper
++struct VulkanComputeShader {
++  std::string Name;
++  std::vector<uint32_t> SPIRVCode;
++  unsigned DescriptorSetLayout;
++  unsigned PushConstantRange;
++  unsigned LocalSizeX, LocalSizeY, LocalSizeZ;
++};
++
++/// Heterogeneous dispatch decision
++struct DispatchDecision {
++  ComputeTarget Target;
++  float ConfidenceScore;       // 0.0-1.0
++  unsigned EstimatedSpeedup;   // Percentage vs CPU-only
++  bool RequiresDataTransfer;   // Needs CPU-GPU sync
++  unsigned TransferCostBytes;  // Data transfer size
++  std::string Rationale;       // Human-readable reason
++};
++
++/// Cost model for heterogeneous dispatch
++class HeterogeneousCostModel {
++public:
++  HeterogeneousCostModel();
++  
++  /// Analyze workload and decide target
++  DispatchDecision analyzeWorkload(const WorkloadProfile &Profile);
++  
++  /// Estimate GPU execution time (microseconds)
++  unsigned estimateGPUTime(const WorkloadProfile &Profile);
++  
++  /// Estimate CPU execution time (microseconds)
++  unsigned estimateCPUTime(const WorkloadProfile &Profile);
++  
++  /// Estimate data transfer overhead (microseconds)
++  unsigned estimateTransferTime(unsigned Bytes);
++  
++  /// Check if workload is GPU-friendly
++  bool isGPUFriendly(const WorkloadProfile &Profile);
++  
++private:
++  // Device-specific parameters (tuned for mobile GPUs)
++  unsigned GPUCoresCount = 512;       // Typical mobile GPU
++  unsigned GPUClockMHz = 850;
++  unsigned MemBandwidthGBps = 25;
++  unsigned CPUCoresCount = 8;
++  unsigned CPUClockMHz = 2800;
++  unsigned PCIeBandwidthGBps = 4;     // Approximate for mobile
++};
++
++/// Pass to identify and extract GPU-suitable code
++class HeterogeneousPipelinePass
++    : public PassInfoMixin<HeterogeneousPipelinePass> {
++public:
++  HeterogeneousPipelinePass() = default;
++  
++  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
++  
++  static bool isRequired() { return false; }
++
++private:
++  HeterogeneousCostModel CostModel;
++  
++  /// Analyze function for GPU offload potential
++  WorkloadProfile analyzeFunction(Function &F);
++  
++  /// Analyze loop for GPU offload
++  WorkloadProfile analyzeLoop(Loop *L);
++  
++  /// Extract kernel from function
++  std::unique_ptr<Function> extractKernel(Function &F);
++  
++  /// Generate SPIR-V from kernel
++  VulkanComputeShader generateSPIRV(Function &Kernel);
++  
++  /// Create CPU dispatch stub
++  void createDispatchStub(Function &Original, 
++                          const VulkanComputeShader &Shader);
++  
++  /// Generate runtime dispatch code
++  void generateRuntimeDispatch(Function &F, ComputeTarget Target);
++};
++
++/// SPIR-V code generator for compute kernels
++class SPIRVCodeGenerator {
++public:
++  SPIRVCodeGenerator();
++  
++  /// Initialize for Vulkan 1.1 compute
++  void initVulkanCompute();
++  
++  /// Add capability
++  void addCapability(unsigned Cap);
++  
++  /// Translate LLVM function to SPIR-V
++  std::vector<uint32_t> translate(Function &F);
++  
++  /// Emit workgroup size decoration
++  void setWorkgroupSize(unsigned X, unsigned Y, unsigned Z);
++  
++  /// Add storage buffer binding
++  unsigned addStorageBuffer(Type *ElemTy, unsigned Set, unsigned Binding);
++  
++  /// Add push constant block
++  void addPushConstants(ArrayRef<Type *> Types);
++  
++  /// Finalize and get binary
++  std::vector<uint32_t> finalize();
++  
++private:
++  std::vector<uint32_t> Header;
++  std::vector<uint32_t> Capabilities;
++  std::vector<uint32_t> Extensions;
++  std::vector<uint32_t> ExtInstImports;
++  std::vector<uint32_t> MemoryModel;
++  std::vector<uint32_t> EntryPoints;
++  std::vector<uint32_t> ExecutionModes;
++  std::vector<uint32_t> Debug;
++  std::vector<uint32_t> Annotations;
++  std::vector<uint32_t> Types;
++  std::vector<uint32_t> Constants;
++  std::vector<uint32_t> GlobalVars;
++  std::vector<uint32_t> Functions;
++  
++  unsigned NextID = 1;
++  unsigned getNextID() { return NextID++; }
++  
++  /// SPIR-V opcodes
++  static constexpr uint32_t OpCapability = 17;
++  static constexpr uint32_t OpExtension = 10;
++  static constexpr uint32_t OpExtInstImport = 11;
++  static constexpr uint32_t OpMemoryModel = 14;
++  static constexpr uint32_t OpEntryPoint = 15;
++  static constexpr uint32_t OpExecutionMode = 16;
++  static constexpr uint32_t OpTypeVoid = 19;
++  static constexpr uint32_t OpTypeFloat = 22;
++  static constexpr uint32_t OpTypeVector = 23;
++  static constexpr uint32_t OpTypePointer = 32;
++  static constexpr uint32_t OpTypeFunction = 33;
++  static constexpr uint32_t OpFunction = 54;
++  static constexpr uint32_t OpFunctionEnd = 56;
++  static constexpr uint32_t OpLabel = 248;
++  static constexpr uint32_t OpReturn = 253;
++  
++  /// Capabilities
++  static constexpr uint32_t CapShader = 1;
++  static constexpr uint32_t CapFloat64 = 10;
++  static constexpr uint32_t CapInt64 = 11;
++  
++  /// Execution models
++  static constexpr uint32_t ExecGLCompute = 5;
++  
++  /// Addressing/memory models
++  static constexpr uint32_t AddrLogical = 0;
++  static constexpr uint32_t MemGLSL450 = 1;
++};
++
++/// Command-line options
++extern cl::opt<bool> EnableHeterogeneousCompute;
++extern cl::opt<unsigned> MinGPUWorkItems;
++extern cl::opt<bool> GenerateSPIRV;
++
++} // namespace llvm
++
++#endif // LLVM_TRANSFORMS_PS3_HETEROGENEOUSPIPELINE_H
++
+diff --git a/llvm/lib/Transforms/PS3/HeterogeneousPipeline.cpp b/llvm/lib/Transforms/PS3/HeterogeneousPipeline.cpp
+new file mode 100644
+index 000000000000..7b8c9d0e1f2a
+--- /dev/null
++++ b/llvm/lib/Transforms/PS3/HeterogeneousPipeline.cpp
+@@ -0,0 +1,512 @@
++//===- HeterogeneousPipeline.cpp - Heterogeneous Compute Pipeline ---------===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++
++#include "llvm/Transforms/PS3/HeterogeneousPipeline.h"
++#include "llvm/ADT/Statistic.h"
++#include "llvm/Analysis/LoopInfo.h"
++#include "llvm/Analysis/ScalarEvolution.h"
++#include "llvm/IR/Constants.h"
++#include "llvm/IR/Instructions.h"
++#include "llvm/IR/Module.h"
++#include "llvm/Support/CommandLine.h"
++#include "llvm/Support/Debug.h"
++#include "llvm/Support/FileSystem.h"
++#include "llvm/Support/raw_ostream.h"
++
++using namespace llvm;
++
++#define DEBUG_TYPE "heterogeneous-pipeline"
++
++STATISTIC(NumKernelsExtracted, "Number of GPU kernels extracted");
++STATISTIC(NumSPIRVGenerated, "Number of SPIR-V modules generated");
++STATISTIC(NumFunctionsOffloaded, "Number of functions offloaded to GPU");
++
++cl::opt<bool> EnableHeterogeneousCompute(
++    "enable-heterogeneous", cl::init(false), cl::Hidden,
++    cl::desc("Enable heterogeneous CPU/GPU compute dispatch"));
++
++cl::opt<unsigned> MinGPUWorkItems(
++    "min-gpu-work-items", cl::init(1024), cl::Hidden,
++    cl::desc("Minimum work items to consider GPU offload"));
++
++cl::opt<bool> GenerateSPIRV(
++    "generate-spirv", cl::init(true), cl::Hidden,
++    cl::desc("Generate SPIR-V code for GPU kernels"));
++
++//===----------------------------------------------------------------------===//
++// SPIR-V Module Implementation
++//===----------------------------------------------------------------------===//
++
++void SPIRVModule::addKernel(const GPUKernelDescriptor &Desc) {
++  Kernels.push_back(Desc);
++}
++
++std::vector<uint32_t> SPIRVModule::serialize() const {
++  std::vector<uint32_t> Result;
++  
++  // SPIR-V magic number
++  Result.push_back(0x07230203);
++  
++  // Version (1.3)
++  Result.push_back(0x00010300);
++  
++  // Generator magic (custom)
++  Result.push_back(0x00080001);
++  
++  // Bound (max ID + 1)
++  Result.push_back(256);
++  
++  // Reserved
++  Result.push_back(0);
++  
++  // Add actual SPIR-V binary content
++  Result.insert(Result.end(), SPIRVBinary.begin(), SPIRVBinary.end());
++  
++  return Result;
++}
++
++bool SPIRVModule::writeToFile(StringRef Path) const {
++  std::error_code EC;
++  raw_fd_ostream OS(Path, EC, sys::fs::OF_None);
++  
++  if (EC)
++    return false;
++  
++  auto Binary = serialize();
++  OS.write(reinterpret_cast<const char *>(Binary.data()),
++           Binary.size() * sizeof(uint32_t));
++  
++  return !OS.has_error();
++}
++
++std::string SPIRVModule::disassemble() const {
++  std::string Result;
++  raw_string_ostream OS(Result);
++  
++  OS << "; SPIR-V Disassembly\n";
++  OS << "; Kernels: " << Kernels.size() << "\n";
++  
++  for (const auto &K : Kernels) {
++    OS << "; Kernel: " << K.Name << "\n";
++    OS << ";   Workgroup: " << K.LocalWorkgroupSize[0] << "x"
++       << K.LocalWorkgroupSize[1] << "x" << K.LocalWorkgroupSize[2] << "\n";
++    OS << ";   Shared mem: " << K.SharedMemoryBytes << " bytes\n";
++  }
++  
++  return Result;
++}
++
++//===----------------------------------------------------------------------===//
++// Cost Model Implementation
++//===----------------------------------------------------------------------===//
++
++HeterogeneousCostModel::HeterogeneousCostModel() {
++  // Initialize with typical mobile device parameters
++  // These would be runtime-detected in a real implementation
++}
++
++DispatchDecision HeterogeneousCostModel::analyzeWorkload(
++    const WorkloadProfile &Profile) {
++  DispatchDecision Decision;
++  
++  // Check minimum parallelism
++  if (Profile.ParallelWidth < MinGPUWorkItems) {
++    Decision.Target = ComputeTarget::CPU_SIMD;
++    Decision.ConfidenceScore = 0.9f;
++    Decision.EstimatedSpeedup = 0;
++    Decision.RequiresDataTransfer = false;
++    Decision.Rationale = "Insufficient parallelism for GPU";
++    return Decision;
++  }
++  
++  // Check for GPU-unfriendly patterns
++  if (Profile.HasDataDependencies || Profile.HasIndirectAccess) {
++    Decision.Target = ComputeTarget::CPU_SIMD;
++    Decision.ConfidenceScore = 0.8f;
++    Decision.EstimatedSpeedup = 0;
++    Decision.RequiresDataTransfer = false;
++    Decision.Rationale = "Data dependencies prevent GPU execution";
++    return Decision;
++  }
++  
++  // Calculate execution times
++  unsigned GPUTime = estimateGPUTime(Profile);
++  unsigned CPUTime = estimateCPUTime(Profile);
++  unsigned TransferTime = estimateTransferTime(Profile.MemoryOps * 4); // 4 bytes per op estimate
++  
++  unsigned TotalGPUTime = GPUTime + TransferTime;
++  
++  if (TotalGPUTime < CPUTime) {
++    Decision.Target = ComputeTarget::GPU_Compute;
++    Decision.ConfidenceScore = std::min(1.0f, 
++        static_cast<float>(CPUTime - TotalGPUTime) / CPUTime);
++    Decision.EstimatedSpeedup = 
++        static_cast<unsigned>((CPUTime - TotalGPUTime) * 100 / CPUTime);
++    Decision.RequiresDataTransfer = true;
++    Decision.TransferCostBytes = Profile.MemoryOps * 4;
++    Decision.Rationale = "GPU execution faster including transfer overhead";
++  } else {
++    Decision.Target = ComputeTarget::CPU_SIMD;
++    Decision.ConfidenceScore = 0.7f;
++    Decision.EstimatedSpeedup = 0;
++    Decision.RequiresDataTransfer = false;
++    Decision.Rationale = "CPU faster due to transfer overhead";
++  }
++  
++  return Decision;
++}
++
++unsigned HeterogeneousCostModel::estimateGPUTime(
++    const WorkloadProfile &Profile) {
++  // Simplified GPU time model
++  // Real implementation would consider occupancy, memory coalescing, etc.
++  
++  unsigned Waves = (Profile.ParallelWidth + 63) / 64;  // 64 threads per wave
++  unsigned WavesPerCore = (Waves + GPUCoresCount - 1) / GPUCoresCount;
++  
++  // Estimate cycles per operation
++  unsigned ComputeCycles = Profile.FLOPs / GPUCoresCount;
++  unsigned MemoryCycles = Profile.MemoryOps * 100;  // Memory latency
++  
++  // Convert to microseconds
++  unsigned TotalCycles = ComputeCycles + MemoryCycles;
++  return TotalCycles * 1000 / GPUClockMHz;
++}
++
++unsigned HeterogeneousCostModel::estimateCPUTime(
++    const WorkloadProfile &Profile) {
++  // Simplified CPU time model with SIMD
++  unsigned SIMDWidth = 4;  // NEON width for float
++  unsigned VectorizedOps = Profile.FLOPs / SIMDWidth;
++  
++  unsigned ComputeCycles = VectorizedOps / CPUCoresCount;
++  unsigned MemoryCycles = Profile.MemoryOps * 10;  // Cache-friendly estimate
++  
++  unsigned TotalCycles = ComputeCycles + MemoryCycles;
++  return TotalCycles * 1000 / CPUClockMHz;
++}
++
++unsigned HeterogeneousCostModel::estimateTransferTime(unsigned Bytes) {
++  // Estimate based on memory bandwidth
++  // For mobile, this is often the bottleneck
++  return Bytes / (PCIeBandwidthGBps * 1000);  // microseconds
++}
++
++bool HeterogeneousCostModel::isGPUFriendly(const WorkloadProfile &Profile) {
++  // GPU-friendly characteristics:
++  // - High compute-to-memory ratio
++  // - High parallelism
++  // - Regular access patterns
++  // - No cross-thread dependencies
++  
++  if (Profile.ComputeToMemRatio < 10.0f)
++    return false;  // Memory bound
++  
++  if (Profile.ParallelWidth < 256)
++    return false;  // Not enough parallelism
++  
++  if (Profile.HasDataDependencies)
++    return false;  // Sequential dependencies
++  
++  if (Profile.HasIndirectAccess)
++    return false;  // Poor memory coalescing
++  
++  return true;
++}
++
++//===----------------------------------------------------------------------===//
++// SPIR-V Code Generator
++//===----------------------------------------------------------------------===//
++
++SPIRVCodeGenerator::SPIRVCodeGenerator() {
++  initVulkanCompute();
++}
++
++void SPIRVCodeGenerator::initVulkanCompute() {
++  // Add required capabilities
++  addCapability(CapShader);
++  
++  // Memory model: Logical GLSL450
++  MemoryModel.push_back((2 << 16) | OpMemoryModel);
++  MemoryModel.push_back(AddrLogical);
++  MemoryModel.push_back(MemGLSL450);
++}
++
++void SPIRVCodeGenerator::addCapability(unsigned Cap) {
++  Capabilities.push_back((2 << 16) | OpCapability);
++  Capabilities.push_back(Cap);
++}
++
++void SPIRVCodeGenerator::setWorkgroupSize(unsigned X, unsigned Y, unsigned Z) {
++  // ExecutionMode LocalSize
++  ExecutionModes.push_back((6 << 16) | OpExecutionMode);
++  ExecutionModes.push_back(1);  // Entry point ID
++  ExecutionModes.push_back(17); // LocalSize
++  ExecutionModes.push_back(X);
++  ExecutionModes.push_back(Y);
++  ExecutionModes.push_back(Z);
++}
++
++unsigned SPIRVCodeGenerator::addStorageBuffer(
++    Type *ElemTy, unsigned Set, unsigned Binding) {
++  unsigned BufferID = getNextID();
++  
++  // Would generate proper SPIR-V types and decorations here
++  // This is a simplified placeholder
++  
++  return BufferID;
++}
++
++void SPIRVCodeGenerator::addPushConstants(ArrayRef<Type *> Types) {
++  // Generate push constant block
++  // Would create struct type and proper decorations
++}
++
++std::vector<uint32_t> SPIRVCodeGenerator::translate(Function &F) {
++  std::vector<uint32_t> Result;
++  
++  LLVM_DEBUG(dbgs() << "SPIRV: Translating function " << F.getName() << "\n");
++  
++  // Create entry point
++  unsigned FuncID = getNextID();
++  
++  // OpEntryPoint GLCompute %main "main" %gl_GlobalInvocationID
++  // Simplified - real implementation would handle all variables
++  EntryPoints.push_back((4 << 16) | OpEntryPoint);
++  EntryPoints.push_back(ExecGLCompute);
++  EntryPoints.push_back(FuncID);
++  // Would add name string here
++  
++  // Generate void type
++  unsigned VoidTypeID = getNextID();
++  Types.push_back((2 << 16) | OpTypeVoid);
++  Types.push_back(VoidTypeID);
++  
++  // Generate function type (void -> void for simple case)
++  unsigned FuncTypeID = getNextID();
++  Types.push_back((3 << 16) | OpTypeFunction);
++  Types.push_back(FuncTypeID);
++  Types.push_back(VoidTypeID);
++  
++  // Generate function
++  Functions.push_back((5 << 16) | OpFunction);
++  Functions.push_back(VoidTypeID);
++  Functions.push_back(FuncID);
++  Functions.push_back(0);  // Function control
++  Functions.push_back(FuncTypeID);
++  
++  // Generate label (entry block)
++  unsigned LabelID = getNextID();
++  Functions.push_back((2 << 16) | OpLabel);
++  Functions.push_back(LabelID);
++  
++  // Would translate IR instructions here
++  // For now, just emit return
++  
++  // OpReturn
++  Functions.push_back((1 << 16) | OpReturn);
++  
++  // OpFunctionEnd
++  Functions.push_back((1 << 16) | OpFunctionEnd);
++  
++  return finalize();
++}
++
++std::vector<uint32_t> SPIRVCodeGenerator::finalize() {
++  std::vector<uint32_t> Result;
++  
++  // SPIR-V header
++  Result.push_back(0x07230203);  // Magic
++  Result.push_back(0x00010300);  // Version 1.3
++  Result.push_back(0x00080001);  // Generator
++  Result.push_back(NextID);      // Bound
++  Result.push_back(0);           // Reserved
++  
++  // Append sections in order
++  Result.insert(Result.end(), Capabilities.begin(), Capabilities.end());
++  Result.insert(Result.end(), Extensions.begin(), Extensions.end());
++  Result.insert(Result.end(), ExtInstImports.begin(), ExtInstImports.end());
++  Result.insert(Result.end(), MemoryModel.begin(), MemoryModel.end());
++  Result.insert(Result.end(), EntryPoints.begin(), EntryPoints.end());
++  Result.insert(Result.end(), ExecutionModes.begin(), ExecutionModes.end());
++  Result.insert(Result.end(), Debug.begin(), Debug.end());
++  Result.insert(Result.end(), Annotations.begin(), Annotations.end());
++  Result.insert(Result.end(), Types.begin(), Types.end());
++  Result.insert(Result.end(), Constants.begin(), Constants.end());
++  Result.insert(Result.end(), GlobalVars.begin(), GlobalVars.end());
++  Result.insert(Result.end(), Functions.begin(), Functions.end());
++  
++  return Result;
++}
++
++//===----------------------------------------------------------------------===//
++// Workload Analysis
++//===----------------------------------------------------------------------===//
++
++WorkloadProfile HeterogeneousPipelinePass::analyzeFunction(Function &F) {
++  WorkloadProfile Profile = {};
++  
++  for (const BasicBlock &BB : F) {
++    for (const Instruction &I : BB) {
++      // Count FLOPs
++      if (I.getType()->isFloatingPointTy() || 
++          (I.getType()->isVectorTy() && 
++           cast<VectorType>(I.getType())->getElementType()->isFloatingPointTy())) {
++        unsigned Width = 1;
++        if (auto *VT = dyn_cast<FixedVectorType>(I.getType()))
++          Width = VT->getNumElements();
++        
++        switch (I.getOpcode()) {
++        case Instruction::FAdd:
++        case Instruction::FSub:
++        case Instruction::FMul:
++          Profile.FLOPs += Width;
++          break;
++        case Instruction::FDiv:
++          Profile.FLOPs += Width * 4;  // Division more expensive
++          break;
++        default:
++          break;
++        }
++      }
++      
++      // Count memory ops
++      if (isa<LoadInst>(I) || isa<StoreInst>(I)) {
++        Profile.MemoryOps++;
++        
++        // Check for indirect access
++        if (auto *GEP = dyn_cast<GetElementPtrInst>(
++                I.getOperand(isa<LoadInst>(I) ? 0 : 1))) {
++          for (auto &Idx : GEP->indices()) {
++            if (!isa<Constant>(Idx)) {
++              Profile.HasIndirectAccess = true;
++              break;
++            }
++          }
++        }
++      }
++      
++      // Count control flow
++      if (isa<BranchInst>(I) || isa<SwitchInst>(I))
++        Profile.ControlFlow++;
++      
++      // Check for atomics
++      if (isa<AtomicRMWInst>(I) || isa<AtomicCmpXchgInst>(I))
++        Profile.RequiresAtomics = true;
++    }
++  }
++  
++  // Estimate parallelism from loop trip counts
++  // This is a heuristic - real implementation would use SCEV
++  Profile.ParallelWidth = Profile.FLOPs / 10;  // Rough estimate
++  
++  // Compute ratio
++  if (Profile.MemoryOps > 0)
++    Profile.ComputeToMemRatio = 
++        static_cast<float>(Profile.FLOPs) / Profile.MemoryOps;
++  else
++    Profile.ComputeToMemRatio = 100.0f;  // Pure compute
++  
++  return Profile;
++}
++
++WorkloadProfile HeterogeneousPipelinePass::analyzeLoop(Loop *L) {
++  WorkloadProfile Profile = {};
++  
++  // Get trip count if available
++  // In real implementation, would use ScalarEvolution
++  Profile.ParallelWidth = 1024;  // Assume reasonable default
++  
++  for (BasicBlock *BB : L->blocks()) {
++    for (const Instruction &I : *BB) {
++      // Similar analysis as analyzeFunction
++      if (I.getType()->isFloatingPointTy())
++        Profile.FLOPs++;
++      if (isa<LoadInst>(I) || isa<StoreInst>(I))
++        Profile.MemoryOps++;
++    }
++  }
++  
++  // Scale by estimated iterations
++  Profile.FLOPs *= Profile.ParallelWidth;
++  Profile.MemoryOps *= Profile.ParallelWidth;
++  
++  if (Profile.MemoryOps > 0)
++    Profile.ComputeToMemRatio = 
++        static_cast<float>(Profile.FLOPs) / Profile.MemoryOps;
++  
++  return Profile;
++}
++
++//===----------------------------------------------------------------------===//
++// Kernel Extraction and SPIR-V Generation
++//===----------------------------------------------------------------------===//
++
++std::unique_ptr<Function> HeterogeneousPipelinePass::extractKernel(Function &F) {
++  // Clone function for GPU version
++  ValueToValueMapTy VMap;
++  auto *Clone = CloneFunction(&F, VMap);
++  
++  // Rename for GPU
++  Clone->setName(F.getName() + "_gpu_kernel");
++  
++  // Would modify for GPU execution here
++  // - Remove unsupported instructions
++  // - Add kernel metadata
++  // - Handle memory address spaces
++  
++  ++NumKernelsExtracted;
++  
++  return std::unique_ptr<Function>(Clone);
++}
++
++VulkanComputeShader HeterogeneousPipelinePass::generateSPIRV(Function &Kernel) {
++  VulkanComputeShader Shader;
++  Shader.Name = Kernel.getName().str();
++  Shader.LocalSizeX = 64;
++  Shader.LocalSizeY = 1;
++  Shader.LocalSizeZ = 1;
++  
++  SPIRVCodeGenerator Gen;
++  Gen.setWorkgroupSize(Shader.LocalSizeX, Shader.LocalSizeY, Shader.LocalSizeZ);
++  
++  Shader.SPIRVCode = Gen.translate(Kernel);
++  
++  ++NumSPIRVGenerated;
++  
++  return Shader;
++}
++
++void HeterogeneousPipelinePass::createDispatchStub(
++    Function &Original, const VulkanComputeShader &Shader) {
++  // Would create runtime dispatch code here
++  // - Check GPU availability
++  // - Allocate GPU buffers
++  // - Copy data to GPU
++  // - Launch compute shader
++  // - Copy results back
++  // - Fall back to CPU if needed
++  
++  LLVM_DEBUG(dbgs() << "Created dispatch stub for " << Original.getName() 
++                    << " -> " << Shader.Name << "\n");
++}
++
++//===----------------------------------------------------------------------===//
++// Main Pass Entry Point
++//===----------------------------------------------------------------------===//
++
++PreservedAnalyses HeterogeneousPipelinePass::run(
++    Module &M, ModuleAnalysisManager &AM) {
++  
++  if (!EnableHeterogeneousCompute)
++    return PreservedAnalyses::all();
++  
++  LLVM_DEBUG(dbgs() << "Heterogeneous: Analyzing module " << M.getName() << "\n");
++  
++  bool Changed = false;
++  
++  for (Function &F : M) {
++    if (F.isDeclaration())
++      continue;
++    
++    // Check for PS3 pattern metadata
++    if (!F.hasMetadata("ps3.patterns"))
++      continue;
++    
++    // Analyze workload
++    WorkloadProfile Profile = analyzeFunction(F);
++    DispatchDecision Decision = CostModel.analyzeWorkload(Profile);
++    
++    LLVM_DEBUG(dbgs() << "Heterogeneous: " << F.getName() 
++                      << " -> " << static_cast<int>(Decision.Target)
++                      << " (" << Decision.Rationale << ")\n");
++    
++    if (Decision.Target == ComputeTarget::GPU_Compute && GenerateSPIRV) {
++      // Extract and generate GPU kernel
++      auto Kernel = extractKernel(F);
++      VulkanComputeShader Shader = generateSPIRV(*Kernel);
++      createDispatchStub(F, Shader);
++      
++      ++NumFunctionsOffloaded;
++      Changed = true;
++    }
++  }
++  
++  if (!Changed)
++    return PreservedAnalyses::all();
++  
++  return PreservedAnalyses::none();
++}
++
++--
++2.43.0

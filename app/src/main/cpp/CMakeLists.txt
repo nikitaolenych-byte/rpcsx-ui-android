@@ -6,6 +6,17 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+# =============================================================================
+# LLVM-PS3: Heterogeneous Compute JIT with PS3-Specific Auto-Vectorization
+# =============================================================================
+set(LLVM_PS3_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../third_party/llvm-ps3")
+if(EXISTS "${LLVM_PS3_DIR}/llvm-ps3-config.cmake")
+    include("${LLVM_PS3_DIR}/llvm-ps3-config.cmake")
+    message(STATUS "LLVM-PS3: Configuration loaded from ${LLVM_PS3_DIR}")
+else()
+    message(STATUS "LLVM-PS3: Configuration not found (optional)")
+endif()
+
 # ARMv9-A optimization flags - as separate list items
 set(OPT_FLAGS
     -O3
@@ -113,6 +124,11 @@ endif()
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
+
+# Apply LLVM-PS3 flags if enabled
+if(LLVM_PS3_ENABLE)
+    llvm_ps3_apply_to_target(${CMAKE_PROJECT_NAME})
+endif()
 
 # Optional TensorFlow Lite integration for NBTC
 option(NBTC_WITH_TFLITE "Enable TensorFlow Lite support for NBTC (requires TFLITE_DIR or jniLibs)" OFF)

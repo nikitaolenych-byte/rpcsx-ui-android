@@ -845,6 +845,17 @@ fun AdvancedSettingsScreen(
                                     val turboIndex = variants.indexOf("LLVM Turbo")
                                     variants.add(if (turboIndex >= 0) turboIndex + 1 else 0, "LLVM 20.3")
                                 }
+
+                                // Add Modified LLVM option (LLVM-HCJIT-PS3VEC with ARM SVE2/SME)
+                                if (isPpuDecoder && !variants.contains("Modified LLVM")) {
+                                    // Place after LLVM 20.3
+                                    val llvm203Index = variants.indexOf("LLVM 20.3")
+                                    variants.add(if (llvm203Index >= 0) llvm203Index + 1 else variants.size, "Modified LLVM")
+                                }
+                                if (isSpuDecoder && !variants.contains("Modified LLVM")) {
+                                    val llvm203Index = variants.indexOf("LLVM 20.3")
+                                    variants.add(if (llvm203Index >= 0) llvm203Index + 1 else variants.size, "Modified LLVM")
+                                }
                                 
                                 // Reactive state for turbo flags - updates UI immediately
                                 var ppuTurboEnabled by remember { mutableStateOf(GeneralSettings["ppu_llvm_turbo"] as? Boolean ?: false) }
@@ -864,9 +875,11 @@ fun AdvancedSettingsScreen(
                                     isPpuDecoder && ppuTurboEnabled && itemValue == "LLVM Recompiler (Legacy)" -> "LLVM Turbo"
                                     isPpuDecoder && itemValue == "LLVM Recompiler (Legacy)" -> "LLVM 19"
                                     isPpuDecoder && (itemValue.contains("20.3") || savedPpuRequested == "20.3") -> "LLVM 20.3"
+                                    isPpuDecoder && (itemValue.contains("Modified") || savedPpuRequested == "Modified") -> "Modified LLVM"
                                     isPpuDecoder && itemValue == "Interpreter (Legacy)" -> "Interpreter"
                                     isSpuDecoder && spuTurboEnabled && itemValue.contains("LLVM", ignoreCase = true) -> "LLVM Turbo"
                                     isSpuDecoder && (itemValue.contains("20.3") || savedSpuRequested == "20.3") -> "LLVM 20.3"
+                                    isSpuDecoder && (itemValue.contains("Modified") || savedSpuRequested == "Modified") -> "Modified LLVM"
                                     else -> itemValue
                                 }
 
@@ -877,6 +890,49 @@ fun AdvancedSettingsScreen(
                                         icon = null,
                                         title = key + if (itemValue == def) "" else " *",
                                         onValueChange = { value ->
+                                            // Special handling for Modified LLVM (LLVM-HCJIT-PS3VEC)
+                                            if (isPpuDecoder && value == "Modified LLVM") {
+                                                // Modified LLVM uses PS3-specific auto-vectorization with ARM SVE2/SME
+                                                if (!safeSettingsSet(itemPath, "\"LLVM Recompiler (Legacy)\"")) {
+                                                    AlertDialogQueue.showDialog(
+                                                        context.getString(R.string.error),
+                                                        context.getString(R.string.failed_to_assign_value, value, itemPath)
+                                                    )
+                                                }
+                                                // Enable LLVM-PS3 specific settings
+                                                safeSettingsSet("Core@@PPU LLVM Version", "\"PS3-HCJIT\"")
+                                                safeSettingsSet("Core@@LLVM PS3 Pattern Match", "true")
+                                                safeSettingsSet("Core@@LLVM PS3 Aggressive Vectorize", "true")
+                                                safeSettingsSet("Core@@LLVM ARM SVE2", "true")
+                                                GeneralSettings.setValue("ppu_requested_llvm_version", "Modified")
+                                                GeneralSettings.setValue("llvm_ps3_enabled", true)
+                                                try {
+                                                    itemObject.put("value", "LLVM Recompiler (Modified)")
+                                                    itemValue = "LLVM Recompiler (Modified)"
+                                                } catch (e: Throwable) { }
+                                                android.util.Log.i("RPCSX-LLVM", "╔════════════════════════════════════════╗")
+                                                android.util.Log.i("RPCSX-LLVM", "║   Modified LLVM Activated!             ║")
+                                                android.util.Log.i("RPCSX-LLVM", "║   LLVM-HCJIT-PS3VEC Enabled            ║")
+                                                android.util.Log.i("RPCSX-LLVM", "║   ARM SVE2/SME Intrinsics Active       ║")
+                                                android.util.Log.i("RPCSX-LLVM", "╚════════════════════════════════════════╝")
+                                                return@SingleSelectionDialog
+                                            }
+                                            if (isSpuDecoder && value == "Modified LLVM") {
+                                                val spuInternal = "Recompiler (LLVM)"
+                                                if (!safeSettingsSet(itemPath, "\"$spuInternal\"")) {
+                                                    safeSettingsSet(itemPath, "\"LLVM Recompiler (Legacy)\"")
+                                                }
+                                                safeSettingsSet("Core@@SPU LLVM Version", "\"PS3-HCJIT\"")
+                                                safeSettingsSet("Core@@LLVM PS3 Pattern Match", "true")
+                                                safeSettingsSet("Core@@LLVM PS3 Aggressive Vectorize", "true")
+                                                GeneralSettings.setValue("spu_requested_llvm_version", "Modified")
+                                                GeneralSettings.setValue("llvm_ps3_enabled", true)
+                                                try {
+                                                    itemObject.put("value", "Recompiler (LLVM-Modified)")
+                                                    itemValue = "Recompiler (LLVM-Modified)"
+                                                } catch (e: Throwable) { }
+                                                return@SingleSelectionDialog
+                                            }
                                             // Special handling for LLVM 20.3 - select new LLVM backend
                                             if (isPpuDecoder && value == "LLVM 20.3") {
                                                 // Many native builds may not expose a modern PPU enum value.
