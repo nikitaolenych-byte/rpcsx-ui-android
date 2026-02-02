@@ -306,7 +306,9 @@ fun GameItem(game: Game, navigateTo: (String) -> Unit) {
                         },
                         navigateTo = { route -> android.util.Log.d("Games", "Navigate to: $route") },
                         settings = customConfigJson.value ?: JSONObject(),
-                        path = if (advancedMode.value == "game") "Game@@${customConfigGamePath.value}" else ""
+                        path = if (advancedMode.value == "game") customConfigGamePath.value ?: "" else "",
+                        mode = advancedMode.value ?: "default",
+                        gameName = game.info.name.value ?: ""
                     )
                 }
             }

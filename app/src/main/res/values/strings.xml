@@ -90,6 +90,8 @@
     <string name="active_user">Active User</string>
     <string name="advanced_settings">Advanced Settings</string>
     <string name="advanced_settings_description">Configure emulator advanced settings</string>
+    <string name="global_settings">Global Settings</string>
+    <string name="custom_configuration">Custom Configuration</string>
     <string name="cpu_settings_title">Core</string>
     <string name="cpu_settings_description">PPU Decoder settings (LLVM 19 / NCE)</string>
     <string name="ppu_decoder_title">PPU Decoder</string>

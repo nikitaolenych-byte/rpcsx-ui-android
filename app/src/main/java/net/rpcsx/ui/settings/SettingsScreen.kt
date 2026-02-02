@@ -447,7 +447,9 @@ fun AdvancedSettingsScreen(
     navigateBack: () -> Unit,
     navigateTo: (path: String) -> Unit,
     settings: JSONObject,
-    path: String = ""
+    path: String = "",
+    mode: String = "default",  // "game", "global", "default"
+    gameName: String = ""
 ) {
     val context = LocalContext.current
     val settingValue = remember { mutableStateOf(settings) }
@@ -567,7 +569,16 @@ fun AdvancedSettingsScreen(
         modifier = Modifier
             .nestedScroll(topBarScrollBehavior.nestedScrollConnection)
             .then(modifier), topBar = {
-            val titlePath = path.replace("@@", " / ").removePrefix(" / ")
+            // Use nice title based on mode instead of raw path
+            val screenTitle = when (mode) {
+                "game" -> if (gameName.isNotBlank()) gameName else stringResource(R.string.custom_configuration)
+                "global" -> stringResource(R.string.global_settings)
+                "default" -> stringResource(R.string.advanced_settings)
+                else -> if (path.isNotBlank()) {
+                    // Fallback for navigation from SettingsScreen
+                    path.replace("@@", " / ").removePrefix(" / ").substringAfterLast(" / ")
+                } else stringResource(R.string.advanced_settings)
+            }
             LargeTopAppBar(title = {
                 if (isSearching) {
                     BasicTextField(
@@ -601,8 +612,10 @@ fun AdvancedSettingsScreen(
                         })
                 } else {
                     Text(
-                        text = titlePath.ifEmpty { stringResource(R.string.advanced_settings) },
-                        fontWeight = FontWeight.Medium
+                        text = screenTitle,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
                 }
             }, scrollBehavior = topBarScrollBehavior, navigationIcon = {
