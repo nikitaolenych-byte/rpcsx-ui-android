@@ -1,6 +1,8 @@
 package net.rpcsx.ui.patches
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -47,6 +49,25 @@ object PatchManager {
         val gameName: String,
         val patches: List<Patch>
     )
+    
+    /**
+     * Check if the device has an active internet connection
+     */
+    fun isNetworkAvailable(context: Context): Boolean {
+        try {
+            val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+                ?: return false
+            
+            val network = connectivityManager.activeNetwork ?: return false
+            val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
+            
+            return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                   capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking network: ${e.message}")
+            return false
+        }
+    }
     
     /**
      * Get patches directory for storing patch files
@@ -128,13 +149,22 @@ object PatchManager {
     suspend fun downloadPatches(context: Context, onProgress: (Int, String) -> Unit = { _, _ -> }): Result<List<PatchGroup>> {
         return withContext(Dispatchers.IO) {
             try {
+                // First check if network is available
+                if (!isNetworkAvailable(context)) {
+                    Log.e(TAG, "No network available")
+                    return@withContext Result.failure(Exception("No internet connection. Please enable WiFi or mobile data and try again."))
+                }
+                
+                onProgress(5, "Checking network connection...")
+                Log.i(TAG, "Network available, starting download...")
+                
                 onProgress(10, "Connecting to RPCS3 patch server...")
                 
                 // Try to download from raw GitHub first (more reliable)
                 val patchContent = try {
                     downloadUrl(RPCS3_PATCH_RAW_URL)
                 } catch (e: Exception) {
-                    Log.w(TAG, "Failed to download from GitHub, trying wiki...")
+                    Log.w(TAG, "Failed to download from GitHub: ${e.message}, trying wiki...")
                     onProgress(20, "Trying alternative source...")
                     try {
                         downloadUrl(RPCS3_WIKI_PATCHES)
@@ -506,25 +536,57 @@ object PatchManager {
     }
     
     /**
-     * Download content from URL
+     * Download content from URL with better error handling
      */
     private fun downloadUrl(urlString: String): String {
-        val url = URL(urlString)
-        val connection = url.openConnection() as HttpURLConnection
-        connection.requestMethod = "GET"
-        connection.connectTimeout = 30000
-        connection.readTimeout = 30000
-        connection.setRequestProperty("User-Agent", "RPCSX-Android/1.0")
+        Log.i(TAG, "Downloading from: $urlString")
         
         try {
-            val responseCode = connection.responseCode
-            if (responseCode == HttpURLConnection.HTTP_OK) {
-                return connection.inputStream.bufferedReader().use { it.readText() }
-            } else {
-                throw Exception("HTTP error: $responseCode")
+            val url = URL(urlString)
+            val connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "GET"
+            connection.connectTimeout = 30000
+            connection.readTimeout = 60000 // Longer read timeout
+            connection.setRequestProperty("User-Agent", "RPCSX-Android/1.5 (compatible; Mozilla/5.0)")
+            connection.setRequestProperty("Accept", "text/plain, text/yaml, */*")
+            connection.instanceFollowRedirects = true
+            
+            try {
+                connection.connect()
+                val responseCode = connection.responseCode
+                Log.i(TAG, "Response code: $responseCode")
+                
+                if (responseCode == HttpURLConnection.HTTP_OK) {
+                    val content = connection.inputStream.bufferedReader().use { it.readText() }
+                    Log.i(TAG, "Downloaded ${content.length} bytes")
+                    return content
+                } else if (responseCode == HttpURLConnection.HTTP_MOVED_TEMP || 
+                           responseCode == HttpURLConnection.HTTP_MOVED_PERM ||
+                           responseCode == 307 || responseCode == 308) {
+                    // Handle redirects manually
+                    val newUrl = connection.getHeaderField("Location")
+                    Log.i(TAG, "Redirecting to: $newUrl")
+                    connection.disconnect()
+                    return downloadUrl(newUrl)
+                } else {
+                    val errorMsg = connection.errorStream?.bufferedReader()?.use { it.readText() } ?: "Unknown error"
+                    throw Exception("HTTP $responseCode: $errorMsg")
+                }
+            } finally {
+                connection.disconnect()
             }
-        } finally {
-            connection.disconnect()
+        } catch (e: java.net.UnknownHostException) {
+            Log.e(TAG, "DNS error - no internet or host unreachable: ${e.message}")
+            throw Exception("No internet connection. Please check your network settings.")
+        } catch (e: java.net.SocketTimeoutException) {
+            Log.e(TAG, "Connection timeout: ${e.message}")
+            throw Exception("Connection timeout. Server may be slow or unreachable.")
+        } catch (e: javax.net.ssl.SSLException) {
+            Log.e(TAG, "SSL error: ${e.message}")
+            throw Exception("SSL/TLS error. Try again later or check your network.")
+        } catch (e: java.io.IOException) {
+            Log.e(TAG, "IO error: ${e.message}")
+            throw Exception("Network error: ${e.message}")
         }
     }
     

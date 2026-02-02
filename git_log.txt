@@ -1,0 +1,5 @@
+a5b729e feat: Integrate native patch application on game launch
+14231d8 feat: Add RPCS3 Patch Manager & fix Custom Configuration crash
+8881448 feat: add LLVM-HCJIT-PS3VEC integration
+b21ba2a nbtc: add libtensorflowlite_c.so (arm64-v8a) from user-provided Drive
+9ccd6e6 nbtc: add libtensorflowlite_c.so (arm64-v8a) downloaded from user-provided Drive links
