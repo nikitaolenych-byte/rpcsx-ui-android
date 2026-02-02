@@ -265,52 +265,82 @@ fun GameItem(game: Game, navigateTo: (String) -> Unit) {
 
         // Advanced settings overlay for per-game/global/default configs
         if (showCustomConfig.value && customConfigJson.value != null) {
-            AdvancedSettingsScreen(
-                navigateBack = {
-                    try {
-                        when (advancedMode.value) {
-                            "game" -> {
-                                val key = "game_config::${customConfigGamePath.value}"
-                                GeneralSettings.setValue(key, customConfigJson.value.toString())
-                                // apply immediately
-                                applySettingsSnapshot(customConfigJson.value.toString())
-                                android.util.Log.i("Games", "Saved and applied custom config for ${customConfigGamePath.value}")
+            androidx.compose.ui.window.Dialog(
+                onDismissRequest = { showCustomConfig.value = false },
+                properties = androidx.compose.ui.window.DialogProperties(
+                    usePlatformDefaultWidth = false,
+                    dismissOnBackPress = true,
+                    dismissOnClickOutside = false
+                )
+            ) {
+                androidx.compose.foundation.layout.Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background)
+                ) {
+                    AdvancedSettingsScreen(
+                        navigateBack = {
+                            try {
+                                when (advancedMode.value) {
+                                    "game" -> {
+                                        val key = "game_config::${customConfigGamePath.value}"
+                                        GeneralSettings.setValue(key, customConfigJson.value.toString())
+                                        // apply immediately
+                                        applySettingsSnapshot(customConfigJson.value.toString())
+                                        android.util.Log.i("Games", "Saved and applied custom config for ${customConfigGamePath.value}")
+                                    }
+                                    "global" -> {
+                                        GeneralSettings.setValue("global_config", customConfigJson.value.toString())
+                                        applySettingsSnapshot(customConfigJson.value.toString())
+                                        android.util.Log.i("Games", "Saved and applied global config")
+                                    }
+                                    "default" -> {
+                                        // Do not persist default/system snapshot
+                                        android.util.Log.i("Games", "Closed default/system settings viewer")
+                                    }
+                                }
+                            } catch (e: Throwable) {
+                                android.util.Log.e("Games", "Failed to save/apply config: ${e.message}")
                             }
-                            "global" -> {
-                                GeneralSettings.setValue("global_config", customConfigJson.value.toString())
-                                applySettingsSnapshot(customConfigJson.value.toString())
-                                android.util.Log.i("Games", "Saved and applied global config")
-                            }
-                            "default" -> {
-                                // Do not persist default/system snapshot
-                                android.util.Log.i("Games", "Closed default/system settings viewer")
-                            }
-                        }
-                    } catch (e: Throwable) {
-                        android.util.Log.e("Games", "Failed to save/apply config: ${e.message}")
-                    }
-                    showCustomConfig.value = false
-                },
-                navigateTo = { route -> android.util.Log.d("Games", "Navigate to: $route") },
-                settings = customConfigJson.value ?: JSONObject(),
-                path = if (advancedMode.value == "game") "Game@@${customConfigGamePath.value}" else ""
-            )
+                            showCustomConfig.value = false
+                        },
+                        navigateTo = { route -> android.util.Log.d("Games", "Navigate to: $route") },
+                        settings = customConfigJson.value ?: JSONObject(),
+                        path = if (advancedMode.value == "game") "Game@@${customConfigGamePath.value}" else ""
+                    )
+                }
+            }
         }
 
         // Patch Manager overlay
         if (showPatchManager.value) {
-            val gameId = try {
-                game.info.path.substringAfterLast("/").let { folder ->
-                    val pattern = Regex("[A-Z]{4}\\d{5}")
-                    pattern.find(folder)?.value ?: folder
+            androidx.compose.ui.window.Dialog(
+                onDismissRequest = { showPatchManager.value = false },
+                properties = androidx.compose.ui.window.DialogProperties(
+                    usePlatformDefaultWidth = false,
+                    dismissOnBackPress = true,
+                    dismissOnClickOutside = false
+                )
+            ) {
+                androidx.compose.foundation.layout.Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background)
+                ) {
+                    val gameId = try {
+                        game.info.path.substringAfterLast("/").let { folder ->
+                            val pattern = Regex("[A-Z]{4}\\d{5}")
+                            pattern.find(folder)?.value ?: folder
+                        }
+                    } catch (e: Throwable) { "" }
+                    
+                    PatchManagerScreen(
+                        navigateBack = { showPatchManager.value = false },
+                        gameId = gameId,
+                        gameName = game.info.name.value ?: "Game"
+                    )
                 }
-            } catch (e: Throwable) { "" }
-            
-            PatchManagerScreen(
-                navigateBack = { showPatchManager.value = false },
-                gameId = gameId,
-                gameName = game.info.name.value ?: "Game"
-            )
+            }
         }
 
         // Actions dialog shown when tapping a game (Play / Global Config / Default Settings)
