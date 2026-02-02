@@ -75,6 +75,7 @@ import net.rpcsx.RPCSX
 import net.rpcsx.RPCSXActivity
 import net.rpcsx.dialogs.AlertDialogQueue
 import net.rpcsx.ui.settings.AdvancedSettingsScreen
+import net.rpcsx.ui.patches.PatchManager
 import net.rpcsx.ui.patches.PatchManagerScreen
 import org.json.JSONObject
 import net.rpcsx.utils.GeneralSettings
@@ -328,6 +329,17 @@ fun GameItem(game: Game, navigateTo: (String) -> Unit) {
                         try {
                             applySavedGameConfig(game.info.path)
                         } catch (_: Throwable) {}
+                        
+                        // Apply enabled game patches before launch
+                        try {
+                            val gameId = game.info.path.substringAfterLast("/").let { folder ->
+                                val pattern = Regex("[A-Z]{4}\\d{5}")
+                                pattern.find(folder)?.value ?: folder
+                            }
+                            PatchManager.applyPatches(context, gameId)
+                        } catch (e: Throwable) {
+                            android.util.Log.w("Games", "Failed to apply patches: ${e.message}")
+                        }
 
                         GameRepository.onBoot(game)
                         val emulatorWindow = Intent(context, RPCSXActivity::class.java)
@@ -397,6 +409,16 @@ fun GameItem(game: Game, navigateTo: (String) -> Unit) {
                                 applySavedGameConfig(game.info.path)
                             } catch (e: Throwable) {
                                 android.util.Log.w("Games", "Failed to apply saved game config: ${e.message}")
+                            }
+                            // Apply enabled game patches before launch
+                            try {
+                                val gameId = game.info.path.substringAfterLast("/").let { folder ->
+                                    val pattern = Regex("[A-Z]{4}\\d{5}")
+                                    pattern.find(folder)?.value ?: folder
+                                }
+                                PatchManager.applyPatches(context, gameId)
+                            } catch (e: Throwable) {
+                                android.util.Log.w("Games", "Failed to apply patches: ${e.message}")
                             }
                             val emulatorWindow = Intent(
                                 context, RPCSXActivity::class.java

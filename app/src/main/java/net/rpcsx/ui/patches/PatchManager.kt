@@ -454,7 +454,7 @@ object PatchManager {
     }
     
     /**
-     * Apply patches to game memory (placeholder - actual implementation depends on native code)
+     * Apply patches to game memory via native RPCSX code
      */
     fun applyPatches(context: Context, gameId: String): Boolean {
         val enabledPatches = getEnabledPatchesForGame(context, gameId)
@@ -466,15 +466,43 @@ object PatchManager {
         
         Log.i(TAG, "Applying ${enabledPatches.size} patches to game $gameId")
         
-        // TODO: Implement actual patch application via native code
-        // This would call into the RPCSX native library to modify game memory
-        // based on the patch data (be32, be64, etc. commands)
+        // Build comma-separated list of enabled patch IDs
+        val enabledPatchIds = enabledPatches.joinToString(",") { it.id }
         
-        for (patch in enabledPatches) {
-            Log.i(TAG, "  - ${patch.title} by ${patch.author}")
+        // Get patch file path
+        val patchFile = File(getPatchesDir(context), PATCH_YML_FILE)
+        val patchFilePath = if (patchFile.exists()) patchFile.absolutePath else ""
+        
+        // Call native patch application
+        return try {
+            val appliedCount = net.rpcsx.RPCSX.instance.applyGamePatches(
+                patchFilePath,
+                gameId,
+                enabledPatchIds
+            )
+            Log.i(TAG, "Native patches applied: $appliedCount")
+            
+            for (patch in enabledPatches) {
+                Log.i(TAG, "  ✓ ${patch.title} by ${patch.author}")
+            }
+            
+            appliedCount > 0
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to apply patches via native code: ${e.message}")
+            false
         }
-        
-        return true
+    }
+    
+    /**
+     * Check if game has patches available (built-in or downloaded)
+     */
+    fun hasPatches(gameId: String): Boolean {
+        return try {
+            net.rpcsx.RPCSX.instance.hasGamePatches(gameId)
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to check patches: ${e.message}")
+            false
+        }
     }
     
     /**

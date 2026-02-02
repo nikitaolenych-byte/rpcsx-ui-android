@@ -99,6 +99,11 @@ class RPCSX {
     external fun getVersion(): String
     external fun setCustomDriver(path: String, libraryName: String, hookDir: String): Boolean
     
+    // Patch Manager native functions
+    external fun applyGamePatches(patchFilePath: String, titleId: String, enabledPatches: String): Int
+    external fun hasGamePatches(titleId: String): Boolean
+    external fun getSupportedGamesForPatches(): String
+    
     // ARMv9 Optimization Functions - NOT in native lib, stubbed
     fun initializeARMv9Optimizations(cacheDir: String, titleId: String, buildId: String): Boolean = false
     fun shutdownARMv9Optimizations() {}
