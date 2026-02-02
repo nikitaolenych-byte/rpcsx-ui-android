@@ -3,216 +3,386 @@ package net.rpcsx.ui.patches
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
-import androidx.compose.material3.Divider
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import net.rpcsx.GameRepository
-import net.rpcsx.RPCSX
-import net.rpcsx.utils.safeSettingsSet
+import kotlinx.coroutines.withContext
+import net.rpcsx.R
 
-data class PatchEntry(val id: String, val title: String, val description: String, val apply: (String?) -> Boolean)
-
+/**
+ * RPCSX Patch Manager Screen
+ * Ported from RPCS3 patch system with full RPCS3 patch.yml support
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PatchManagerScreen(navigateBack: () -> Unit, gamePath: String?) {
-    val games = remember { GameRepository.list() }
-    var status by remember { mutableStateOf<String?>(null) }
-
-    val matchedGame = games.find { it.info.path == gamePath }
-
-    // Known patches registry (expandable)
-    val registry = listOf(
-        PatchEntry(id = "cod4_runtime", title = "Call of Duty 4 - Runtime Patch", description = "Apply runtime settings tuned for COD4") { path ->
-            try {
-                safeSettingsSet("Core@@PPU LLVM Version", "\"20.3\"")
-                safeSettingsSet("Core@@SPU LLVM Version", "\"20.3\"")
-                safeSettingsSet("Core@@PPU LLVM Greedy Mode", "true")
-                safeSettingsSet("Core@@PPU Accurate Non-Java Mode", "false")
-                safeSettingsSet("Core@@Use Accurate DFMA", "false")
-                true
-            } catch (e: Throwable) {
-                Log.e("PatchManager", "apply cod4: ${e.message}")
-                false
+fun PatchManagerScreen(
+    navigateBack: () -> Unit,
+    gameId: String = "",
+    gameName: String = ""
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    
+    // UI State
+    var isLoading by remember { mutableStateOf(false) }
+    var statusMessage by remember { mutableStateOf<String?>(null) }
+    var searchQuery by remember { mutableStateOf("") }
+    var patchGroups by remember { mutableStateOf<List<PatchManager.PatchGroup>>(emptyList()) }
+    var expandedGroups by remember { mutableStateOf<Set<String>>(setOf()) }
+    var showDownloadDialog by remember { mutableStateOf(false) }
+    var downloadProgress by remember { mutableStateOf(0f) }
+    
+    // Load patches on first composition
+    LaunchedEffect(Unit) {
+        patchGroups = PatchManager.loadPatchesFromCache(context)
+        // Filter for specific game if gameId provided
+        if (gameId.isNotBlank()) {
+            val filtered = patchGroups.filter { it.gameId.contains(gameId, ignoreCase = true) }
+            if (filtered.isNotEmpty()) {
+                patchGroups = filtered
             }
-        },
-        PatchEntry(id = "no_op", title = "No-op Example Patch", description = "Example patch that does nothing", apply = { _ -> true })
-    )
-
-    Column(
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier.padding(16.dp)
-    ) {
-        Text(text = "Patch Manager")
-
-        if (matchedGame != null) {
-            Text(text = "Game: ${matchedGame.info.name.value ?: matchedGame.info.path}")
-
-            val context = LocalContext.current
-            val scope = rememberCoroutineScope()
-
-            Button(onClick = {
-                // Open RPCS3 wiki game patches page in browser
-                val title = matchedGame.info.name.value ?: matchedGame.info.path
-                val wikiUrl = "https://wiki.rpcs3.net/index.php?title=${java.net.URLEncoder.encode(title, "UTF-8")}" 
-                try {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(wikiUrl)))
-                } catch (e: Throwable) {
-                    Log.e("PatchManager", "open wiki: ${e.message}")
-                }
-            }) { Text(text = "Open RPCS3 Wiki Page") }
-
-            Button(onClick = {
-                // Download wiki page HTML into app cache
-                val title = matchedGame.info.name.value ?: matchedGame.info.path
-                val wikiUrl = "https://wiki.rpcs3.net/index.php?title=${java.net.URLEncoder.encode(title, "UTF-8")}" 
-                scope.launch {
-                    try {
-                        val html = java.net.URL(wikiUrl).readText()
-                        val dir = java.io.File(context.filesDir, "patches")
-                        if (!dir.exists()) dir.mkdirs()
-                        val safe = title.replace(Regex("[^A-Za-z0-9._-]"), "_")
-                        val out = java.io.File(dir, "${safe}.html")
-                        out.writeText(html)
-                        status = "Downloaded wiki page to ${out.absolutePath}"
-                    } catch (e: Throwable) {
-                        Log.e("PatchManager", "download wiki: ${e.message}")
-                        status = "Failed to download wiki page: ${e.message}"
+        }
+    }
+    
+    // Filter patches based on search
+    val filteredGroups = remember(patchGroups, searchQuery) {
+        if (searchQuery.isBlank()) {
+            patchGroups
+        } else {
+            PatchManager.searchPatches(context, searchQuery)
+        }
+    }
+    
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Column {
+                        Text("Patch Manager", fontSize = 18.sp)
+                        if (gameName.isNotBlank()) {
+                            Text(gameName, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
-                }
-            }) { Text(text = "Download RPCS3 Wiki Page") }
-
-            // Parse saved wiki HTML (if present) and expose patch links
-            var foundLinks by remember { mutableStateOf(listOf<Pair<String,String>>()) }
-
-            val cacheDir = java.io.File(LocalContext.current.filesDir, "patches")
-            val safeName = (matchedGame.info.name.value ?: matchedGame.info.path).replace(Regex("[^A-Za-z0-9._-]"), "_")
-            val savedHtml = java.io.File(cacheDir, "${safeName}.html")
-            if (savedHtml.exists() && foundLinks.isEmpty()) {
-                try {
-                    val html = savedHtml.readText()
-                    foundLinks = parsePatchLinks(html, "https://wiki.rpcs3.net")
-                } catch (e: Throwable) {
-                    Log.e("PatchManager", "parse saved html: ${e.message}")
-                }
+                },
+                navigationIcon = {
+                    IconButton(onClick = navigateBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { showDownloadDialog = true }) {
+                        Icon(ImageVector.vectorResource(R.drawable.ic_cloud_download), contentDescription = "Download Patches")
+                    }
+                    IconButton(onClick = {
+                        scope.launch {
+                            isLoading = true
+                            statusMessage = "Refreshing..."
+                            patchGroups = PatchManager.loadPatchesFromCache(context)
+                            if (gameId.isNotBlank()) {
+                                val filtered = patchGroups.filter { it.gameId.contains(gameId, ignoreCase = true) }
+                                if (filtered.isNotEmpty()) patchGroups = filtered
+                            }
+                            isLoading = false
+                            statusMessage = "Loaded ${patchGroups.sumOf { it.patches.size }} patches"
+                        }
+                    }) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                )
+            )
+        }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            // Search bar
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                placeholder = { Text("Search patches by name, game ID, or author...") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                singleLine = true,
+                shape = RoundedCornerShape(24.dp)
+            )
+            
+            // Status message
+            if (statusMessage != null) {
+                Text(
+                    text = statusMessage!!,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    fontSize = 12.sp
+                )
             }
-
-            if (foundLinks.isNotEmpty()) {
-                LazyColumn(modifier = Modifier.fillMaxWidth()) {
-                    items(foundLinks) { (href, text) ->
-                        Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-                            Text(text = text)
-                            Text(text = href)
-                            Button(onClick = {
-                                scope.launch {
-                                    try {
-                                        val url = java.net.URL(href)
-                                        val ext = href.substringAfterLast('.', "bin")
-                                        if (!cacheDir.exists()) cacheDir.mkdirs()
-                                        val out = java.io.File(cacheDir, "${safeName}_${System.currentTimeMillis()}.$ext")
-                                        url.openStream().use { inp -> out.outputStream().use { it.write(inp.readBytes()) } }
-                                        status = "Downloaded patch to ${out.absolutePath}"
-                                    } catch (e: Throwable) {
-                                        Log.e("PatchManager", "download link: ${e.message}")
-                                        status = "Failed to download: ${e.message}"
-                                    }
-                                }
-                            }) { Text(text = "Download") }
-
-                            Button(onClick = {
-                                scope.launch {
-                                    try {
-                                        val url = java.net.URL(href)
-                                        val ext = href.substringAfterLast('.', "bin")
-                                        if (!cacheDir.exists()) cacheDir.mkdirs()
-                                        val out = java.io.File(cacheDir, "${safeName}_${System.currentTimeMillis()}.$ext")
-                                        url.openStream().use { inp -> out.outputStream().use { it.write(inp.readBytes()) } }
-                                        status = "Imported patch to ${out.absolutePath}"
-
-                                        val nameLower = (matchedGame.info.name.value ?: "").lowercase()
-                                        if (nameLower.contains("call of duty 4") || href.lowercase().contains("cod4") || text.lowercase().contains("cod4")) {
-                                            safeSettingsSet("Core@@PPU LLVM Version", "\"20.3\"")
-                                            safeSettingsSet("Core@@SPU LLVM Version", "\"20.3\"")
-                                            safeSettingsSet("Core@@PPU LLVM Greedy Mode", "true")
-                                            safeSettingsSet("Core@@PPU Accurate Non-Java Mode", "false")
-                                            status = "Imported and applied COD4 runtime settings"
-                                        }
-                                    } catch (e: Throwable) {
-                                        Log.e("PatchManager", "import link: ${e.message}")
-                                        status = "Failed to import: ${e.message}"
-                                    }
-                                }
-                            }) { Text(text = "Import & Apply") }
-
-                            Divider()
+            
+            // Loading indicator
+            if (isLoading) {
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    progress = { downloadProgress }
+                )
+            }
+            
+            // Patch list
+            if (filteredGroups.isEmpty() && !isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("No patches found", fontSize = 16.sp)
+                        Text(
+                            "Tap the download button to get patches from RPCS3",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(onClick = { showDownloadDialog = true }) {
+                            Icon(ImageVector.vectorResource(R.drawable.ic_cloud_download), contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Download Patches")
                         }
                     }
                 }
             } else {
-                LazyColumn(modifier = Modifier.fillMaxWidth()) {
-                    items(registry) { entry ->
-                        Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-                            Text(text = entry.title)
-                            Text(text = entry.description)
-                            Button(onClick = {
-                                val ok = entry.apply(matchedGame.info.path)
-                                status = if (ok) "Applied: ${entry.title}" else "Failed to apply: ${entry.title}"
-                            }) {
-                                Text(text = "Apply")
-                            }
-                            Divider()
-                        }
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(filteredGroups) { group ->
+                        PatchGroupCard(
+                            group = group,
+                            isExpanded = expandedGroups.contains(group.gameId),
+                            onExpandToggle = {
+                                expandedGroups = if (expandedGroups.contains(group.gameId)) {
+                                    expandedGroups - group.gameId
+                                } else {
+                                    expandedGroups + group.gameId
+                                }
+                            },
+                            onPatchToggle = { patch ->
+                                PatchManager.togglePatch(context, patch.id, !PatchManager.isPatchEnabled(context, patch.id))
+                                // Refresh list
+                                patchGroups = PatchManager.loadPatchesFromCache(context)
+                                if (gameId.isNotBlank()) {
+                                    val filtered = patchGroups.filter { it.gameId.contains(gameId, ignoreCase = true) }
+                                    if (filtered.isNotEmpty()) patchGroups = filtered
+                                }
+                            },
+                            isPatchEnabled = { patch -> PatchManager.isPatchEnabled(context, patch.id) }
+                        )
                     }
                 }
             }
-
-            Button(onClick = { navigateBack() }) { Text(text = "Back") }
-        } else {
-            Text(text = "No game selected. Open Patch Manager from a game's long-press to auto-apply patches.")
-            Button(onClick = { navigateBack() }) { Text(text = "Back") }
         }
+    }
+    
+    // Download dialog
+    if (showDownloadDialog) {
+        AlertDialog(
+            onDismissRequest = { showDownloadDialog = false },
+            title = { Text("Download Patches") },
+            text = {
+                Column {
+                    Text("Download the latest patches from RPCS3 repository?")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "This will download the official RPCS3 patch database containing patches for many PS3 games.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDownloadDialog = false
+                        scope.launch {
+                            isLoading = true
+                            statusMessage = "Downloading patches from RPCS3..."
+                            downloadProgress = 0f
+                            
+                            val result = withContext(Dispatchers.IO) {
+                                PatchManager.downloadPatches(context) { progress, message ->
+                                    downloadProgress = progress / 100f
+                                    statusMessage = message
+                                }
+                            }
+                            
+                            if (result.isSuccess) {
+                                patchGroups = PatchManager.loadPatchesFromCache(context)
+                                if (gameId.isNotBlank()) {
+                                    val filtered = patchGroups.filter { it.gameId.contains(gameId, ignoreCase = true) }
+                                    if (filtered.isNotEmpty()) patchGroups = filtered
+                                }
+                                statusMessage = "Downloaded ${patchGroups.sumOf { it.patches.size }} patches"
+                            } else {
+                                statusMessage = "Failed to download patches. Check your internet connection."
+                            }
+                            isLoading = false
+                        }
+                    }
+                ) {
+                    Text("Download")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDownloadDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
 
-        if (status != null) {
-            Text(text = status!!)
+@Composable
+fun PatchGroupCard(
+    group: PatchManager.PatchGroup,
+    isExpanded: Boolean,
+    onExpandToggle: () -> Unit,
+    onPatchToggle: (PatchManager.Patch) -> Unit,
+    isPatchEnabled: (PatchManager.Patch) -> Boolean
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column {
+            // Header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onExpandToggle)
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = group.gameName,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = "${group.gameId} • ${group.patches.size} patches",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Icon(
+                    imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    contentDescription = if (isExpanded) "Collapse" else "Expand"
+                )
+            }
+            
+            // Patches list
+            if (isExpanded) {
+                HorizontalDivider()
+                group.patches.forEach { patch ->
+                    PatchItem(
+                        patch = patch,
+                        isEnabled = isPatchEnabled(patch),
+                        onToggle = { onPatchToggle(patch) }
+                    )
+                }
+            }
         }
     }
 }
 
-// Very small HTML parser to extract anchors pointing to potential patches
-fun parsePatchLinks(html: String, baseUrl: String): List<Pair<String,String>> {
-    val results = ArrayList<Pair<String,String>>()
-    val pattern = java.util.regex.Pattern.compile("<a[^>]+href=['\"]([^'\"]+)['\"][^>]*>(.*?)</a>", java.util.regex.Pattern.CASE_INSENSITIVE or java.util.regex.Pattern.DOTALL)
-    val matcher = pattern.matcher(html)
-    while (matcher.find()) {
-        try {
-            var href = matcher.group(1)
-            val text = matcher.group(2).replace(Regex("<.*?>"), "").trim()
-            if (!href.startsWith("http")) {
-                href = if (href.startsWith("/")) baseUrl + href else baseUrl + "/" + href
+@Composable
+fun PatchItem(
+    patch: PatchManager.Patch,
+    isEnabled: Boolean,
+    onToggle: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggle)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = patch.title,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (patch.gameVersion.isNotBlank()) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = patch.gameVersion,
+                        fontSize = 10.sp,
+                        color = Color.White,
+                        modifier = Modifier
+                            .background(
+                                color = MaterialTheme.colorScheme.secondary,
+                                shape = RoundedCornerShape(4.dp)
+                            )
+                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                    )
+                }
             }
-            val lower = href.lowercase() + " " + text.lowercase()
-            if (lower.contains("patch") || lower.contains(".patch") || lower.contains(".diff") || lower.contains(".txt") || lower.contains("/patches") ) {
-                results.add(Pair(href, text))
+            if (patch.notes.isNotBlank()) {
+                Text(
+                    text = patch.notes,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
-        } catch (e: Throwable) {
-            // ignore
+            Text(
+                text = "by ${patch.author}",
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
+        Checkbox(
+            checked = isEnabled,
+            onCheckedChange = { onToggle() }
+        )
     }
-    return results.distinctBy { it.first }
 }

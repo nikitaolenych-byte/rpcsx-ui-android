@@ -75,6 +75,7 @@ import net.rpcsx.RPCSX
 import net.rpcsx.RPCSXActivity
 import net.rpcsx.dialogs.AlertDialogQueue
 import net.rpcsx.ui.settings.AdvancedSettingsScreen
+import net.rpcsx.ui.patches.PatchManagerScreen
 import org.json.JSONObject
 import net.rpcsx.utils.GeneralSettings
 import net.rpcsx.utils.FileUtil
@@ -142,12 +143,17 @@ fun GameItem(game: Game, navigateTo: (String) -> Unit) {
     val customConfigGamePath = remember { mutableStateOf<String?>(null) }
     val advancedMode = remember { mutableStateOf<String?>(null) } // "game" | "global" | "default"
     val showActionDialog = remember { mutableStateOf(false) }
+    val showPatchManager = remember { mutableStateOf(false) }
 
     fun showCustomConfigForGame(context: android.content.Context, json: JSONObject, path: String) {
-        customConfigJson.value = json
-        customConfigGamePath.value = path
-        advancedMode.value = "game"
-        showCustomConfig.value = true
+        try {
+            customConfigJson.value = json
+            customConfigGamePath.value = path
+            advancedMode.value = "game"
+            showCustomConfig.value = true
+        } catch (e: Throwable) {
+            android.util.Log.e("Games", "Error showing custom config: ${e.message}")
+        }
     }
 
     fun openGlobalConfig() {
@@ -180,24 +186,23 @@ fun GameItem(game: Game, navigateTo: (String) -> Unit) {
         DropdownMenu(
             expanded = menuExpanded.value, onDismissRequest = { menuExpanded.value = false }) {
             if (game.progressList.isEmpty()) {
-                // Game Patches option
+                // Game Patches option - opens integrated PatchManagerScreen
                 DropdownMenuItem(
                     text = { Text("Game Patches") },
                     leadingIcon = { Icon(ImageVector.vectorResource(R.drawable.ic_settings), contentDescription = null) },
                     onClick = {
                         menuExpanded.value = false
-                        // Open game patches URL from RPCS3 wiki
-                        val gameName = game.info.name.value ?: "Unknown"
-                        val patchUrl = "https://wiki.rpcs3.net/index.php?title=Help:Game_Patches"
-                        try {
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(patchUrl))
-                            context.startActivity(intent)
+                        // Extract game ID from path (e.g., BLUS12345)
+                        val gameId = try {
+                            game.info.path.substringAfterLast("/").let { folder ->
+                                // Try to extract game ID pattern like BLUS30888
+                                val pattern = Regex("[A-Z]{4}\\d{5}")
+                                pattern.find(folder)?.value ?: folder
+                            }
                         } catch (e: Throwable) {
-                            AlertDialogQueue.showDialog(
-                                title = "Game Patches",
-                                message = "Visit wiki.rpcs3.net for patches for $gameName"
-                            )
+                            game.info.path.substringAfterLast("/")
                         }
+                        showPatchManager.value = true
                     }
                 )
                 // Custom Configuration (per-game)
@@ -285,9 +290,25 @@ fun GameItem(game: Game, navigateTo: (String) -> Unit) {
                     }
                     showCustomConfig.value = false
                 },
-                navigateTo = {},
-                settings = customConfigJson.value!!,
+                navigateTo = { route -> android.util.Log.d("Games", "Navigate to: $route") },
+                settings = customConfigJson.value ?: JSONObject(),
                 path = if (advancedMode.value == "game") "Game@@${customConfigGamePath.value}" else ""
+            )
+        }
+
+        // Patch Manager overlay
+        if (showPatchManager.value) {
+            val gameId = try {
+                game.info.path.substringAfterLast("/").let { folder ->
+                    val pattern = Regex("[A-Z]{4}\\d{5}")
+                    pattern.find(folder)?.value ?: folder
+                }
+            } catch (e: Throwable) { "" }
+            
+            PatchManagerScreen(
+                navigateBack = { showPatchManager.value = false },
+                gameId = gameId,
+                gameName = game.info.name.value ?: "Game"
             )
         }
 
