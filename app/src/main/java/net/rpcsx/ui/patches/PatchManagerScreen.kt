@@ -252,10 +252,10 @@ fun PatchManagerScreen(
                                     val filtered = patchGroups.filter { it.gameId.contains(gameId, ignoreCase = true) }
                                     if (filtered.isNotEmpty()) patchGroups = filtered
                                 }
-                                statusMessage = "✅ Downloaded ${patchGroups.sumOf { it.patches.size }} patches"
+                                statusMessage = "Downloaded ${patchGroups.sumOf { it.patches.size }} patches successfully"
                             } else {
                                 val errorMsg = result.exceptionOrNull()?.message ?: "Unknown error"
-                                statusMessage = "❌ Error: $errorMsg"
+                                statusMessage = "Error: $errorMsg"
                                 Log.e("PatchManager", "Download failed: $errorMsg", result.exceptionOrNull())
                             }
                             isLoading = false

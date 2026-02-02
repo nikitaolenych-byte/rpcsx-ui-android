@@ -547,8 +547,12 @@ object PatchManager {
             connection.requestMethod = "GET"
             connection.connectTimeout = 30000
             connection.readTimeout = 60000 // Longer read timeout
-            connection.setRequestProperty("User-Agent", "RPCSX-Android/1.5 (compatible; Mozilla/5.0)")
-            connection.setRequestProperty("Accept", "text/plain, text/yaml, */*")
+            // Use browser-like User-Agent to avoid 403 Forbidden
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
+            connection.setRequestProperty("Accept", "text/plain, text/yaml, text/html, application/xhtml+xml, */*")
+            connection.setRequestProperty("Accept-Language", "en-US,en;q=0.9")
+            connection.setRequestProperty("Accept-Encoding", "identity") // No compression to simplify
+            connection.setRequestProperty("Connection", "keep-alive")
             connection.instanceFollowRedirects = true
             
             try {
@@ -568,9 +572,16 @@ object PatchManager {
                     Log.i(TAG, "Redirecting to: $newUrl")
                     connection.disconnect()
                     return downloadUrl(newUrl)
+                } else if (responseCode == HttpURLConnection.HTTP_FORBIDDEN) {
+                    Log.e(TAG, "HTTP 403 Forbidden - server rejected request")
+                    throw Exception("Access denied (403). The server blocked the request. Try again later.")
+                } else if (responseCode == 429) {
+                    Log.e(TAG, "HTTP 429 Too Many Requests - rate limited")
+                    throw Exception("Too many requests. Please wait a few minutes and try again.")
                 } else {
-                    val errorMsg = connection.errorStream?.bufferedReader()?.use { it.readText() } ?: "Unknown error"
-                    throw Exception("HTTP $responseCode: $errorMsg")
+                    val errorMsg = connection.errorStream?.bufferedReader()?.use { it.readText() } ?: "Server error"
+                    Log.e(TAG, "HTTP $responseCode: $errorMsg")
+                    throw Exception("Server returned error $responseCode. Try again later.")
                 }
             } finally {
                 connection.disconnect()
