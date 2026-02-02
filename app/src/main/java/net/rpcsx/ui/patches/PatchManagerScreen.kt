@@ -3,6 +3,8 @@ package net.rpcsx.ui.patches
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -14,6 +16,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
@@ -32,6 +35,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.rpcsx.R
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * RPCSX Patch Manager Screen
@@ -55,6 +61,65 @@ fun PatchManagerScreen(
     var expandedGroups by remember { mutableStateOf<Set<String>>(setOf()) }
     var showDownloadDialog by remember { mutableStateOf(false) }
     var downloadProgress by remember { mutableStateOf(0f) }
+    var showMoreMenu by remember { mutableStateOf(false) }
+    
+    // File picker launchers for import/export
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        uri?.let { 
+            scope.launch(Dispatchers.IO) {
+                try {
+                    context.contentResolver.openOutputStream(it)?.use { outputStream ->
+                        val success = PatchManager.exportPatchesToStream(context, outputStream)
+                        withContext(Dispatchers.Main) {
+                            statusMessage = if (success) {
+                                "Patches exported successfully"
+                            } else {
+                                "Export failed - no patches to export"
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        statusMessage = "Export failed: ${e.message}"
+                    }
+                }
+            }
+        }
+    }
+    
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let {
+            scope.launch(Dispatchers.IO) {
+                try {
+                    context.contentResolver.openInputStream(it)?.use { inputStream ->
+                        val count = PatchManager.importPatchesFromStream(context, inputStream)
+                        withContext(Dispatchers.Main) {
+                            if (count > 0) {
+                                statusMessage = "Imported $count game patch groups"
+                                patchGroups = PatchManager.loadPatchesFromCache(context)
+                                if (gameId.isNotBlank()) {
+                                    val filtered = patchGroups.filter { group -> 
+                                        group.gameId.contains(gameId, ignoreCase = true) 
+                                    }
+                                    if (filtered.isNotEmpty()) patchGroups = filtered
+                                }
+                            } else {
+                                statusMessage = "Import failed - invalid patch file"
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        statusMessage = "Import failed: ${e.message}"
+                    }
+                }
+            }
+        }
+    }
     
     // Load patches on first composition
     LaunchedEffect(Unit) {
@@ -111,6 +176,61 @@ fun PatchManagerScreen(
                         }
                     }) {
                         Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                    }
+                    
+                    // More menu (Export/Import)
+                    Box {
+                        IconButton(onClick = { showMoreMenu = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "More options")
+                        }
+                        DropdownMenu(
+                            expanded = showMoreMenu,
+                            onDismissRequest = { showMoreMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Export patches (for offline)") },
+                                onClick = {
+                                    showMoreMenu = false
+                                    if (PatchManager.hasCachedPatches(context)) {
+                                        exportLauncher.launch("rpcsx_patches.json")
+                                    } else {
+                                        statusMessage = "No patches to export. Download first."
+                                    }
+                                },
+                                leadingIcon = {
+                                    Icon(ImageVector.vectorResource(R.drawable.ic_cloud_download), contentDescription = null)
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Import patches (from file)") },
+                                onClick = {
+                                    showMoreMenu = false
+                                    importLauncher.launch(arrayOf("application/json", "*/*"))
+                                },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Refresh, contentDescription = null)
+                                }
+                            )
+                            HorizontalDivider()
+                            // Show cache info
+                            val cacheSize = PatchManager.getCacheSize(context)
+                            val lastModified = PatchManager.getCacheLastModified(context)
+                            val lastModifiedText = if (lastModified > 0) {
+                                SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date(lastModified))
+                            } else {
+                                "Never"
+                            }
+                            DropdownMenuItem(
+                                text = { 
+                                    Column {
+                                        Text("Cache: $cacheSize", fontSize = 12.sp)
+                                        Text("Updated: $lastModifiedText", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                },
+                                onClick = { },
+                                enabled = false
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(

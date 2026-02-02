@@ -608,4 +608,137 @@ object PatchManager {
         val regex = Regex("[A-Z]{4}[0-9]{5}")
         return regex.find(gamePath)?.value
     }
+    
+    /**
+     * Export patches to a file for offline use
+     * Returns the exported file path or null on failure
+     */
+    fun exportPatchesToFile(context: Context, outputFile: File): Boolean {
+        return try {
+            val cacheFile = File(getPatchesDir(context), PATCH_CACHE_FILE)
+            if (!cacheFile.exists()) {
+                Log.e(TAG, "No patches to export - cache file not found")
+                return false
+            }
+            
+            // Copy cache file to output location
+            cacheFile.copyTo(outputFile, overwrite = true)
+            Log.i(TAG, "Exported patches to: ${outputFile.absolutePath}")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to export patches: ${e.message}")
+            false
+        }
+    }
+    
+    /**
+     * Export patches to output stream (for SAF)
+     */
+    fun exportPatchesToStream(context: Context, outputStream: java.io.OutputStream): Boolean {
+        return try {
+            val cacheFile = File(getPatchesDir(context), PATCH_CACHE_FILE)
+            if (!cacheFile.exists()) {
+                Log.e(TAG, "No patches to export - cache file not found")
+                return false
+            }
+            
+            cacheFile.inputStream().use { input ->
+                input.copyTo(outputStream)
+            }
+            Log.i(TAG, "Exported patches to stream")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to export patches: ${e.message}")
+            false
+        }
+    }
+    
+    /**
+     * Import patches from a file
+     * Returns the number of imported patch groups or -1 on failure
+     */
+    fun importPatchesFromFile(context: Context, inputFile: File): Int {
+        return try {
+            if (!inputFile.exists()) {
+                Log.e(TAG, "Import file not found: ${inputFile.absolutePath}")
+                return -1
+            }
+            
+            val content = inputFile.readText()
+            importPatchesFromJson(context, content)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to import patches: ${e.message}")
+            -1
+        }
+    }
+    
+    /**
+     * Import patches from input stream (for SAF)
+     */
+    fun importPatchesFromStream(context: Context, inputStream: java.io.InputStream): Int {
+        return try {
+            val content = inputStream.bufferedReader().use { it.readText() }
+            importPatchesFromJson(context, content)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to import patches from stream: ${e.message}")
+            -1
+        }
+    }
+    
+    /**
+     * Import patches from JSON string
+     */
+    private fun importPatchesFromJson(context: Context, jsonContent: String): Int {
+        return try {
+            // Validate JSON
+            val json = JSONObject(jsonContent)
+            val groupsArray = json.optJSONArray("groups")
+            if (groupsArray == null || groupsArray.length() == 0) {
+                Log.e(TAG, "Invalid patch file - no groups found")
+                return -1
+            }
+            
+            // Save to cache
+            val cacheFile = File(getPatchesDir(context), PATCH_CACHE_FILE)
+            cacheFile.writeText(jsonContent)
+            
+            val count = groupsArray.length()
+            Log.i(TAG, "Imported $count patch groups")
+            count
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to parse patch JSON: ${e.message}")
+            -1
+        }
+    }
+    
+    /**
+     * Check if patches are available in cache
+     */
+    fun hasCachedPatches(context: Context): Boolean {
+        val cacheFile = File(getPatchesDir(context), PATCH_CACHE_FILE)
+        return cacheFile.exists() && cacheFile.length() > 0
+    }
+    
+    /**
+     * Get cache file size for display
+     */
+    fun getCacheSize(context: Context): String {
+        val cacheFile = File(getPatchesDir(context), PATCH_CACHE_FILE)
+        if (!cacheFile.exists()) return "0 KB"
+        
+        val sizeBytes = cacheFile.length()
+        return when {
+            sizeBytes < 1024 -> "$sizeBytes B"
+            sizeBytes < 1024 * 1024 -> "${sizeBytes / 1024} KB"
+            else -> "${sizeBytes / (1024 * 1024)} MB"
+        }
+    }
+    
+    /**
+     * Get last update time of cache
+     */
+    fun getCacheLastModified(context: Context): Long {
+        val cacheFile = File(getPatchesDir(context), PATCH_CACHE_FILE)
+        return if (cacheFile.exists()) cacheFile.lastModified() else 0
+    }
 }
