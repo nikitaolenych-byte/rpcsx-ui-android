@@ -498,20 +498,44 @@ fun AdvancedSettingsScreen(
 
     // Keep variants reactive: recompute when native library status changes so
     // `systemInfo()` results are picked up after native loads.
-    var llvmCpuCoreVariants by remember { mutableStateOf(detectCpuCoreVariants(context).ifEmpty { listOf("CPU0") }) }
+    // Initialize with placeholder to avoid blocking UI - real values loaded asynchronously
+    var llvmCpuCoreVariants by remember { mutableStateOf(listOf("Loading...")) }
+    var isLoadingCpuVariants by remember { mutableStateOf(true) }
 
     var llvmCpuCoreValue by remember {
         mutableStateOf(
-            (GeneralSettings["llvm_cpu_core"] as? String)?.takeIf { llvmCpuCoreVariants.contains(it) }
-                ?: llvmCpuCoreVariants.firstOrNull() ?: ""
+            (GeneralSettings["llvm_cpu_core"] as? String) ?: ""
         )
+    }
+
+    // Load CPU variants asynchronously to avoid blocking UI
+    LaunchedEffect(Unit) {
+        try {
+            val variants = withContext(Dispatchers.IO) {
+                detectCpuCoreVariants(context).ifEmpty { listOf("CPU0") }
+            }
+            llvmCpuCoreVariants = variants
+            // Set initial value if not already set
+            if (llvmCpuCoreValue.isEmpty() || llvmCpuCoreValue == "Loading...") {
+                val saved = GeneralSettings["llvm_cpu_core"] as? String
+                llvmCpuCoreValue = saved?.takeIf { variants.contains(it) } ?: variants.firstOrNull() ?: ""
+            }
+            isLoadingCpuVariants = false
+        } catch (e: Throwable) {
+            android.util.Log.w("Settings", "Failed to load CPU variants: ${e.message}")
+            llvmCpuCoreVariants = listOf("CPU0")
+            isLoadingCpuVariants = false
+        }
     }
 
     // Recompute variants when native library becomes available or changes
     LaunchedEffect(RPCSX.activeLibrary.value) {
+        if (RPCSX.activeLibrary.value == null) return@LaunchedEffect
         try {
-            val newVariants = detectCpuCoreVariants(context).ifEmpty { listOf("CPU0") }
-            if (newVariants != llvmCpuCoreVariants) {
+            val newVariants = withContext(Dispatchers.IO) {
+                detectCpuCoreVariants(context).ifEmpty { listOf("CPU0") }
+            }
+            if (newVariants != llvmCpuCoreVariants && newVariants.isNotEmpty()) {
                 llvmCpuCoreVariants = newVariants
                 val saved = GeneralSettings["llvm_cpu_core"] as? String
                 llvmCpuCoreValue = saved?.takeIf { newVariants.contains(it) } ?: newVariants.firstOrNull() ?: ""

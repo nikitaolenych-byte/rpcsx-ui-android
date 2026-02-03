@@ -21,8 +21,10 @@ import java.net.URL
 object PatchManager {
     private const val TAG = "PatchManager"
     
-    // RPCS3 patch repository URLs
+    // RPCS3 patch repository URLs (ordered by reliability)
     private const val RPCS3_PATCH_URL = "https://rpcs3.net/compatibility?api=v1&export=patches"
+    // jsdelivr CDN is more reliable and has no rate limiting
+    private const val RPCS3_PATCH_CDN_URL = "https://cdn.jsdelivr.net/gh/RPCS3/rpcs3@master/bin/patches/patch.yml"
     private const val RPCS3_PATCH_RAW_URL = "https://raw.githubusercontent.com/RPCS3/rpcs3/master/bin/patches/patch.yml"
     private const val RPCS3_WIKI_PATCHES = "https://wiki.rpcs3.net/index.php?title=Help:Game_Patches&action=raw"
     
@@ -160,17 +162,24 @@ object PatchManager {
                 
                 onProgress(10, "Connecting to RPCS3 patch server...")
                 
-                // Try to download from raw GitHub first (more reliable)
+                // Try multiple sources with fallback (CDN first - most reliable, no rate limiting)
                 val patchContent = try {
-                    downloadUrl(RPCS3_PATCH_RAW_URL)
+                    Log.i(TAG, "Trying jsdelivr CDN...")
+                    downloadUrl(RPCS3_PATCH_CDN_URL)
                 } catch (e: Exception) {
-                    Log.w(TAG, "Failed to download from GitHub: ${e.message}, trying wiki...")
-                    onProgress(20, "Trying alternative source...")
+                    Log.w(TAG, "CDN failed: ${e.message}, trying GitHub raw...")
+                    onProgress(15, "Trying alternative source...")
                     try {
-                        downloadUrl(RPCS3_WIKI_PATCHES)
+                        downloadUrl(RPCS3_PATCH_RAW_URL)
                     } catch (e2: Exception) {
-                        Log.e(TAG, "Failed to download patches: ${e2.message}")
-                        return@withContext Result.failure(e2)
+                        Log.w(TAG, "GitHub raw failed: ${e2.message}, trying wiki...")
+                        onProgress(20, "Trying wiki source...")
+                        try {
+                            downloadUrl(RPCS3_WIKI_PATCHES)
+                        } catch (e3: Exception) {
+                            Log.e(TAG, "All sources failed. Last error: ${e3.message}")
+                            return@withContext Result.failure(Exception("Could not download patches from any source. Error: ${e.message}"))
+                        }
                     }
                 }
                 
@@ -547,12 +556,20 @@ object PatchManager {
             connection.requestMethod = "GET"
             connection.connectTimeout = 30000
             connection.readTimeout = 60000 // Longer read timeout
-            // Use browser-like User-Agent to avoid 403 Forbidden
-            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
-            connection.setRequestProperty("Accept", "text/plain, text/yaml, text/html, application/xhtml+xml, */*")
+            // Use browser-like headers to avoid 403 Forbidden
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36")
+            connection.setRequestProperty("Accept", "text/plain, text/yaml, application/octet-stream, */*;q=0.9")
             connection.setRequestProperty("Accept-Language", "en-US,en;q=0.9")
             connection.setRequestProperty("Accept-Encoding", "identity") // No compression to simplify
             connection.setRequestProperty("Connection", "keep-alive")
+            connection.setRequestProperty("Cache-Control", "no-cache")
+            connection.setRequestProperty("Pragma", "no-cache")
+            // Add Referer to appear as legitimate browser request
+            if (urlString.contains("github")) {
+                connection.setRequestProperty("Referer", "https://github.com/RPCS3/rpcs3")
+            } else if (urlString.contains("jsdelivr")) {
+                connection.setRequestProperty("Referer", "https://www.jsdelivr.com/")
+            }
             connection.instanceFollowRedirects = true
             
             try {
