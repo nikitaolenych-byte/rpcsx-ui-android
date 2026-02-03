@@ -22,7 +22,7 @@ plugins {
 android {
     namespace = "net.rpcsx"
     compileSdk = 36
-    ndkVersion = "29.0.13113456"
+    ndkVersion = "25.2.9519653"  // Stable NDK version
 
     defaultConfig {
         applicationId = "net.rpcsx"

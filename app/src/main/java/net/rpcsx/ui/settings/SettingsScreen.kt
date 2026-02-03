@@ -810,7 +810,8 @@ fun AdvancedSettingsScreen(
                         value = minScale,
                         valueRange = 25f..100f,
                         steps = 14,
-                        icon = null,
+                        leadingIcon = null,
+                        subtitle = "${minScale.toInt()}%",
                         onValueChange = { value ->
                             minScale = value
                             val scale = value / 100f
@@ -820,8 +821,7 @@ fun AdvancedSettingsScreen(
                             } catch (e: Throwable) {
                                 android.util.Log.w("DRS", "Failed to set min scale: ${e.message}")
                             }
-                        },
-                        valueFormatter = { "${it.toInt()}%" }
+                        }
                     )
                 }
                 
@@ -843,6 +843,466 @@ fun AdvancedSettingsScreen(
                             } catch (e: Throwable) {
                                 android.util.Log.w("DRS", "Failed to set FSR upscaling: ${e.message}")
                             }
+                        },
+                        onLongClick = {}
+                    )
+                }
+            }
+            
+            // Texture Streaming Cache section
+            if (path.contains("Video") || path.contains("GPU") || path.contains("Graphics") || path.isEmpty()) {
+                item(key = "texture_streaming_header") {
+                    PreferenceHeader(text = "Texture Streaming Cache")
+                }
+                
+                item(key = "texture_streaming_enabled") {
+                    var enabled by remember { 
+                        mutableStateOf(GeneralSettings["texture_streaming_enabled"] as? Boolean ?: true) 
+                    }
+                    
+                    SwitchPreference(
+                        checked = enabled,
+                        title = "Enable Texture Streaming",
+                        leadingIcon = null,
+                        onClick = { value ->
+                            enabled = value
+                            GeneralSettings.setValue("texture_streaming_enabled", value)
+                        },
+                        onLongClick = {}
+                    )
+                }
+                
+                item(key = "texture_streaming_mode") {
+                    var mode by remember { 
+                        mutableStateOf(GeneralSettings["texture_streaming_mode"] as? Int ?: 2) 
+                    }
+                    val modes = listOf("Off", "Minimal", "Balanced", "Aggressive", "Ultra")
+                    
+                    SingleSelectionDialog(
+                        currentValue = modes.getOrElse(mode) { "Balanced" },
+                        values = modes,
+                        icon = null,
+                        title = "Streaming Mode",
+                        onValueChange = { value ->
+                            val newMode = modes.indexOf(value)
+                            mode = newMode
+                            GeneralSettings.setValue("texture_streaming_mode", newMode)
+                            try {
+                                RPCSX.instance.textureStreamingSetMode(newMode)
+                            } catch (e: Throwable) {
+                                android.util.Log.w("TextureStreaming", "Failed to set mode: ${e.message}")
+                            }
+                        },
+                        onLongClick = {}
+                    )
+                }
+                
+                item(key = "texture_cache_size") {
+                    var cacheSize by remember { 
+                        mutableStateOf((GeneralSettings["texture_cache_size_mb"] as? Int ?: 256).toFloat()) 
+                    }
+                    
+                    SliderPreference(
+                        title = "Cache Size",
+                        value = cacheSize,
+                        valueRange = 64f..1024f,
+                        steps = 14,
+                        leadingIcon = null,
+                        subtitle = "${cacheSize.toInt()} MB",
+                        onValueChange = { value ->
+                            cacheSize = value
+                            GeneralSettings.setValue("texture_cache_size_mb", value.toInt())
+                        }
+                    )
+                }
+            }
+            
+            // Pipeline Cache section
+            if (path.contains("Video") || path.contains("GPU") || path.contains("Graphics") || path.isEmpty()) {
+                item(key = "pipeline_cache_header") {
+                    PreferenceHeader(text = "Vulkan Pipeline Cache")
+                }
+                
+                item(key = "pipeline_cache_enabled") {
+                    var enabled by remember { 
+                        mutableStateOf(GeneralSettings["pipeline_cache_enabled"] as? Boolean ?: true) 
+                    }
+                    
+                    SwitchPreference(
+                        checked = enabled,
+                        title = "Enable Pipeline Cache",
+                        leadingIcon = null,
+                        onClick = { value ->
+                            enabled = value
+                            GeneralSettings.setValue("pipeline_cache_enabled", value)
+                        },
+                        onLongClick = {}
+                    )
+                }
+                
+                item(key = "pipeline_precompilation") {
+                    var enabled by remember { 
+                        mutableStateOf(GeneralSettings["pipeline_precompilation"] as? Boolean ?: true) 
+                    }
+                    
+                    SwitchPreference(
+                        checked = enabled,
+                        title = "Async Precompilation",
+                        leadingIcon = null,
+                        onClick = { value ->
+                            enabled = value
+                            GeneralSettings.setValue("pipeline_precompilation", value)
+                        },
+                        onLongClick = {}
+                    )
+                }
+                
+                item(key = "pipeline_max_cached") {
+                    var maxPipelines by remember { 
+                        mutableStateOf((GeneralSettings["pipeline_max_cached"] as? Int ?: 2000).toFloat()) 
+                    }
+                    
+                    SliderPreference(
+                        title = "Max Cached Pipelines",
+                        value = maxPipelines,
+                        valueRange = 500f..5000f,
+                        steps = 8,
+                        leadingIcon = null,
+                        subtitle = "${maxPipelines.toInt()}",
+                        onValueChange = { value ->
+                            maxPipelines = value
+                            GeneralSettings.setValue("pipeline_max_cached", value.toInt())
+                        }
+                    )
+                }
+            }
+            
+            // Game Profiles section
+            if (path.isEmpty() || path.contains("Game") || path.contains("CPU") || path.contains("Emulation")) {
+                item(key = "game_profiles_header") {
+                    PreferenceHeader(text = "Game Performance Profiles")
+                }
+                
+                item(key = "auto_apply_profiles") {
+                    var enabled by remember { 
+                        mutableStateOf(GeneralSettings["auto_apply_profiles"] as? Boolean ?: true) 
+                    }
+                    
+                    SwitchPreference(
+                        checked = enabled,
+                        title = "Auto-Apply Game Profiles",
+                        leadingIcon = null,
+                        onClick = { value ->
+                            enabled = value
+                            GeneralSettings.setValue("auto_apply_profiles", value)
+                        },
+                        onLongClick = {}
+                    )
+                }
+                
+                item(key = "use_community_profiles") {
+                    var enabled by remember { 
+                        mutableStateOf(GeneralSettings["use_community_profiles"] as? Boolean ?: false) 
+                    }
+                    
+                    SwitchPreference(
+                        checked = enabled,
+                        title = "Use Community Profiles",
+                        leadingIcon = null,
+                        onClick = { value ->
+                            enabled = value
+                            GeneralSettings.setValue("use_community_profiles", value)
+                        },
+                        onLongClick = {}
+                    )
+                }
+                
+                item(key = "profiles_stats") {
+                    var statsJson by remember { mutableStateOf("{}") }
+                    
+                    LaunchedEffect(Unit) {
+                        try {
+                            statsJson = RPCSX.instance.profilesGetStatsJson()
+                        } catch (e: Throwable) {
+                            android.util.Log.w("Profiles", "Failed to get stats: ${e.message}")
+                        }
+                    }
+                    
+                    RegularPreference(
+                        title = "Profiles Statistics",
+                        leadingIcon = null,
+                        trailingContent = {
+                            Text(
+                                text = try {
+                                    val json = org.json.JSONObject(statsJson)
+                                    "${json.optInt("total_profiles", 0)} profiles"
+                                } catch (e: Throwable) { "N/A" },
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        },
+                        onClick = {}
+                    )
+                }
+            }
+            
+            // SVE2/NEON Optimizations section
+            if (path.isEmpty() || path.contains("CPU") || path.contains("Advanced")) {
+                item(key = "sve2_header") {
+                    PreferenceHeader(text = "ARM SIMD Optimizations")
+                }
+                
+                item(key = "sve2_status") {
+                    var capsJson by remember { mutableStateOf("{}") }
+                    
+                    LaunchedEffect(Unit) {
+                        try {
+                            capsJson = RPCSX.instance.sve2GetCapabilitiesJson()
+                        } catch (e: Throwable) {
+                            android.util.Log.w("SVE2", "Failed to get caps: ${e.message}")
+                        }
+                    }
+                    
+                    val statusText = try {
+                        val json = org.json.JSONObject(capsJson)
+                        when {
+                            json.optBoolean("has_sve2", false) -> "SVE2 (${json.optInt("sve_vector_length", 0)} bit)"
+                            json.optBoolean("has_sve", false) -> "SVE (${json.optInt("sve_vector_length", 0)} bit)"
+                            json.optBoolean("has_neon", false) -> "NEON"
+                            else -> "None"
+                        }
+                    } catch (e: Throwable) { "Unknown" }
+                    
+                    RegularPreference(
+                        title = "SIMD Capabilities",
+                        leadingIcon = null,
+                        trailingContent = {
+                            Text(
+                                text = statusText,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (statusText.contains("SVE2")) MaterialTheme.colorScheme.primary 
+                                       else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        },
+                        onClick = {}
+                    )
+                }
+                
+                item(key = "enable_sve2_optimizations") {
+                    var enabled by remember { 
+                        mutableStateOf(GeneralSettings["enable_sve2_optimizations"] as? Boolean ?: true) 
+                    }
+                    
+                    SwitchPreference(
+                        checked = enabled,
+                        title = "Use SVE2/NEON Optimizations",
+                        leadingIcon = null,
+                        onClick = { value ->
+                            enabled = value
+                            GeneralSettings.setValue("enable_sve2_optimizations", value)
+                        },
+                        onLongClick = {}
+                    )
+                }
+            }
+
+            // PS3 Compatibility Settings section
+            if (path.isEmpty() || path.contains("PS3") || path.contains("Compatibility") || path.contains("Emulation")) {
+                item(key = "ps3_compat_header") {
+                    PreferenceHeader(text = "PS3 Compatibility")
+                }
+                
+                // Firmware Spoofing
+                item(key = "firmware_spoof_version") {
+                    var version by remember { mutableStateOf("4.90") }
+                    
+                    LaunchedEffect(Unit) {
+                        try {
+                            version = RPCSX.instance.firmwareSpoofGetVersion()
+                        } catch (e: Throwable) {
+                            android.util.Log.w("FirmwareSpoof", "Failed to get version: ${e.message}")
+                        }
+                    }
+                    
+                    RegularPreference(
+                        title = "Firmware Version Spoof",
+                        leadingIcon = null,
+                        trailingContent = {
+                            Text(
+                                text = version,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        },
+                        onClick = {}
+                    )
+                }
+                
+                // Syscall Stubs
+                item(key = "syscall_stubs_status") {
+                    var statsJson by remember { mutableStateOf("{}") }
+                    
+                    LaunchedEffect(Unit) {
+                        try {
+                            statsJson = RPCSX.instance.syscallStubsGetStats()
+                        } catch (e: Throwable) {
+                            android.util.Log.w("SyscallStubs", "Failed to get stats: ${e.message}")
+                        }
+                    }
+                    
+                    RegularPreference(
+                        title = "Syscall Stubbing Status",
+                        leadingIcon = null,
+                        trailingContent = {
+                            Text(
+                                text = try {
+                                    val json = org.json.JSONObject(statsJson)
+                                    val stubbed = json.optInt("stubbed_calls", 0)
+                                    val total = json.optInt("total_calls", 0)
+                                    if (total > 0) "$stubbed stubbed" else "Ready"
+                                } catch (e: Throwable) { "N/A" },
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        },
+                        onClick = {}
+                    )
+                }
+                
+                // Library Emulation
+                item(key = "library_emulation_status") {
+                    var statsJson by remember { mutableStateOf("{}") }
+                    
+                    LaunchedEffect(Unit) {
+                        try {
+                            statsJson = RPCSX.instance.libraryEmulationGetStats()
+                        } catch (e: Throwable) {
+                            android.util.Log.w("LibraryEmulation", "Failed to get stats: ${e.message}")
+                        }
+                    }
+                    
+                    RegularPreference(
+                        title = "Library Emulation Layer",
+                        leadingIcon = null,
+                        trailingContent = {
+                            Text(
+                                text = try {
+                                    val json = org.json.JSONObject(statsJson)
+                                    "${json.optInt("total_libraries", 0)} libraries"
+                                } catch (e: Throwable) { "N/A" },
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        },
+                        onClick = {}
+                    )
+                }
+                
+                // Patch Installer
+                item(key = "patch_installer_status") {
+                    var statsJson by remember { mutableStateOf("{}") }
+                    
+                    LaunchedEffect(Unit) {
+                        try {
+                            statsJson = RPCSX.instance.patchInstallerGetStats()
+                        } catch (e: Throwable) {
+                            android.util.Log.w("PatchInstaller", "Failed to get stats: ${e.message}")
+                        }
+                    }
+                    
+                    RegularPreference(
+                        title = "Game Patch Installer",
+                        leadingIcon = null,
+                        trailingContent = {
+                            Text(
+                                text = try {
+                                    val json = org.json.JSONObject(statsJson)
+                                    "${json.optInt("total_cached", 0)} cached"
+                                } catch (e: Throwable) { "N/A" },
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        },
+                        onClick = {}
+                    )
+                }
+                
+                item(key = "auto_apply_patches") {
+                    var enabled by remember { 
+                        mutableStateOf(GeneralSettings["auto_apply_patches"] as? Boolean ?: true) 
+                    }
+                    
+                    SwitchPreference(
+                        checked = enabled,
+                        title = "Auto-Apply Recommended Patches",
+                        leadingIcon = null,
+                        onClick = { value ->
+                            enabled = value
+                            GeneralSettings.setValue("auto_apply_patches", value)
+                        },
+                        onLongClick = {}
+                    )
+                }
+            }
+
+            // Save Data Tools section
+            if (path.isEmpty() || path.contains("Save") || path.contains("Data") || path.contains("Storage")) {
+                item(key = "save_tools_header") {
+                    PreferenceHeader(text = "Save Data Tools")
+                }
+                
+                item(key = "save_converter_status") {
+                    var statsJson by remember { mutableStateOf("{}") }
+                    
+                    LaunchedEffect(Unit) {
+                        try {
+                            statsJson = RPCSX.instance.saveConverterGetStats()
+                        } catch (e: Throwable) {
+                            android.util.Log.w("SaveConverter", "Failed to get stats: ${e.message}")
+                        }
+                    }
+                    
+                    RegularPreference(
+                        title = "Save Converter Statistics",
+                        leadingIcon = null,
+                        trailingContent = {
+                            Text(
+                                text = try {
+                                    val json = org.json.JSONObject(statsJson)
+                                    "${json.optInt("converted", 0)} converted"
+                                } catch (e: Throwable) { "N/A" },
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        },
+                        onClick = {}
+                    )
+                }
+                
+                item(key = "auto_backup_saves") {
+                    var enabled by remember { 
+                        mutableStateOf(GeneralSettings["auto_backup_saves"] as? Boolean ?: true) 
+                    }
+                    
+                    SwitchPreference(
+                        checked = enabled,
+                        title = "Auto-Backup Saves Before Conversion",
+                        leadingIcon = null,
+                        onClick = { value ->
+                            enabled = value
+                            GeneralSettings.setValue("auto_backup_saves", value)
+                        },
+                        onLongClick = {}
+                    )
+                }
+                
+                item(key = "cross_region_saves") {
+                    var enabled by remember { 
+                        mutableStateOf(GeneralSettings["cross_region_saves"] as? Boolean ?: false) 
+                    }
+                    
+                    SwitchPreference(
+                        checked = enabled,
+                        title = "Enable Cross-Region Save Compatibility",
+                        leadingIcon = null,
+                        onClick = { value ->
+                            enabled = value
+                            GeneralSettings.setValue("cross_region_saves", value)
                         },
                         onLongClick = {}
                     )

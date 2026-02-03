@@ -79,6 +79,15 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
     ppu_interceptor.cpp
     nce_hook.cpp
     drs_engine.cpp
+    texture_streaming.cpp
+    sve2_optimizations.cpp
+    pipeline_cache.cpp
+    game_profiles.cpp
+    patch_installer.cpp
+    syscall_stubs.cpp
+    firmware_spoof.cpp
+    library_emulation.cpp
+    save_converter.cpp
     rpcsx/android/src/cutscene_bridge.cpp
     rpcsx/android/src/nbtc_bridge.cpp
     nbtc_engine/nbtc_engine.cpp

@@ -161,6 +161,80 @@ class RPCSX {
     external fun drsResetStats()
     external fun drsSetFSRUpscaling(enabled: Boolean)
     external fun drsIsFSRUpscalingEnabled(): Boolean
+    
+    // Texture Streaming Cache
+    external fun textureStreamingInitialize(cacheSizeMb: Long, workerThreads: Int, mode: Int): Boolean
+    external fun textureStreamingShutdown()
+    external fun textureStreamingIsActive(): Boolean
+    external fun textureStreamingSetMode(mode: Int)
+    external fun textureStreamingGetMode(): Int
+    external fun textureStreamingGetStatsJson(): String
+    external fun textureStreamingClearCache()
+    
+    // SVE2 Optimizations
+    external fun sve2Initialize(): Boolean
+    external fun sve2Shutdown()
+    external fun sve2IsActive(): Boolean
+    external fun sve2HasFeature(feature: Int): Boolean
+    external fun sve2GetVectorLength(): Int
+    external fun sve2GetCapabilitiesJson(): String
+    
+    // Pipeline Cache
+    external fun pipelineCacheInitialize(maxPipelines: Int, compileThreads: Int, cachePath: String): Boolean
+    external fun pipelineCacheShutdown()
+    external fun pipelineCacheIsActive(): Boolean
+    external fun pipelineCacheClear()
+    external fun pipelineCacheSave(path: String): Boolean
+    external fun pipelineCacheLoad(path: String): Boolean
+    external fun pipelineCacheGetStatsJson(): String
+    
+    // Game Profiles
+    external fun profilesInitialize(profilesDir: String): Boolean
+    external fun profilesShutdown()
+    external fun profilesIsActive(): Boolean
+    external fun profilesApply(titleId: String): Boolean
+    external fun profilesHasProfile(titleId: String): Boolean
+    external fun profilesDelete(titleId: String): Boolean
+    external fun profilesExport(titleId: String): String
+    external fun profilesGetGameName(titleId: String): String
+    external fun profilesGetGameRegion(titleId: String): String
+    external fun profilesGetStatsJson(): String
+
+    // PS3 Patch Installer
+    external fun patchInstallerIsActive(): Boolean
+    external fun patchInstallerGetPatches(titleId: String): String
+    external fun patchInstallerApplyRecommended(titleId: String, memBase: Long, memSize: Long): Int
+    external fun patchInstallerGetStats(): String
+
+    // Syscall Stubs
+    external fun syscallStubsIsActive(): Boolean
+    external fun syscallStubsGetStats(): String
+    external fun syscallStubsExportLog(): String
+    external fun syscallStubsReset()
+
+    // Firmware Spoof
+    external fun firmwareSpoofIsActive(): Boolean
+    external fun firmwareSpoofSetVersion(major: Int, minor: Int)
+    external fun firmwareSpoofGetVersion(): String
+    external fun firmwareSpoofGetConfig(): String
+    external fun firmwareSpoofGetRecommended(titleId: String): String
+
+    // Library Emulation
+    external fun libraryEmulationIsActive(): Boolean
+    external fun libraryEmulationGetStats(): String
+    external fun libraryEmulationIsAvailable(libName: String): Boolean
+    external fun libraryEmulationGetStatus(libName: String): Int
+
+    // Save Converter
+    external fun saveConverterIsActive(): Boolean
+    external fun saveConverterDetectFormat(path: String): Int
+    external fun saveConverterDetectRegion(titleId: String): Int
+    external fun saveConverterConvert(src: String, dst: String, format: Int): Boolean
+    external fun saveConverterValidate(path: String): Boolean
+    external fun saveConverterBackup(savePath: String, backupPath: String): Boolean
+    external fun saveConverterCheckCompatibility(savePath: String, gameId: String): Boolean
+    external fun saveConverterGetRegionName(region: Int): String
+    external fun saveConverterGetStats(): String
 
 
     companion object {

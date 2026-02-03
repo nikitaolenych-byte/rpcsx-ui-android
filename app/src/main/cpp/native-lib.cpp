@@ -33,6 +33,15 @@
 #include "ppu_interceptor.h"
 #include "plt_hook.h"
 #include "drs_engine.h"
+#include "texture_streaming.h"
+#include "sve2_optimizations.h"
+#include "pipeline_cache.h"
+#include "game_profiles.h"
+#include "patch_installer.h"
+#include "syscall_stubs.h"
+#include "firmware_spoof.h"
+#include "library_emulation.h"
+#include "save_converter.h"
 
 #define LOG_TAG "RPCSX-Native"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -295,6 +304,9 @@ extern "C" JNIEXPORT jint JNICALL Java_net_rpcsx_RPCSX_boot(JNIEnv *env,
   if (auto getTitleId = rpcsxLib.getTitleId) {
       std::string titlId = getTitleId();
       if (!titlId.empty()) {
+          if (rpcsx::profiles::IsProfileSystemActive()) {
+            rpcsx::profiles::ApplyProfileForGame(titlId.c_str());
+          }
           // Universal game patches (Demon's Souls, Saw, inFamous, etc.)
           rpcsx::patches::InitializeGamePatches(titlId.c_str());
           // Frostbite engine games (BF4, PvZ:GW, etc.)
@@ -490,6 +502,89 @@ Java_net_rpcsx_RPCSX_initializeARMv9Optimizations(JNIEnv *env, jobject,
     LOGE("Scheduler initialization failed");
     success = false;
   }
+
+  // 4.1. Ініціалізація SVE2/NEON оптимізацій (не критично)
+  LOGI("Initializing SVE2/NEON optimizations...");
+  if (!rpcsx::sve2::InitializeSVE2()) {
+    LOGW("SVE2 initialization failed or not supported");
+  }
+
+  // 4.2. Ініціалізація Texture Streaming Cache (не критично)
+  LOGI("Initializing Texture Streaming Cache...");
+  rpcsx::textures::StreamingConfig tex_config;
+  tex_config.max_cache_size_mb = 512;
+  tex_config.async_pool_size = 3;
+  tex_config.mode = rpcsx::textures::StreamingMode::BALANCED;
+  if (!rpcsx::textures::InitializeTextureStreaming(tex_config)) {
+    LOGW("Texture streaming initialization failed");
+  }
+
+  // 4.3. Ініціалізація Vulkan Pipeline Cache (не критично)
+  LOGI("Initializing Vulkan Pipeline Cache...");
+  rpcsx::pipeline::PipelineCacheConfig pipeline_config;
+  pipeline_config.cache_path = cacheDir + "/pipeline_cache.bin";
+  pipeline_config.persist_to_disk = true;
+  pipeline_config.enable_precompilation = true;
+  if (!rpcsx::pipeline::InitializePipelineCache(nullptr, nullptr, pipeline_config)) {
+    LOGW("Pipeline cache initialization failed");
+  }
+
+  // 4.4. Ініціалізація Game Profiles (не критично)
+  LOGI("Initializing Game Performance Profiles...");
+  std::string profiles_dir = cacheDir + "/game_profiles";
+  if (!rpcsx::profiles::InitializeProfiles(profiles_dir.c_str())) {
+    LOGW("Game profiles initialization failed");
+  }
+
+  // 4.5. Ініціалізація PS3 Patch Installer (не критично)
+  LOGI("Initializing PS3 Patch Installer...");
+  rpcsx::patches::installer::InstallerConfig patch_config;
+  patch_config.cache_dir = cacheDir + "/patches";
+  patch_config.auto_download = false;
+  patch_config.auto_apply_recommended = true;
+  if (!rpcsx::patches::installer::InitializePatchInstaller(patch_config)) {
+    LOGW("Patch installer initialization failed");
+  }
+
+  // 4.6. Ініціалізація Syscall Stubs (не критично)
+  LOGI("Initializing Syscall Stub System...");
+  rpcsx::syscalls::StubConfig stub_config;
+  stub_config.enabled = true;
+  stub_config.log_unimplemented = true;
+  stub_config.auto_stub_missing = true;
+  if (!rpcsx::syscalls::InitializeSyscallStubs(stub_config)) {
+    LOGW("Syscall stubs initialization failed");
+  }
+
+  // 4.7. Ініціалізація Firmware Spoof (не критично)
+  LOGI("Initializing Firmware Spoofing...");
+  rpcsx::firmware::SpoofConfig spoof_config;
+  spoof_config.enabled = true;
+  spoof_config.global_version = rpcsx::firmware::known_versions::V4_90;
+  spoof_config.enable_all_features = true;
+  if (!rpcsx::firmware::InitializeFirmwareSpoof(spoof_config)) {
+    LOGW("Firmware spoof initialization failed");
+  }
+
+  // 4.8. Ініціалізація Library Emulation (не критично)
+  LOGI("Initializing Library Emulation Layer...");
+  rpcsx::libraries::LibraryEmulationConfig lib_config;
+  lib_config.enabled = true;
+  lib_config.log_missing_functions = true;
+  lib_config.auto_stub_missing = true;
+  if (!rpcsx::libraries::InitializeLibraryEmulation(lib_config)) {
+    LOGW("Library emulation initialization failed");
+  }
+
+  // 4.9. Ініціалізація Save Converter (не критично)
+  LOGI("Initializing Save Converter...");
+  rpcsx::saves::SaveConverterConfig save_config;
+  save_config.enabled = true;
+  save_config.save_directory = cacheDir + "/savedata";
+  save_config.backup_directory = cacheDir + "/save_backups";
+  if (!rpcsx::saves::InitializeSaveConverter(save_config)) {
+    LOGW("Save converter initialization failed");
+  }
   
   // 5. Game-specific patches (Demon's Souls, Saw, inFamous, etc.)
   auto gameType = rpcsx::patches::DetectGame(titleId.c_str());
@@ -557,6 +652,18 @@ extern "C" JNIEXPORT void JNICALL
 Java_net_rpcsx_RPCSX_shutdownARMv9Optimizations(JNIEnv *env, jobject) {
   LOGI("Shutting down ARMv9 optimizations...");
   
+  // Shutdown PS3 compatibility modules
+  rpcsx::saves::ShutdownSaveConverter();
+  rpcsx::libraries::ShutdownLibraryEmulation();
+  rpcsx::firmware::ShutdownFirmwareSpoof();
+  rpcsx::syscalls::ShutdownSyscallStubs();
+  rpcsx::patches::installer::ShutdownPatchInstaller();
+  
+  // Shutdown optimization modules
+  rpcsx::profiles::ShutdownProfiles();
+  rpcsx::pipeline::ShutdownPipelineCache();
+  rpcsx::textures::ShutdownTextureStreaming();
+  rpcsx::sve2::ShutdownSVE2();
   rpcsx::vulkan::ShutdownRSXEngine();  // Shutdown graphics engine first
   rpcsx::fsr::ShutdownFSR();
   rpcsx::scheduler::ShutdownScheduler();
@@ -1337,4 +1444,534 @@ Java_net_rpcsx_RPCSX_drsIsFSRUpscalingEnabled(JNIEnv *env, jobject) {
     return rpcsx::drs::IsFSRUpscalingEnabled() ? JNI_TRUE : JNI_FALSE;
 }
 
+// =============================================================================
+// Texture Streaming Cache JNI Methods
+// =============================================================================
 
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_textureStreamingInitialize(JNIEnv *env, jobject,
+                                                 jlong cache_size_mb,
+                                                 jint worker_threads,
+                                                 jint mode) {
+    LOGI("Initializing Texture Streaming: %lld MB, %d threads, mode=%d",
+         (long long)cache_size_mb, worker_threads, mode);
+    
+  rpcsx::textures::StreamingConfig config;
+  config.max_cache_size_mb = static_cast<uint32_t>(cache_size_mb);
+  config.async_pool_size = static_cast<uint32_t>(worker_threads);
+  config.mode = static_cast<rpcsx::textures::StreamingMode>(mode);
+    
+  return rpcsx::textures::InitializeTextureStreaming(config)
+           ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_net_rpcsx_RPCSX_textureStreamingShutdown(JNIEnv *env, jobject) {
+  rpcsx::textures::ShutdownTextureStreaming();
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_textureStreamingIsActive(JNIEnv *env, jobject) {
+  return rpcsx::textures::IsStreamingActive() ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_net_rpcsx_RPCSX_textureStreamingSetMode(JNIEnv *env, jobject, jint mode) {
+  rpcsx::textures::SetStreamingMode(static_cast<rpcsx::textures::StreamingMode>(mode));
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_net_rpcsx_RPCSX_textureStreamingGetMode(JNIEnv *env, jobject) {
+  return static_cast<jint>(rpcsx::textures::GetStreamingMode());
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_net_rpcsx_RPCSX_textureStreamingGetStatsJson(JNIEnv *env, jobject) {
+  rpcsx::textures::StreamingStats stats;
+  rpcsx::textures::GetStreamingStats(&stats);
+    
+    char buffer[512];
+    snprintf(buffer, sizeof(buffer),
+        "{"
+    "\"textures_loaded\": %llu,"
+    "\"textures_streamed\": %llu,"
+    "\"cache_hits\": %llu,"
+    "\"cache_misses\": %llu,"
+    "\"cache_hit_ratio\": %.2f,"
+    "\"bytes_streamed\": %llu,"
+    "\"bytes_cached\": %llu,"
+    "\"current_cache_size_mb\": %u,"
+    "\"pending_loads\": %u,"
+    "\"average_load_time_ms\": %.2f"
+        "}",
+    (unsigned long long)stats.textures_loaded,
+    (unsigned long long)stats.textures_streamed,
+    (unsigned long long)stats.cache_hits,
+    (unsigned long long)stats.cache_misses,
+    stats.cache_hit_ratio,
+    (unsigned long long)stats.bytes_streamed,
+    (unsigned long long)stats.bytes_cached,
+    stats.current_cache_size_mb,
+    stats.pending_loads,
+    stats.average_load_time_ms
+    );
+    
+    return wrap(env, buffer);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_net_rpcsx_RPCSX_textureStreamingClearCache(JNIEnv *env, jobject) {
+  rpcsx::textures::ClearCache();
+}
+
+// =============================================================================
+// SVE2 Optimizations JNI Methods
+// =============================================================================
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_sve2Initialize(JNIEnv *env, jobject) {
+    return rpcsx::sve2::InitializeSVE2() ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_net_rpcsx_RPCSX_sve2Shutdown(JNIEnv *env, jobject) {
+    rpcsx::sve2::ShutdownSVE2();
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_sve2IsActive(JNIEnv *env, jobject) {
+    return rpcsx::sve2::IsSVE2Active() ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_sve2HasFeature(JNIEnv *env, jobject, jint feature) {
+    return rpcsx::sve2::HasFeature(static_cast<rpcsx::sve2::SVE2Feature>(feature))
+           ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_net_rpcsx_RPCSX_sve2GetVectorLength(JNIEnv *env, jobject) {
+  return static_cast<jint>(rpcsx::sve2::GetVectorLength());
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_net_rpcsx_RPCSX_sve2GetCapabilitiesJson(JNIEnv *env, jobject) {
+  rpcsx::sve2::SVE2Capabilities caps = rpcsx::sve2::GetCapabilities();
+  auto hasFeature = [&](rpcsx::sve2::SVE2Feature feature) {
+    return (caps.features & feature) == feature;
+  };
+    
+    char buffer[1024];
+    snprintf(buffer, sizeof(buffer),
+        "{"
+        "\"has_neon\": %s,"
+        "\"has_sve\": %s,"
+        "\"has_sve2\": %s,"
+        "\"has_sve2_aes\": %s,"
+        "\"has_sve2_bitperm\": %s,"
+        "\"has_sve2_sha3\": %s,"
+        "\"has_sve2_sm4\": %s,"
+        "\"has_sme\": %s,"
+    "\"sve_vector_length\": %u,"
+    "\"vector_length_bits\": %u,"
+    "\"cpu_name\": \"%s\""
+        "}",
+    "true",
+    hasFeature(rpcsx::sve2::SVE2Feature::SVE) ? "true" : "false",
+    hasFeature(rpcsx::sve2::SVE2Feature::SVE2) ? "true" : "false",
+    hasFeature(rpcsx::sve2::SVE2Feature::SVE2_AES) ? "true" : "false",
+    hasFeature(rpcsx::sve2::SVE2Feature::SVE2_BITPERM) ? "true" : "false",
+    hasFeature(rpcsx::sve2::SVE2Feature::SVE2_SHA3) ? "true" : "false",
+    hasFeature(rpcsx::sve2::SVE2Feature::SVE2_SM4) ? "true" : "false",
+    hasFeature(rpcsx::sve2::SVE2Feature::SME) ? "true" : "false",
+    static_cast<uint32_t>(rpcsx::sve2::GetVectorLength()),
+    caps.vector_length_bits,
+    caps.cpu_name ? caps.cpu_name : "Unknown"
+    );
+    
+    return wrap(env, buffer);
+}
+
+// =============================================================================
+// Pipeline Cache JNI Methods
+// =============================================================================
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_pipelineCacheInitialize(JNIEnv *env, jobject,
+                                              jint max_pipelines,
+                                              jint compile_threads,
+                                              jstring cache_path) {
+    std::string path = unwrap(env, cache_path);
+    
+    LOGI("Initializing Pipeline Cache: max=%d, threads=%d, path=%s",
+         max_pipelines, compile_threads, path.c_str());
+    
+    rpcsx::pipeline::PipelineCacheConfig config;
+    config.max_cached_pipelines = max_pipelines;
+    config.compile_threads = compile_threads;
+    config.cache_path = path;
+    config.persist_to_disk = true;
+    config.enable_precompilation = true;
+    
+    return rpcsx::pipeline::InitializePipelineCache(nullptr, nullptr, config)
+           ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_net_rpcsx_RPCSX_pipelineCacheShutdown(JNIEnv *env, jobject) {
+    rpcsx::pipeline::ShutdownPipelineCache();
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_pipelineCacheIsActive(JNIEnv *env, jobject) {
+    return rpcsx::pipeline::IsCacheActive() ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_net_rpcsx_RPCSX_pipelineCacheClear(JNIEnv *env, jobject) {
+    rpcsx::pipeline::ClearCache();
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_pipelineCacheSave(JNIEnv *env, jobject, jstring path) {
+    return rpcsx::pipeline::SaveCacheToDisk(unwrap(env, path).c_str())
+           ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_pipelineCacheLoad(JNIEnv *env, jobject, jstring path) {
+    return rpcsx::pipeline::LoadCacheFromDisk(unwrap(env, path).c_str())
+           ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_net_rpcsx_RPCSX_pipelineCacheGetStatsJson(JNIEnv *env, jobject) {
+    rpcsx::pipeline::PipelineCacheStats stats;
+    rpcsx::pipeline::GetStats(&stats);
+    
+    char buffer[512];
+    snprintf(buffer, sizeof(buffer),
+        "{"
+        "\"pipelines_in_cache\": %u,"
+        "\"total_created\": %llu,"
+        "\"cache_hits\": %llu,"
+        "\"cache_misses\": %llu,"
+        "\"cache_hit_ratio\": %.2f,"
+        "\"pending_compilations\": %u,"
+        "\"average_compile_time_ms\": %.2f"
+        "}",
+        stats.pipelines_in_cache,
+        (unsigned long long)stats.total_pipelines_created,
+        (unsigned long long)stats.cache_hits,
+        (unsigned long long)stats.cache_misses,
+        stats.cache_hit_ratio,
+        stats.pending_compilations,
+        stats.average_compile_time_ms
+    );
+    
+    return wrap(env, buffer);
+}
+
+// =============================================================================
+// Game Profiles JNI Methods
+// =============================================================================
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_profilesInitialize(JNIEnv *env, jobject, jstring profiles_dir) {
+    std::string dir = unwrap(env, profiles_dir);
+    return rpcsx::profiles::InitializeProfiles(dir.c_str()) ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_net_rpcsx_RPCSX_profilesShutdown(JNIEnv *env, jobject) {
+    rpcsx::profiles::ShutdownProfiles();
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_profilesIsActive(JNIEnv *env, jobject) {
+    return rpcsx::profiles::IsProfileSystemActive() ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_profilesApply(JNIEnv *env, jobject, jstring title_id) {
+    return rpcsx::profiles::ApplyProfileForGame(unwrap(env, title_id).c_str())
+           ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_profilesHasProfile(JNIEnv *env, jobject, jstring title_id) {
+    return rpcsx::profiles::HasProfile(unwrap(env, title_id).c_str())
+           ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_profilesDelete(JNIEnv *env, jobject, jstring title_id) {
+    return rpcsx::profiles::DeleteProfile(unwrap(env, title_id).c_str())
+           ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_net_rpcsx_RPCSX_profilesExport(JNIEnv *env, jobject, jstring title_id) {
+    char buffer[4096];
+    size_t len = rpcsx::profiles::ExportProfileToJson(
+        unwrap(env, title_id).c_str(), buffer, sizeof(buffer));
+    
+    if (len > 0) {
+        return wrap(env, buffer);
+    }
+    return wrap(env, "{}");
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_net_rpcsx_RPCSX_profilesGetGameName(JNIEnv *env, jobject, jstring title_id) {
+    const char* name = rpcsx::profiles::GetGameName(unwrap(env, title_id).c_str());
+    return wrap(env, name ? name : "Unknown");
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_net_rpcsx_RPCSX_profilesGetGameRegion(JNIEnv *env, jobject, jstring title_id) {
+    const char* region = rpcsx::profiles::GetGameRegion(unwrap(env, title_id).c_str());
+    return wrap(env, region ? region : "Unknown");
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_net_rpcsx_RPCSX_profilesGetStatsJson(JNIEnv *env, jobject) {
+    rpcsx::profiles::ProfileStats stats;
+    rpcsx::profiles::GetProfileStats(&stats);
+    
+    char buffer[512];
+    snprintf(buffer, sizeof(buffer),
+        "{"
+        "\"total_profiles\": %u,"
+        "\"system_profiles\": %u,"
+        "\"user_profiles\": %u,"
+        "\"community_profiles\": %u,"
+        "\"active_switches\": %u,"
+        "\"current_title_id\": \"%s\","
+        "\"current_profile_name\": \"%s\""
+        "}",
+        stats.total_profiles,
+        stats.system_profiles,
+        stats.user_profiles,
+        stats.community_profiles,
+        stats.active_profile_switches,
+        stats.current_title_id ? stats.current_title_id : "",
+        stats.current_profile_name ? stats.current_profile_name : ""
+    );
+    
+    return wrap(env, buffer);
+}
+
+// =============================================================================
+// PS3 Patch Installer JNI
+// =============================================================================
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_patchInstallerIsActive(JNIEnv *env, jobject) {
+    return rpcsx::patches::installer::IsInstallerActive() ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_net_rpcsx_RPCSX_patchInstallerGetPatches(JNIEnv *env, jobject, jstring title_id) {
+    char buffer[8192];
+    size_t len = rpcsx::patches::installer::ExportPatchesToJson(
+        unwrap(env, title_id).c_str(), buffer, sizeof(buffer));
+    return wrap(env, len > 0 ? buffer : "{}");
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_net_rpcsx_RPCSX_patchInstallerApplyRecommended(JNIEnv *env, jobject, 
+                                                     jstring title_id, jlong mem_base, jlong mem_size) {
+    auto result = rpcsx::patches::installer::ApplyRecommendedPatches(
+        unwrap(env, title_id).c_str(), (void*)mem_base, (size_t)mem_size);
+    return result.operations_applied;
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_net_rpcsx_RPCSX_patchInstallerGetStats(JNIEnv *env, jobject) {
+    rpcsx::patches::installer::InstallerStats stats;
+    rpcsx::patches::installer::GetInstallerStats(&stats);
+    
+    char buffer[256];
+    snprintf(buffer, sizeof(buffer),
+        "{\"total_cached\": %u, \"applied\": %u, \"available\": %u}",
+        stats.total_patches_cached, stats.patches_applied, stats.patches_available);
+    return wrap(env, buffer);
+}
+
+// =============================================================================
+// Syscall Stubs JNI
+// =============================================================================
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_syscallStubsIsActive(JNIEnv *env, jobject) {
+    return rpcsx::syscalls::IsStubSystemActive() ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_net_rpcsx_RPCSX_syscallStubsGetStats(JNIEnv *env, jobject) {
+    rpcsx::syscalls::SyscallStats stats;
+    rpcsx::syscalls::GetSyscallStats(&stats);
+    
+    char buffer[512];
+    snprintf(buffer, sizeof(buffer),
+        "{\"total_calls\": %llu, \"stubbed_calls\": %llu, \"unique_syscalls\": %u, \"unimplemented\": %u}",
+        (unsigned long long)stats.total_calls,
+        (unsigned long long)stats.stubbed_calls,
+        stats.unique_syscalls_used,
+        stats.unimplemented_used);
+    return wrap(env, buffer);
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_net_rpcsx_RPCSX_syscallStubsExportLog(JNIEnv *env, jobject) {
+    char buffer[16384];
+    size_t len = rpcsx::syscalls::ExportSyscallLogJson(buffer, sizeof(buffer));
+    return wrap(env, len > 0 ? buffer : "{}");
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_net_rpcsx_RPCSX_syscallStubsReset(JNIEnv *env, jobject) {
+    rpcsx::syscalls::ResetSyscallStats();
+}
+
+// =============================================================================
+// Firmware Spoof JNI
+// =============================================================================
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_firmwareSpoofIsActive(JNIEnv *env, jobject) {
+    return rpcsx::firmware::IsSpoofActive() ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_net_rpcsx_RPCSX_firmwareSpoofSetVersion(JNIEnv *env, jobject, jint major, jint minor) {
+    rpcsx::firmware::FirmwareVersion ver;
+    ver.major = major;
+    ver.minor = minor;
+    ver.build = 0;
+    rpcsx::firmware::SetGlobalFirmwareVersion(ver);
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_net_rpcsx_RPCSX_firmwareSpoofGetVersion(JNIEnv *env, jobject) {
+    auto ver = rpcsx::firmware::GetSpoofedFirmwareVersion(nullptr);
+    return wrap(env, ver.ToString().c_str());
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_net_rpcsx_RPCSX_firmwareSpoofGetConfig(JNIEnv *env, jobject) {
+    char buffer[1024];
+    size_t len = rpcsx::firmware::ExportConfigJson(buffer, sizeof(buffer));
+    return wrap(env, len > 0 ? buffer : "{}");
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_net_rpcsx_RPCSX_firmwareSpoofGetRecommended(JNIEnv *env, jobject, jstring title_id) {
+    auto ver = rpcsx::firmware::GetRecommendedVersion(unwrap(env, title_id).c_str());
+    return wrap(env, ver.ToString().c_str());
+}
+
+// =============================================================================
+// Library Emulation JNI
+// =============================================================================
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_libraryEmulationIsActive(JNIEnv *env, jobject) {
+    return rpcsx::libraries::IsLibraryEmulationActive() ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_net_rpcsx_RPCSX_libraryEmulationGetStats(JNIEnv *env, jobject) {
+    char buffer[2048];
+    size_t len = rpcsx::libraries::ExportLibraryStatsJson(buffer, sizeof(buffer));
+    return wrap(env, len > 0 ? buffer : "{}");
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_libraryEmulationIsAvailable(JNIEnv *env, jobject, jstring lib_name) {
+    return rpcsx::libraries::IsLibraryAvailable(unwrap(env, lib_name).c_str())
+           ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_net_rpcsx_RPCSX_libraryEmulationGetStatus(JNIEnv *env, jobject, jstring lib_name) {
+    return static_cast<jint>(rpcsx::libraries::GetLibraryStatus(unwrap(env, lib_name).c_str()));
+}
+
+// =============================================================================
+// Save Converter JNI
+// =============================================================================
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_saveConverterIsActive(JNIEnv *env, jobject) {
+    return rpcsx::saves::IsConverterActive() ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_net_rpcsx_RPCSX_saveConverterDetectFormat(JNIEnv *env, jobject, jstring path) {
+    return static_cast<jint>(rpcsx::saves::DetectSaveFormat(unwrap(env, path).c_str()));
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_net_rpcsx_RPCSX_saveConverterDetectRegion(JNIEnv *env, jobject, jstring title_id) {
+    return static_cast<jint>(rpcsx::saves::DetectRegionFromTitleId(unwrap(env, title_id).c_str()));
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_saveConverterConvert(JNIEnv *env, jobject, 
+                                           jstring src, jstring dst, jint format) {
+    rpcsx::saves::ConversionOptions options;
+    options.create_backup = true;
+    options.validate_after_conversion = true;
+    
+    auto result = rpcsx::saves::ConvertSave(
+        unwrap(env, src).c_str(),
+        unwrap(env, dst).c_str(),
+        static_cast<rpcsx::saves::SaveFormat>(format),
+        options);
+    
+    return result.success ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_saveConverterValidate(JNIEnv *env, jobject, jstring path) {
+    return rpcsx::saves::ValidateSaveData(unwrap(env, path).c_str())
+           ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_saveConverterBackup(JNIEnv *env, jobject, 
+                                          jstring save_path, jstring backup_path) {
+    return rpcsx::saves::CreateBackup(
+        unwrap(env, save_path).c_str(),
+        unwrap(env, backup_path).c_str())
+           ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_saveConverterCheckCompatibility(JNIEnv *env, jobject,
+                                                      jstring save_path, jstring game_id) {
+    return rpcsx::saves::CheckSaveCompatibility(
+        unwrap(env, save_path).c_str(),
+        unwrap(env, game_id).c_str())
+           ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_net_rpcsx_RPCSX_saveConverterGetRegionName(JNIEnv *env, jobject, jint region) {
+    return wrap(env, rpcsx::saves::GetRegionName(static_cast<rpcsx::saves::RegionCode>(region)));
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_net_rpcsx_RPCSX_saveConverterGetStats(JNIEnv *env, jobject) {
+    rpcsx::saves::ConverterStats stats;
+    rpcsx::saves::GetConverterStats(&stats);
+    
+    char buffer[256];
+    snprintf(buffer, sizeof(buffer),
+        "{\"scanned\": %u, \"converted\": %u, \"failed\": %u, \"backups\": %u}",
+        stats.saves_scanned, stats.saves_converted, 
+        stats.saves_failed, stats.backups_created);
+    return wrap(env, buffer);
+}
