@@ -80,6 +80,7 @@ import net.rpcsx.utils.GeneralSettings
 import net.rpcsx.utils.GeneralSettings.string
 import net.rpcsx.utils.GpuDriverHelper
 import net.rpcsx.utils.GpuDriverInstallResult
+import net.rpcsx.utils.GpuDriverMetadata
 import java.io.File
 import java.io.FileInputStream
 
@@ -87,9 +88,29 @@ import java.io.FileInputStream
 @Composable
 fun GpuDriversScreen(navigateBack: () -> Unit) {
     val context = LocalContext.current
-    var drivers by remember { mutableStateOf(GpuDriverHelper.getInstalledDrivers(context)) }
+    // Load drivers asynchronously to avoid blocking UI
+    var drivers by remember { mutableStateOf<Map<File, GpuDriverMetadata>>(emptyMap()) }
+    var isLoadingDrivers by remember { mutableStateOf(true) }
     var selectedDriver by remember { mutableStateOf<String?>(null) }
     var isInstalling by remember { mutableStateOf(false) }
+    
+    // Load drivers in background on first composition
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            try {
+                val loadedDrivers = GpuDriverHelper.getInstalledDrivers(context)
+                withContext(Dispatchers.Main) {
+                    drivers = loadedDrivers
+                    isLoadingDrivers = false
+                }
+            } catch (e: Exception) {
+                Log.e("GpuDriver", "Error loading drivers: ${e.message}")
+                withContext(Dispatchers.Main) {
+                    isLoadingDrivers = false
+                }
+            }
+        }
+    }
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val topBarScrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()

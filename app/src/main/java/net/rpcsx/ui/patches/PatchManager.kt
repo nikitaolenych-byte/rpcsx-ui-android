@@ -23,9 +23,9 @@ object PatchManager {
     
     // RPCS3 patch repository URLs (ordered by reliability)
     private const val RPCS3_PATCH_URL = "https://rpcs3.net/compatibility?api=v1&export=patches"
-    // jsdelivr CDN is more reliable and has no rate limiting
-    private const val RPCS3_PATCH_CDN_URL = "https://cdn.jsdelivr.net/gh/RPCS3/rpcs3@master/bin/patches/patch.yml"
-    private const val RPCS3_PATCH_RAW_URL = "https://raw.githubusercontent.com/RPCS3/rpcs3/master/bin/patches/patch.yml"
+    // RPCS3 patch repository - separate from main repo
+    private const val RPCS3_PATCH_CDN_URL = "https://cdn.jsdelivr.net/gh/RPCS3/rpcs3-patches@main/patches/patch.yml"
+    private const val RPCS3_PATCH_RAW_URL = "https://raw.githubusercontent.com/RPCS3/rpcs3-patches/main/patches/patch.yml"
     private const val RPCS3_WIKI_PATCHES = "https://wiki.rpcs3.net/index.php?title=Help:Game_Patches&action=raw"
     
     // Local cache file name

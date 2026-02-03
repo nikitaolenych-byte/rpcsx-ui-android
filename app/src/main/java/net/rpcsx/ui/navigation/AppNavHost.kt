@@ -101,6 +101,7 @@ import net.rpcsx.ui.games.GamesScreen
 import net.rpcsx.ui.settings.AdvancedSettingsScreen
 import net.rpcsx.ui.settings.ControllerSettings
 import net.rpcsx.ui.settings.SettingsScreen
+import net.rpcsx.ui.settings.SpecialSettingsScreen
 import net.rpcsx.ui.user.UsersScreen
 import net.rpcsx.utils.FileUtil
 import net.rpcsx.utils.GeneralSettings
@@ -287,6 +288,14 @@ fun AppNavHost() {
             route = "drivers"
         ) {
             GpuDriversScreen(
+                navigateBack = navController::navigateUp
+            )
+        }
+
+        composable(
+            route = "special"
+        ) {
+            SpecialSettingsScreen(
                 navigateBack = navController::navigateUp
             )
         }
