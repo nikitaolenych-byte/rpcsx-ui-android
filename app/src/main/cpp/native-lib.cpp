@@ -42,6 +42,8 @@
 #include "firmware_spoof.h"
 #include "library_emulation.h"
 #include "save_converter.h"
+#include "gpu/gpu_detector.h"
+#include "gpu/agvsol_manager.h"
 
 #define LOG_TAG "RPCSX-Native"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -1973,5 +1975,178 @@ Java_net_rpcsx_RPCSX_saveConverterGetStats(JNIEnv *env, jobject) {
         "{\"scanned\": %u, \"converted\": %u, \"failed\": %u, \"backups\": %u}",
         stats.saves_scanned, stats.saves_converted, 
         stats.saves_failed, stats.backups_created);
+    return wrap(env, buffer);
+}
+
+// =============================================================================
+// AGVSOL - Automatic GPU Vendor-Specific Optimization Layer JNI
+// =============================================================================
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_agvsolInitialize(JNIEnv *env, jobject, jstring cache_dir) {
+    std::string dir = unwrap(env, cache_dir);
+    return rpcsx::agvsol::InitializeAGVSOL(dir) ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_net_rpcsx_RPCSX_agvsolShutdown(JNIEnv *env, jobject) {
+    rpcsx::agvsol::ShutdownAGVSOL();
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_agvsolIsInitialized(JNIEnv *env, jobject) {
+    return rpcsx::agvsol::IsAGVSOLInitialized() ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_net_rpcsx_RPCSX_agvsolGetGPUInfo(JNIEnv *env, jobject) {
+    const auto& info = rpcsx::agvsol::GetGPUInfo();
+    
+    char buffer[1024];
+    snprintf(buffer, sizeof(buffer),
+        "{"
+        "\"vendor\": \"%s\","
+        "\"vendor_id\": %u,"
+        "\"model\": \"%s\","
+        "\"tier\": \"%s\","
+        "\"soc\": \"%s\","
+        "\"driver_version\": \"%s\","
+        "\"api_version\": \"%s\","
+        "\"vulkan_1_1\": %s,"
+        "\"vulkan_1_2\": %s,"
+        "\"vulkan_1_3\": %s,"
+        "\"compute_capable\": %s,"
+        "\"ray_tracing\": %s,"
+        "\"estimated_tflops\": %.2f"
+        "}",
+        info.vendor_name.c_str(),
+        static_cast<unsigned>(info.vendor),
+        info.model.c_str(),
+        rpcsx::gpu::GetTierName(info.tier),
+        info.soc_name.c_str(),
+        info.driver_version.c_str(),
+        info.api_version.c_str(),
+        info.features.vulkan_1_1 ? "true" : "false",
+        info.features.vulkan_1_2 ? "true" : "false",
+        info.features.vulkan_1_3 ? "true" : "false",
+        info.features.compute_capable ? "true" : "false",
+        info.features.ray_tracing ? "true" : "false",
+        info.estimated_tflops);
+    
+    return wrap(env, buffer);
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_net_rpcsx_RPCSX_agvsolGetActiveProfile(JNIEnv *env, jobject) {
+    const auto& profile = rpcsx::agvsol::GetActiveProfile();
+    
+    char buffer[2048];
+    snprintf(buffer, sizeof(buffer),
+        "{"
+        "\"name\": \"%s\","
+        "\"description\": \"%s\","
+        "\"resolution_scale\": %.2f,"
+        "\"target_width\": %d,"
+        "\"target_height\": %d,"
+        "\"target_fps\": %d,"
+        "\"anisotropic_level\": %d,"
+        "\"enable_bloom\": %s,"
+        "\"use_half_precision\": %s,"
+        "\"texture_cache_mb\": %zu,"
+        "\"pipeline_cache\": %s"
+        "}",
+        profile.name.c_str(),
+        profile.description.c_str(),
+        profile.render.resolution_scale,
+        profile.render.target_width,
+        profile.render.target_height,
+        profile.render.target_fps,
+        profile.render.anisotropic_level,
+        profile.render.enable_bloom ? "true" : "false",
+        profile.shader.use_half_precision ? "true" : "false",
+        profile.memory.texture_cache_size_mb,
+        profile.pipeline.enable_pipeline_cache ? "true" : "false");
+    
+    return wrap(env, buffer);
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_agvsolLoadProfile(JNIEnv *env, jobject, jstring path) {
+    return rpcsx::agvsol::LoadProfileFromFile(unwrap(env, path)) ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_agvsolApplyProfile(JNIEnv *env, jobject) {
+    return rpcsx::agvsol::ApplyActiveProfile() ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_net_rpcsx_RPCSX_agvsolExportProfile(JNIEnv *env, jobject) {
+    return wrap(env, rpcsx::agvsol::ExportProfileToJSON());
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_agvsolImportProfile(JNIEnv *env, jobject, jstring json) {
+    return rpcsx::agvsol::ImportProfileFromJSON(unwrap(env, json)) ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_net_rpcsx_RPCSX_agvsolGetGPUVendor(JNIEnv *env, jobject) {
+    const auto& info = rpcsx::agvsol::GetGPUInfo();
+    return static_cast<jint>(info.vendor);
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_net_rpcsx_RPCSX_agvsolGetGPUTier(JNIEnv *env, jobject) {
+    const auto& info = rpcsx::agvsol::GetGPUInfo();
+    return static_cast<jint>(info.tier);
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_net_rpcsx_RPCSX_agvsolGetTargetFPS(JNIEnv *env, jobject) {
+    return rpcsx::agvsol::GetRenderSettings().target_fps;
+}
+
+extern "C" JNIEXPORT jfloat JNICALL
+Java_net_rpcsx_RPCSX_agvsolGetResolutionScale(JNIEnv *env, jobject) {
+    return rpcsx::agvsol::GetRenderSettings().resolution_scale;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_net_rpcsx_RPCSX_agvsolSetTargetFPS(JNIEnv *env, jobject, jint fps) {
+    rpcsx::agvsol::SetRenderSetting("target_fps", fps);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_net_rpcsx_RPCSX_agvsolSetResolutionScale(JNIEnv *env, jobject, jfloat scale) {
+    rpcsx::agvsol::SetRenderSetting("resolution_scale", scale);
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_agvsolGetVendorFlag(JNIEnv *env, jobject, jstring key, jboolean default_val) {
+    return rpcsx::agvsol::GetVendorFlag(unwrap(env, key), default_val) ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_net_rpcsx_RPCSX_agvsolGetStats(JNIEnv *env, jobject) {
+    auto stats = rpcsx::agvsol::GetStats();
+    
+    char buffer[512];
+    snprintf(buffer, sizeof(buffer),
+        "{"
+        "\"vendor\": %d,"
+        "\"tier\": %d,"
+        "\"profile\": \"%s\","
+        "\"shaders_loaded\": %d,"
+        "\"profiles_available\": %d,"
+        "\"optimized\": %s"
+        "}",
+        static_cast<int>(stats.detected_vendor),
+        static_cast<int>(stats.detected_tier),
+        stats.active_profile_name.c_str(),
+        stats.shaders_loaded,
+        stats.profiles_available,
+        stats.is_optimized ? "true" : "false");
+    
     return wrap(env, buffer);
 }

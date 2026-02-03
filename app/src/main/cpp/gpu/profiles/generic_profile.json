@@ -1,0 +1,124 @@
+{
+  "name": "Generic GPU Profile",
+  "description": "Safe default settings for unknown GPU vendors",
+  "version": 1,
+  "author": "RPCSX Team",
+  "target_vendor": "UNKNOWN",
+  
+  "render_settings": {
+    "resolution_scale": 0.75,
+    "target_width": 1280,
+    "target_height": 720,
+    "target_fps": 30,
+    "anisotropic_level": 2,
+    "aa_mode": "FXAA",
+    "shadow_quality": "LOW",
+    "shadow_map_size": 512,
+    "texture_quality": "MEDIUM",
+    "enable_bloom": false,
+    "enable_dof": false,
+    "enable_motion_blur": false,
+    "enable_ambient_occlusion": false,
+    "enable_texture_compression": true,
+    "prefer_astc": false,
+    "prefer_etc2": true,
+    "hdr_mode": "OFF"
+  },
+  
+  "shader_settings": {
+    "use_half_precision": false,
+    "use_relaxed_precision": false,
+    "enable_precompilation": true,
+    "precompile_thread_count": 2,
+    "enable_pipeline_cache": true,
+    "shader_cache_size_mb": 64,
+    "enable_vendor_extensions": false,
+    "enabled_extensions": []
+  },
+  
+  "memory_settings": {
+    "max_vertex_buffers_mb": 64,
+    "max_index_buffers_mb": 32,
+    "texture_cache_size_mb": 192,
+    "enable_texture_streaming": true,
+    "streaming_budget_mb": 32,
+    "gc_threshold_mb": 256,
+    "gc_interval_ms": 3000
+  },
+  
+  "pipeline_settings": {
+    "enable_pipeline_cache": true,
+    "max_cached_pipelines": 512,
+    "enable_async_compilation": true,
+    "enable_binning_optimization": false,
+    "bin_width": 0,
+    "bin_height": 0,
+    "enable_afbc": false,
+    "use_primitive_restart": true,
+    "prefer_triangle_strips": false
+  },
+  
+  "vendor_specific": {
+    "flags": {},
+    "ints": {},
+    "floats": {},
+    "strings": {}
+  },
+  
+  "tier_overrides": {
+    "LOW_END": {
+      "resolution_scale": 0.5,
+      "target_width": 960,
+      "target_height": 540,
+      "target_fps": 30,
+      "anisotropic_level": 1,
+      "shadow_quality": "OFF",
+      "texture_quality": "LOW",
+      "texture_cache_size_mb": 96
+    },
+    "MID_RANGE": {
+      "resolution_scale": 0.75,
+      "target_width": 1280,
+      "target_height": 720,
+      "target_fps": 30,
+      "anisotropic_level": 2,
+      "shadow_quality": "LOW",
+      "texture_quality": "MEDIUM",
+      "texture_cache_size_mb": 192
+    },
+    "HIGH_END": {
+      "resolution_scale": 0.85,
+      "target_width": 1600,
+      "target_height": 900,
+      "target_fps": 30,
+      "anisotropic_level": 4,
+      "shadow_quality": "MEDIUM",
+      "texture_quality": "HIGH",
+      "texture_cache_size_mb": 256
+    },
+    "ULTRA": {
+      "resolution_scale": 1.0,
+      "target_width": 1920,
+      "target_height": 1080,
+      "target_fps": 60,
+      "anisotropic_level": 4,
+      "shadow_quality": "MEDIUM",
+      "texture_quality": "HIGH",
+      "texture_cache_size_mb": 384
+    }
+  },
+  
+  "compatibility_notes": {
+    "description": "This profile uses conservative settings that should work on most GPUs",
+    "warnings": [
+      "Vendor-specific optimizations disabled",
+      "Performance may be lower than vendor-optimized profiles",
+      "Consider detecting GPU and switching to appropriate profile"
+    ],
+    "recommendations": [
+      "Use Adreno profile for Qualcomm devices",
+      "Use Mali profile for Samsung Exynos, MediaTek Dimensity",
+      "Use PowerVR profile for older MediaTek devices"
+    ]
+  }
+}

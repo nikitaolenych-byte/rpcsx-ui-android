@@ -1,0 +1,80 @@
+WARNING: A restricted method in java.lang.System has been called
+WARNING: java.lang.System::load has been called by net.rubygrapefruit.platform.internal.NativeLibraryLoader in an unnamed module (file:/home/codespace/.gradle/wrapper/dists/gradle-8.11.1-bin/bpt9gzteqjrbo1mjrsomdt32c/gradle-8.11.1/lib/native-platform-0.22-milestone-26.jar)
+WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for callers in this module
+WARNING: Restricted methods will be blocked in a future release unless native access is enabled
+
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.11.1/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+25.0.1
+
+* Try:
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+* Exception is:
+java.lang.IllegalArgumentException: 25.0.1
+	at org.jetbrains.kotlin.com.intellij.util.lang.JavaVersion.parse(JavaVersion.java:307)
+	at org.jetbrains.kotlin.com.intellij.util.lang.JavaVersion.current(JavaVersion.java:176)
+	at org.jetbrains.kotlin.cli.jvm.modules.JavaVersionUtilsKt.isAtLeastJava9(javaVersionUtils.kt:11)
+	at org.jetbrains.kotlin.cli.jvm.modules.CoreJrtFileSystem.globalJrtFsCache$lambda$2(CoreJrtFileSystem.kt:83)
+	at org.jetbrains.kotlin.cli.jvm.modules.CoreJrtFileSystem.globalJrtFsCache$lambda$3(CoreJrtFileSystem.kt:74)
+	at org.jetbrains.kotlin.com.intellij.util.containers.ConcurrentFactoryMap$2.create(ConcurrentFactoryMap.java:174)
+	at org.jetbrains.kotlin.com.intellij.util.containers.ConcurrentFactoryMap.get(ConcurrentFactoryMap.java:40)
+	at org.jetbrains.kotlin.cli.jvm.modules.CoreJrtFileSystem.roots$lambda$0(CoreJrtFileSystem.kt:34)
+	at org.jetbrains.kotlin.cli.jvm.modules.CoreJrtFileSystem.roots$lambda$1(CoreJrtFileSystem.kt:33)
+	at org.jetbrains.kotlin.com.intellij.util.containers.ConcurrentFactoryMap$2.create(ConcurrentFactoryMap.java:174)
+	at org.jetbrains.kotlin.com.intellij.util.containers.ConcurrentFactoryMap.get(ConcurrentFactoryMap.java:40)
+	at org.jetbrains.kotlin.cli.jvm.modules.CoreJrtFileSystem.findFileByPath(CoreJrtFileSystem.kt:42)
+	at org.jetbrains.kotlin.cli.jvm.modules.CliJavaModuleFinder.<init>(CliJavaModuleFinder.kt:44)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreEnvironment.<init>(KotlinCoreEnvironment.kt:243)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreEnvironment.<init>(KotlinCoreEnvironment.kt)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreEnvironment$Companion.createForProduction(KotlinCoreEnvironment.kt:468)
+	at org.gradle.kotlin.dsl.support.KotlinCompilerKt$kotlinCoreEnvironmentFor$1.create(KotlinCompiler.kt:429)
+	at org.gradle.kotlin.dsl.support.KotlinCompilerKt$kotlinCoreEnvironmentFor$1.create(KotlinCompiler.kt:425)
+	at org.gradle.internal.SystemProperties.withSystemProperty(SystemProperties.java:123)
+	at org.gradle.kotlin.dsl.support.KotlinCompilerKt.kotlinCoreEnvironmentFor(KotlinCompiler.kt:425)
+	at org.gradle.kotlin.dsl.support.KotlinCompilerKt.compileKotlinScriptModuleTo(KotlinCompiler.kt:184)
+	at org.gradle.kotlin.dsl.support.KotlinCompilerKt.compileKotlinScriptToDirectory(KotlinCompiler.kt:148)
+	at org.gradle.kotlin.dsl.execution.ResidualProgramCompiler$compileScript$1.invoke(ResidualProgramCompiler.kt:713)
+	at org.gradle.kotlin.dsl.execution.ResidualProgramCompiler$compileScript$1.invoke(ResidualProgramCompiler.kt:712)
+	at org.gradle.kotlin.dsl.provider.StandardKotlinScriptEvaluator$InterpreterHost$runCompileBuildOperation$1.call(KotlinScriptEvaluator.kt:206)
+	at org.gradle.kotlin.dsl.provider.StandardKotlinScriptEvaluator$InterpreterHost$runCompileBuildOperation$1.call(KotlinScriptEvaluator.kt:203)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:209)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:204)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:166)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:53)
+	at org.gradle.kotlin.dsl.provider.StandardKotlinScriptEvaluator$InterpreterHost.runCompileBuildOperation(KotlinScriptEvaluator.kt:203)
+	at org.gradle.kotlin.dsl.execution.Interpreter$compile$1$1$1$1.invoke(Interpreter.kt:334)
+	at org.gradle.kotlin.dsl.execution.Interpreter$compile$1$1$1$1.invoke(Interpreter.kt:334)
+	at org.gradle.kotlin.dsl.execution.ResidualProgramCompiler.compileScript-C5AE47M(ResidualProgramCompiler.kt:712)
+	at org.gradle.kotlin.dsl.execution.ResidualProgramCompiler.compileStage1-EfyMToc(ResidualProgramCompiler.kt:695)
+	at org.gradle.kotlin.dsl.execution.ResidualProgramCompiler.emitStage1Sequence(ResidualProgramCompiler.kt:247)
+	at org.gradle.kotlin.dsl.execution.ResidualProgramCompiler.emitStage1Sequence(ResidualProgramCompiler.kt:238)
+	at org.gradle.kotlin.dsl.execution.ResidualProgramCompiler.emit(ResidualProgramCompiler.kt:198)
+	at org.gradle.kotlin.dsl.execution.ResidualProgramCompiler.emit(ResidualProgramCompiler.kt:182)
+	at org.gradle.kotlin.dsl.execution.ResidualProgramCompiler.access$emit(ResidualProgramCompiler.kt:83)
+	at org.gradle.kotlin.dsl.execution.ResidualProgramCompiler$emitDynamicProgram$1$1.invoke(ResidualProgramCompiler.kt:123)
+	at org.gradle.kotlin.dsl.execution.ResidualProgramCompiler$emitDynamicProgram$1$1.invoke(ResidualProgramCompiler.kt:121)
+	at org.gradle.kotlin.dsl.execution.ResidualProgramCompiler$overrideExecute$1.invoke(ResidualProgramCompiler.kt:548)
+	at org.gradle.kotlin.dsl.execution.ResidualProgramCompiler$overrideExecute$1.invoke(ResidualProgramCompiler.kt:547)
+	at org.gradle.kotlin.dsl.support.bytecode.AsmExtensionsKt.method(AsmExtensions.kt:133)
+	at org.gradle.kotlin.dsl.support.bytecode.AsmExtensionsKt.publicMethod(AsmExtensions.kt:116)
+	at org.gradle.kotlin.dsl.support.bytecode.AsmExtensionsKt.publicMethod$default(AsmExtensions.kt:108)
+	at org.gradle.kotlin.dsl.execution.ResidualProgramCompiler.overrideExecute(ResidualProgramCompiler.kt:547)
+	at org.gradle.kotlin.dsl.execution.ResidualProgramCompiler.access$overrideExecute(ResidualProgramCompiler.kt:83)
+	at org.gradle.kotlin.dsl.execution.ResidualProgramCompiler$emitDynamicProgram$1.invoke(ResidualProgramCompiler.kt:121)
+	at org.gradle.kotlin.dsl.execution.ResidualProgramCompiler$emitDynamicProgram$1.invoke(ResidualProgramCompiler.kt:119)
+	at org.gradle.kotlin.dsl.execution.ResidualProgramCompiler$program$3.invoke(ResidualProgramCompiler.kt:673)
+	at org.gradle.kotlin.dsl.execution.ResidualProgramCompiler$program$3.invoke(ResidualProgramCompiler.kt:671)
+	at org.gradle.kotlin.dsl.support.bytecode.AsmExtensionsKt.publicClass-7y5yvvE(AsmExtensions.kt:41)
+	at org.gradle.kotlin.dsl.execution.ResidualProgramCompiler.program-5oOsWEo(ResidualProgramCompiler.kt:671)
+	at org.gradle.kotlin.dsl.execution.ResidualProgramCompiler.access$program-5oOsWEo(ResidualProgramCompiler.kt:83)
+	at org.gradle.kotlin.dsl.execution.ResidualProgramCompiler.emitDynamicProgram(ResidualProgramCompiler.kt:798)

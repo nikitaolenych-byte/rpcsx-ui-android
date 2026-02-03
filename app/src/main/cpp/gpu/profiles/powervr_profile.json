@@ -1,0 +1,158 @@
+{
+  "name": "PowerVR Optimized",
+  "description": "Imagination PowerVR GPU optimizations with PVRTC and HSR",
+  "version": 1,
+  "author": "RPCSX Team",
+  "target_vendor": "IMAGINATION_POWERVR",
+  
+  "render_settings": {
+    "resolution_scale": 0.75,
+    "target_width": 1280,
+    "target_height": 720,
+    "target_fps": 30,
+    "anisotropic_level": 2,
+    "aa_mode": "FXAA",
+    "shadow_quality": "LOW",
+    "shadow_map_size": 512,
+    "texture_quality": "MEDIUM",
+    "enable_bloom": false,
+    "enable_dof": false,
+    "enable_motion_blur": false,
+    "enable_ambient_occlusion": false,
+    "enable_texture_compression": true,
+    "prefer_astc": false,
+    "prefer_etc2": true,
+    "hdr_mode": "OFF"
+  },
+  
+  "shader_settings": {
+    "use_half_precision": true,
+    "use_relaxed_precision": true,
+    "enable_precompilation": true,
+    "precompile_thread_count": 2,
+    "enable_pipeline_cache": true,
+    "shader_cache_size_mb": 64,
+    "enable_vendor_extensions": true,
+    "enabled_extensions": [
+      "VK_IMG_filter_cubic",
+      "VK_IMG_format_pvrtc"
+    ]
+  },
+  
+  "memory_settings": {
+    "max_vertex_buffers_mb": 64,
+    "max_index_buffers_mb": 32,
+    "texture_cache_size_mb": 192,
+    "enable_texture_streaming": true,
+    "streaming_budget_mb": 32,
+    "gc_threshold_mb": 256,
+    "gc_interval_ms": 3000
+  },
+  
+  "pipeline_settings": {
+    "enable_pipeline_cache": true,
+    "max_cached_pipelines": 512,
+    "enable_async_compilation": true,
+    "enable_binning_optimization": true,
+    "bin_width": 32,
+    "bin_height": 32,
+    "enable_afbc": false,
+    "use_primitive_restart": true,
+    "prefer_triangle_strips": true
+  },
+  
+  "vendor_specific": {
+    "flags": {
+      "enable_pvrtc": true,
+      "use_usc_cache": true,
+      "enable_hsr": true,
+      "enable_isp_tile": true,
+      "prefer_tbdr": true,
+      "use_earlyz": true,
+      "enable_compute_shaders": true,
+      "force_immediate_mode": false
+    },
+    "ints": {
+      "usc_cache_size_kb": 16,
+      "tile_size": 32,
+      "max_active_tiles": 8,
+      "parameter_buffer_size_kb": 512
+    },
+    "floats": {
+      "lod_bias": 0.0,
+      "aniso_bias": 0.0,
+      "overdraw_limit": 3.0
+    },
+    "strings": {
+      "architecture": "Series9",
+      "preferred_format": "R8G8B8A8_UNORM",
+      "depth_format": "D32_SFLOAT"
+    }
+  },
+  
+  "tier_overrides": {
+    "LOW_END": {
+      "resolution_scale": 0.5,
+      "target_width": 854,
+      "target_height": 480,
+      "target_fps": 30,
+      "anisotropic_level": 1,
+      "shadow_quality": "OFF",
+      "texture_quality": "LOW",
+      "texture_cache_size_mb": 96
+    },
+    "MID_RANGE": {
+      "resolution_scale": 0.75,
+      "target_width": 1280,
+      "target_height": 720,
+      "target_fps": 30,
+      "anisotropic_level": 2,
+      "shadow_quality": "LOW",
+      "texture_quality": "MEDIUM",
+      "texture_cache_size_mb": 192
+    },
+    "HIGH_END": {
+      "resolution_scale": 0.85,
+      "target_width": 1600,
+      "target_height": 900,
+      "target_fps": 30,
+      "anisotropic_level": 4,
+      "shadow_quality": "MEDIUM",
+      "texture_quality": "HIGH",
+      "texture_cache_size_mb": 256
+    },
+    "ULTRA": {
+      "resolution_scale": 1.0,
+      "target_width": 1920,
+      "target_height": 1080,
+      "target_fps": 60,
+      "anisotropic_level": 8,
+      "shadow_quality": "HIGH",
+      "texture_quality": "ULTRA",
+      "texture_cache_size_mb": 384
+    }
+  },
+  
+  "powervr_models": {
+    "GE8320": { "tier": "LOW_END", "series": "Series8", "notes": "MediaTek entry" },
+    "GE8300": { "tier": "LOW_END", "series": "Series8", "notes": "Budget" },
+    "GM9446": { "tier": "MID_RANGE", "series": "Series9", "notes": "MediaTek mid" },
+    "GT7600": { "tier": "MID_RANGE", "series": "Series7", "notes": "Older flagship" },
+    "BXE-4-32": { "tier": "HIGH_END", "series": "IMG B", "notes": "New architecture" },
+    "BXM-8-256": { "tier": "ULTRA", "series": "IMG B", "notes": "High performance" }
+  },
+  
+  "hsr_settings": {
+    "enable": true,
+    "depth_test_mode": "EARLY",
+    "occluder_threshold": 0.1,
+    "tile_accelerated": true
+  },
+  
+  "pvrtc_settings": {
+    "enable": true,
+    "quality": "NORMAL",
+    "alpha_mode": "COMPRESSED",
+    "bit_depth": 4
+  }
+}

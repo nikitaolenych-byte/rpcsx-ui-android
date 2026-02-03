@@ -1,0 +1,81 @@
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.11.1/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+
+> Configure project :app
+⚠️ Custom keystore not found or empty! creating debug keystore.
+📦 Using prebuilt native libraries from jniLibs/
+
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:dataBindingMergeDependencyArtifactsDebug UP-TO-DATE
+> Task :app:generateDebugResValues UP-TO-DATE
+> Task :app:generateDebugResources UP-TO-DATE
+> Task :app:mergeDebugResources UP-TO-DATE
+> Task :app:packageDebugResources UP-TO-DATE
+> Task :app:parseDebugLocalResources UP-TO-DATE
+> Task :app:dataBindingGenBaseClassesDebug UP-TO-DATE
+> Task :app:generateDebugBuildConfig UP-TO-DATE
+> Task :app:checkDebugAarMetadata UP-TO-DATE
+> Task :app:mapDebugSourceSetPaths UP-TO-DATE
+> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksDebug UP-TO-DATE
+> Task :app:processDebugMainManifest UP-TO-DATE
+> Task :app:processDebugManifest UP-TO-DATE
+> Task :app:processDebugManifestForPackage UP-TO-DATE
+> Task :app:processDebugResources UP-TO-DATE
+> Task :app:javaPreCompileDebug UP-TO-DATE
+> Task :app:mergeDebugShaders UP-TO-DATE
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:mergeDebugAssets UP-TO-DATE
+> Task :app:compressDebugAssets UP-TO-DATE
+> Task :app:desugarDebugFileDependencies UP-TO-DATE
+> Task :app:checkDebugDuplicateClasses UP-TO-DATE
+> Task :app:mergeExtDexDebug UP-TO-DATE
+> Task :app:mergeLibDexDebug UP-TO-DATE
+> Task :app:mergeDebugJniLibFolders UP-TO-DATE
+> Task :app:mergeDebugNativeLibs UP-TO-DATE
+> Task :app:stripDebugDebugSymbols UP-TO-DATE
+> Task :app:validateSigningDebug UP-TO-DATE
+> Task :app:writeDebugAppMetadata UP-TO-DATE
+> Task :app:writeDebugSigningConfigVersions UP-TO-DATE
+> Task :app:compileDebugKotlin
+w: file:///workspaces/rpcsx-ui-android/app/src/main/java/net/rpcsx/PrecompilerService.kt:105:29 'fun <T : Parcelable!> getParcelableArrayListExtra(p0: String!): ArrayList<T!>?' is deprecated. Deprecated in Java.
+w: file:///workspaces/rpcsx-ui-android/app/src/main/java/net/rpcsx/PrecompilerService.kt:106:27 'fun <T : Parcelable!> getParcelableExtra(p0: String!): T?' is deprecated. Deprecated in Java.
+w: file:///workspaces/rpcsx-ui-android/app/src/main/java/net/rpcsx/RPCSXTheme.kt:177:13 'var statusBarColor: Int' is deprecated. Deprecated in Java.
+w: file:///workspaces/rpcsx-ui-android/app/src/main/java/net/rpcsx/RPCSXTheme.kt:178:13 'var navigationBarColor: Int' is deprecated. Deprecated in Java.
+w: file:///workspaces/rpcsx-ui-android/app/src/main/java/net/rpcsx/UsbDeviceRepository.kt:38:26 'fun <T : Parcelable!> getParcelableExtra(p0: String!): T?' is deprecated. Deprecated in Java.
+w: file:///workspaces/rpcsx-ui-android/app/src/main/java/net/rpcsx/UsbDeviceRepository.kt:52:25 'fun <T : Parcelable!> getParcelableExtra(p0: String!): T?' is deprecated. Deprecated in Java.
+w: file:///workspaces/rpcsx-ui-android/app/src/main/java/net/rpcsx/UsbDeviceRepository.kt:73:25 'fun <T : Parcelable!> getParcelableExtra(p0: String!): T?' is deprecated. Deprecated in Java.
+w: file:///workspaces/rpcsx-ui-android/app/src/main/java/net/rpcsx/overlay/OverlayEditActivity.kt:302:56 'val Icons.Filled.KeyboardArrowLeft: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.KeyboardArrowLeft.
+w: file:///workspaces/rpcsx-ui-android/app/src/main/java/net/rpcsx/overlay/OverlayEditActivity.kt:321:56 'val Icons.Filled.KeyboardArrowRight: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.KeyboardArrowRight.
+w: file:///workspaces/rpcsx-ui-android/app/src/main/java/net/rpcsx/overlay/PadOverlay.kt:73:48 'static field VIBRATOR_SERVICE: String' is deprecated. Deprecated in Java.
+w: file:///workspaces/rpcsx-ui-android/app/src/main/java/net/rpcsx/ui/channels/UpdateChannelListScreen.kt:111:53 'val Icons.Filled.KeyboardArrowLeft: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.KeyboardArrowLeft.
+w: file:///workspaces/rpcsx-ui-android/app/src/main/java/net/rpcsx/ui/channels/UpdateChannelsScreen.kt:78:53 'val Icons.Filled.KeyboardArrowLeft: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.KeyboardArrowLeft.
+w: file:///workspaces/rpcsx-ui-android/app/src/main/java/net/rpcsx/ui/drivers/GpuDriversScreen.kt:178:53 'val Icons.Filled.KeyboardArrowLeft: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.KeyboardArrowLeft.
+w: file:///workspaces/rpcsx-ui-android/app/src/main/java/net/rpcsx/ui/drivers/GpuDriversScreen.kt:351:50 Unchecked cast of 'kotlin.Any?' to 'kotlin.collections.List<kotlin.Pair<kotlin.String, kotlin.String?>>'.
+w: file:///workspaces/rpcsx-ui-android/app/src/main/java/net/rpcsx/ui/settings/RSXSettingsScreen.kt:52:56 'val Icons.Filled.KeyboardArrowLeft: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.KeyboardArrowLeft.
+w: file:///workspaces/rpcsx-ui-android/app/src/main/java/net/rpcsx/ui/settings/SettingsScreen.kt:624:52 'val Icons.Filled.KeyboardArrowLeft: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.KeyboardArrowLeft.
+w: file:///workspaces/rpcsx-ui-android/app/src/main/java/net/rpcsx/ui/settings/SettingsScreen.kt:1848:57 'val Icons.Filled.KeyboardArrowLeft: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.KeyboardArrowLeft.
+w: file:///workspaces/rpcsx-ui-android/app/src/main/java/net/rpcsx/ui/settings/SettingsScreen.kt:2037:57 'val Icons.Filled.KeyboardArrowLeft: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.KeyboardArrowLeft.
+w: file:///workspaces/rpcsx-ui-android/app/src/main/java/net/rpcsx/ui/settings/components/base/BasePreference.kt:114:61 'val Icons.Filled.KeyboardArrowRight: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.KeyboardArrowRight.
+w: file:///workspaces/rpcsx-ui-android/app/src/main/java/net/rpcsx/ui/settings/components/base/BasePreference.kt:128:61 'val Icons.Filled.KeyboardArrowRight: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.KeyboardArrowRight.
+w: file:///workspaces/rpcsx-ui-android/app/src/main/java/net/rpcsx/ui/settings/components/preference/RegularPreference.kt:82:68 'val Icons.Filled.KeyboardArrowRight: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.KeyboardArrowRight.
+w: file:///workspaces/rpcsx-ui-android/app/src/main/java/net/rpcsx/ui/settings/components/preference/RegularPreference.kt:96:68 'val Icons.Filled.KeyboardArrowRight: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.KeyboardArrowRight.
+w: file:///workspaces/rpcsx-ui-android/app/src/main/java/net/rpcsx/ui/user/UsersScreen.kt:105:56 'val Icons.Filled.KeyboardArrowLeft: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.KeyboardArrowLeft.
+w: file:///workspaces/rpcsx-ui-android/app/src/main/java/net/rpcsx/utils/UiUpdater.kt:23:28 'fun <T : Parcelable!> getParcelableExtra(p0: String!): T?' is deprecated. Deprecated in Java.
+
+> Task :app:compileDebugJavaWithJavac
+> Task :app:dexBuilderDebug
+> Task :app:mergeDebugGlobalSynthetics
+> Task :app:processDebugJavaRes
+> Task :app:mergeProjectDexDebug
+> Task :app:mergeDebugJavaResource
+> Task :app:packageDebug
+> Task :app:createDebugApkListingFileRedirect
+> Task :app:assembleDebug
+
+BUILD SUCCESSFUL in 1m 58s
+39 actionable tasks: 9 executed, 30 up-to-date

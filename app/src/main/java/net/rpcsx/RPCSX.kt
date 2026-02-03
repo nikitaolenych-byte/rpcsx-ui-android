@@ -236,6 +236,27 @@ class RPCSX {
     external fun saveConverterGetRegionName(region: Int): String
     external fun saveConverterGetStats(): String
 
+    // =========================================================================
+    // AGVSOL - Automatic GPU Vendor-Specific Optimization Layer
+    // =========================================================================
+    external fun agvsolInitialize(cacheDir: String): Boolean
+    external fun agvsolShutdown()
+    external fun agvsolIsInitialized(): Boolean
+    external fun agvsolGetGPUInfo(): String
+    external fun agvsolGetActiveProfile(): String
+    external fun agvsolLoadProfile(path: String): Boolean
+    external fun agvsolApplyProfile(): Boolean
+    external fun agvsolExportProfile(): String
+    external fun agvsolImportProfile(json: String): Boolean
+    external fun agvsolGetGPUVendor(): Int
+    external fun agvsolGetGPUTier(): Int
+    external fun agvsolGetTargetFPS(): Int
+    external fun agvsolGetResolutionScale(): Float
+    external fun agvsolSetTargetFPS(fps: Int)
+    external fun agvsolSetResolutionScale(scale: Float)
+    external fun agvsolGetVendorFlag(key: String, defaultVal: Boolean): Boolean
+    external fun agvsolGetStats(): String
+
 
     companion object {
         var initialized = false

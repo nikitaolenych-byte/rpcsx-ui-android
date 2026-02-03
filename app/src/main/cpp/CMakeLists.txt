@@ -91,6 +91,8 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
     rpcsx/android/src/cutscene_bridge.cpp
     rpcsx/android/src/nbtc_bridge.cpp
     nbtc_engine/nbtc_engine.cpp
+    gpu/gpu_detector.cpp
+    gpu/agvsol_manager.cpp
 )
 
 # If NBTC_WITH_TFLITE requested but no system or jniLibs lib found, compile a small stub

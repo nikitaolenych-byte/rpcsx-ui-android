@@ -169,4 +169,27 @@
     <string name="drs_min_scale">DRS Minimum Scale</string>
     <string name="drs_fsr_upscaling">FSR Upscaling</string>
     <string name="drs_fsr_upscaling_description">Use FSR 3.1 to upscale lower resolution to native</string>
+    
+    <!-- Texture Streaming -->
+    <string name="texture_streaming_header">Texture Streaming Cache</string>
+    <string name="texture_streaming_enabled">Enable Texture Streaming</string>
+    <string name="texture_streaming_mode">Streaming Mode</string>
+    <string name="texture_cache_size">Cache Size</string>
+    
+    <!-- Pipeline Cache -->
+    <string name="pipeline_cache_header">Vulkan Pipeline Cache</string>
+    <string name="pipeline_cache_enabled">Enable Pipeline Cache</string>
+    <string name="pipeline_precompilation">Async Precompilation</string>
+    <string name="pipeline_max_cached">Max Cached Pipelines</string>
+    
+    <!-- Game Profiles -->
+    <string name="game_profiles_header">Game Performance Profiles</string>
+    <string name="auto_apply_profiles">Auto-Apply Game Profiles</string>
+    <string name="use_community_profiles">Use Community Profiles</string>
+    <string name="profiles_statistics">Profiles Statistics</string>
+    
+    <!-- SVE2 Optimizations -->
+    <string name="sve2_header">ARM SIMD Optimizations</string>
+    <string name="simd_capabilities">SIMD Capabilities</string>
+    <string name="enable_sve2_optimizations">Use SVE2/NEON Optimizations</string>
 </resources>
