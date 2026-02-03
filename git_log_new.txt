@@ -1,0 +1,30 @@
+a7b372a Add AGVSOL GPU Optimization Layer
+051d9fb Add AGVSOL - Automatic GPU Vendor-Specific Optimization Layer
+a4f68f9 Add AGVSOL - Automatic GPU Vendor-Specific Optimization Layer
+5a366fc Add 9 PS3 compatibility and optimization modules
+2517c39 feat: add Dynamic Resolution Scaling (DRS) Engine
+643acc0 Fix Custom Configuration screen - show game name in title instead of path
+b07bdc3 feat: add export/import patches for offline use
+d843526 fix: remove emojis and fix HTTP 403 error
+7d6ed2b feat: improve network error handling for patch downloads
+ce7cb77 fix: use Dialog for overlay screens to prevent crash
+a5b729e feat: Integrate native patch application on game launch
+14231d8 feat: Add RPCS3 Patch Manager & fix Custom Configuration crash
+8881448 feat: add LLVM-HCJIT-PS3VEC integration
+b21ba2a nbtc: add libtensorflowlite_c.so (arm64-v8a) from user-provided Drive
+9ccd6e6 nbtc: add libtensorflowlite_c.so (arm64-v8a) downloaded from user-provided Drive links
+bb9e4d3 nbtc: add TFLite C API stub and conditionally compile when NBTC_WITH_TFLITE is ON but no native lib found
+fe1e562 nbtc: add TFLite jniLibs helpers, download script and documentation; placeholders for .so
+0b6f3e2 nbtc: add prototype nbtc_engine, JNI bridge and Kotlin wrapper; wire into CMake
+49c326b nbtc: add prototype NBTC engine, JNI bridge and Kotlin wrapper; integrate into CMake
+358ff38 media(native): call rpcsx_request_playback when PAMF opened; stop when descriptor removed
+f14b5f7 compat: cutscene playback - support content/file URIs, FD fallback and Intent fallback; expose app context
+fa38d28 media: add CutscenePlayer.setSurface and pending surface support; integrate with cutscene bridge
+aea76d8 ci(build): robust JAVA_HOME export and portable Java version check
+12cff32 fix(settings/games): correct corrupted import, use mutableStateOf; remove duplicate state declarations
+5e774a6 fix(games): remove duplicate declarations in GamesScreen.kt
+c1bc60d CI: add debug env + gradle --stacktrace logging for diagnostics
+8ebfc53 CI: set id for setup-java step to export java-home correctly
+665b6e9 CI: export JAVA_HOME + verify Java 17 in build workflow
+cf40b02 Games: add per-game/global advanced config and action dialog
+d7bd46c UI: make SVE2 automatic; remove visible SVE2 toggle; apply saved llvm_cpu_core on native load

@@ -93,6 +93,9 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
     nbtc_engine/nbtc_engine.cpp
     gpu/gpu_detector.cpp
     gpu/agvsol_manager.cpp
+    gpu/vulkan_agvsol_integration.cpp
+    gpu/shader_compiler.cpp
+    gpu/vulkan_renderer.cpp
 )
 
 # If NBTC_WITH_TFLITE requested but no system or jniLibs lib found, compile a small stub

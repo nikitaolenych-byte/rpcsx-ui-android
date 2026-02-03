@@ -1,0 +1,50 @@
+commit a4f68f95a6a0ac9e64d6a3c00d54b636017fb04e
+Author: proqaz2-design <proqaz2@gmail.com>
+Date:   Tue Feb 3 16:50:41 2026 +0000
+
+    Add AGVSOL - Automatic GPU Vendor-Specific Optimization Layer
+    
+    Features:
+    - GPU auto-detection for Adreno/Mali/PowerVR GPUs
+    - Vendor-specific optimization profiles with tier-based settings
+    - Qualcomm Adreno support (610-830) with FlexRender/UBWC
+    - ARM Mali support (G51-Immortalis G925) with AFBC/Transaction Elimination
+    - PowerVR support with TBDR/HSR optimizations
+    - Vendor-specific GLSL 450 shaders (half precision, FMA)
+    - JSON profile system with tier overrides
+    - Compose UI for GPU settings management
+    - JNI bridge with 18 native functions
+    - Real-time settings adjustment (FPS, resolution scale)
+    
+    New files:
+    - gpu/gpu_detector.h/cpp - GPU detection engine
+    - gpu/agvsol_manager.h/cpp - Optimization manager
+    - gpu/profiles/*.json - Vendor profiles (4 files)
+    - gpu/shaders/vendor_specific/*/*.vert/*.frag (6 shaders)
+    - AGVSOLSettingsScreen.kt - Compose UI
+
+ .kotlin/errors/errors-1770135509554.log            |  86 +++
+ app/src/main/cpp/CMakeLists.txt                    |   2 +
+ app/src/main/cpp/gpu/agvsol_manager.cpp            | 785 +++++++++++++++++++++
+ app/src/main/cpp/gpu/agvsol_manager.h              | 392 ++++++++++
+ app/src/main/cpp/gpu/gpu_detector.cpp              | 644 +++++++++++++++++
+ app/src/main/cpp/gpu/gpu_detector.h                | 288 ++++++++
+ app/src/main/cpp/gpu/profiles/adreno_profile.json  | 151 ++++
+ app/src/main/cpp/gpu/profiles/generic_profile.json | 124 ++++
+ app/src/main/cpp/gpu/profiles/mali_profile.json    | 167 +++++
+ app/src/main/cpp/gpu/profiles/powervr_profile.json | 158 +++++
+ .../vendor_specific/adreno/fragment_optimized.frag |  91 +++
+ .../vendor_specific/adreno/vertex_optimized.vert   |  66 ++
+ .../vendor_specific/mali/fragment_optimized.frag   |  99 +++
+ .../vendor_specific/mali/vertex_optimized.vert     |  64 ++
+ .../powervr/fragment_optimized.frag                |  82 +++
+ .../vendor_specific/powervr/vertex_optimized.vert  |  58 ++
+ app/src/main/cpp/native-lib.cpp                    | 175 +++++
+ app/src/main/java/net/rpcsx/RPCSX.kt               |  21 +
+ .../net/rpcsx/ui/settings/AGVSOLSettingsScreen.kt  | 600 ++++++++++++++++
+ app/src/main/res/values/strings.xml                |  23 +
+ build_output.log                                   |  56 ++
+ build_output.txt                                   |  20 +
+ build_trace.txt                                    |  80 +++
+ full_build.log                                     |  81 +++
+ 24 files changed, 4313 insertions(+)

@@ -1,0 +1,27 @@
+ .kotlin/errors/errors-1770135509554.log            |  86 +++
+ app/src/main/cpp/CMakeLists.txt                    |   2 +
+ app/src/main/cpp/gpu/agvsol_manager.cpp            | 785 +++++++++++++++++++++
+ app/src/main/cpp/gpu/agvsol_manager.h              | 392 ++++++++++
+ app/src/main/cpp/gpu/gpu_detector.cpp              | 644 +++++++++++++++++
+ app/src/main/cpp/gpu/gpu_detector.h                | 288 ++++++++
+ app/src/main/cpp/gpu/profiles/adreno_profile.json  | 151 ++++
+ app/src/main/cpp/gpu/profiles/generic_profile.json | 124 ++++
+ app/src/main/cpp/gpu/profiles/mali_profile.json    | 167 +++++
+ app/src/main/cpp/gpu/profiles/powervr_profile.json | 158 +++++
+ .../vendor_specific/adreno/fragment_optimized.frag |  91 +++
+ .../vendor_specific/adreno/vertex_optimized.vert   |  66 ++
+ .../vendor_specific/mali/fragment_optimized.frag   |  99 +++
+ .../vendor_specific/mali/vertex_optimized.vert     |  64 ++
+ .../powervr/fragment_optimized.frag                |  82 +++
+ .../vendor_specific/powervr/vertex_optimized.vert  |  58 ++
+ app/src/main/cpp/native-lib.cpp                    | 175 +++++
+ app/src/main/java/net/rpcsx/RPCSX.kt               |  21 +
+ .../net/rpcsx/ui/settings/AGVSOLSettingsScreen.kt  | 600 ++++++++++++++++
+ app/src/main/res/values/strings.xml                |  23 +
+ build_output.log                                   |  56 ++
+ build_output.txt                                   |  20 +
+ build_trace.txt                                    |  80 +++
+ commit_agvsol.sh                                   |  16 +
+ full_build.log                                     |  81 +++
+ nohup.out                                          |   0
+ 26 files changed, 4329 insertions(+)

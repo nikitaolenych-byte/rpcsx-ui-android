@@ -44,6 +44,9 @@
 #include "save_converter.h"
 #include "gpu/gpu_detector.h"
 #include "gpu/agvsol_manager.h"
+#include "gpu/vulkan_agvsol_integration.h"
+#include "gpu/shader_compiler.h"
+#include "gpu/vulkan_renderer.h"
 
 #define LOG_TAG "RPCSX-Native"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -2147,6 +2150,155 @@ Java_net_rpcsx_RPCSX_agvsolGetStats(JNIEnv *env, jobject) {
         stats.shaders_loaded,
         stats.profiles_available,
         stats.is_optimized ? "true" : "false");
+    
+    return wrap(env, buffer);
+}
+
+// =============================================================================
+// Vulkan Renderer with AGVSOL Integration - JNI
+// =============================================================================
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_vulkanRendererInitialize(JNIEnv *env, jobject, jint width, jint height, jboolean enable_agvsol) {
+    LOGI("Initializing Vulkan Renderer: %dx%d, AGVSOL: %s", width, height, enable_agvsol ? "yes" : "no");
+    
+    rpcsx::vulkan::RendererConfig config;
+    config.width = width;
+    config.height = height;
+    config.enable_agvsol_optimization = enable_agvsol;
+    config.enable_vsync = true;
+    config.enable_async_compute = true;
+    
+    return rpcsx::vulkan::VulkanRenderer::Instance().Initialize(config) ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_net_rpcsx_RPCSX_vulkanRendererShutdown(JNIEnv *env, jobject) {
+    rpcsx::vulkan::VulkanRenderer::Instance().Shutdown();
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_vulkanRendererIsInitialized(JNIEnv *env, jobject) {
+    return rpcsx::vulkan::VulkanRenderer::Instance().IsInitialized() ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_net_rpcsx_RPCSX_vulkanRendererSetTargetFPS(JNIEnv *env, jobject, jfloat target_fps) {
+    rpcsx::vulkan::VulkanRenderer::Instance().SetTargetFPS(target_fps);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_net_rpcsx_RPCSX_vulkanRendererEnableDynamicResolution(JNIEnv *env, jobject, jboolean enable) {
+    rpcsx::vulkan::VulkanRenderer::Instance().EnableDynamicResolution(enable);
+}
+
+extern "C" JNIEXPORT jfloat JNICALL
+Java_net_rpcsx_RPCSX_vulkanRendererGetCurrentFPS(JNIEnv *env, jobject) {
+    return rpcsx::vulkan::VulkanRenderer::Instance().GetFrameStats().fps;
+}
+
+extern "C" JNIEXPORT jfloat JNICALL
+Java_net_rpcsx_RPCSX_vulkanRendererGetFrameTime(JNIEnv *env, jobject) {
+    return rpcsx::vulkan::VulkanRenderer::Instance().GetFrameStats().frame_time_ms;
+}
+
+extern "C" JNIEXPORT jfloat JNICALL
+Java_net_rpcsx_RPCSX_vulkanRendererGetResolutionScale(JNIEnv *env, jobject) {
+    return rpcsx::vulkan::VulkanRenderer::Instance().GetCurrentResolutionScale();
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_net_rpcsx_RPCSX_vulkanRendererGetStats(JNIEnv *env, jobject) {
+    const auto& stats = rpcsx::vulkan::VulkanRenderer::Instance().GetFrameStats();
+    
+    char buffer[1024];
+    snprintf(buffer, sizeof(buffer),
+        "{"
+        "\"fps\": %.1f,"
+        "\"frame_time_ms\": %.2f,"
+        "\"cpu_time_ms\": %.2f,"
+        "\"gpu_time_ms\": %.2f,"
+        "\"draw_calls\": %u,"
+        "\"triangles\": %u,"
+        "\"vertices\": %u,"
+        "\"pipeline_binds\": %u,"
+        "\"descriptor_binds\": %u,"
+        "\"buffer_uploads\": %u,"
+        "\"texture_uploads\": %u,"
+        "\"gpu_memory_used_mb\": %.1f,"
+        "\"agvsol_active\": %s,"
+        "\"active_profile\": \"%s\""
+        "}",
+        stats.fps,
+        stats.frame_time_ms,
+        stats.cpu_time_ms,
+        stats.gpu_time_ms,
+        stats.draw_calls,
+        stats.triangles,
+        stats.vertices,
+        stats.pipeline_binds,
+        stats.descriptor_binds,
+        stats.buffer_uploads,
+        stats.texture_uploads,
+        stats.gpu_memory_used / (1024.0 * 1024.0),
+        stats.agvsol_active ? "true" : "false",
+        stats.active_profile.c_str());
+    
+    return wrap(env, buffer);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_net_rpcsx_RPCSX_vulkanRendererSetAGVSOLProfile(JNIEnv *env, jobject, jstring profile_name) {
+    rpcsx::vulkan::VulkanRenderer::Instance().SetAGVSOLProfile(unwrap(env, profile_name));
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_net_rpcsx_RPCSX_vulkanRendererGetAGVSOLProfile(JNIEnv *env, jobject) {
+    return wrap(env, rpcsx::vulkan::VulkanRenderer::Instance().GetCurrentAGVSOLProfile());
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_net_rpcsx_RPCSX_vulkanRendererEnableAGVSOL(JNIEnv *env, jobject, jboolean enable) {
+    rpcsx::vulkan::VulkanRenderer::Instance().EnableAGVSOLOptimization(enable);
+}
+
+// =============================================================================
+// Shader Compiler JNI
+// =============================================================================
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_shaderCompilerInitialize(JNIEnv *env, jobject) {
+    return rpcsx::shaders::ShaderCompiler::Instance().Initialize() ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_net_rpcsx_RPCSX_shaderCompilerShutdown(JNIEnv *env, jobject) {
+    rpcsx::shaders::ShaderCompiler::Instance().Shutdown();
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_net_rpcsx_RPCSX_shaderCompilerClearCache(JNIEnv *env, jobject) {
+    rpcsx::shaders::ShaderCompiler::Instance().ClearCache();
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_net_rpcsx_RPCSX_shaderCompilerGetStats(JNIEnv *env, jobject) {
+    const auto& stats = rpcsx::shaders::ShaderCompiler::Instance().GetStats();
+    
+    char buffer[256];
+    snprintf(buffer, sizeof(buffer),
+        "{"
+        "\"shaders_compiled\": %llu,"
+        "\"cache_hits\": %llu,"
+        "\"cache_misses\": %llu,"
+        "\"compilation_time_ms\": %llu,"
+        "\"optimization_time_ms\": %llu"
+        "}",
+        static_cast<unsigned long long>(stats.shaders_compiled),
+        static_cast<unsigned long long>(stats.cache_hits),
+        static_cast<unsigned long long>(stats.cache_misses),
+        static_cast<unsigned long long>(stats.compilation_time_ms),
+        static_cast<unsigned long long>(stats.optimization_time_ms));
     
     return wrap(env, buffer);
 }
