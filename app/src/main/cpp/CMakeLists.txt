@@ -78,6 +78,7 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
     plt_hook.cpp
     ppu_interceptor.cpp
     nce_hook.cpp
+    drs_engine.cpp
     rpcsx/android/src/cutscene_bridge.cpp
     rpcsx/android/src/nbtc_bridge.cpp
     nbtc_engine/nbtc_engine.cpp

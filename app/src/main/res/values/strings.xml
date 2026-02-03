@@ -157,4 +157,16 @@
     <!-- UsersScreen -->
     <string name="ask_if_stop_emu">Stop Emulator?</string>
     <string name="ask_if_stop_emu_description">In order to change the user, you have to stop the emulator first.\n\nStop the emulator now?</string>
+    
+    <!-- DRS Settings -->
+    <string name="drs_header">Dynamic Resolution Scaling (DRS)</string>
+    <string name="drs_mode">DRS Mode</string>
+    <string name="drs_mode_disabled">Disabled</string>
+    <string name="drs_mode_performance">Performance</string>
+    <string name="drs_mode_balanced">Balanced</string>
+    <string name="drs_mode_quality">Quality</string>
+    <string name="drs_target_fps">DRS Target FPS</string>
+    <string name="drs_min_scale">DRS Minimum Scale</string>
+    <string name="drs_fsr_upscaling">FSR Upscaling</string>
+    <string name="drs_fsr_upscaling_description">Use FSR 3.1 to upscale lower resolution to native</string>
 </resources>

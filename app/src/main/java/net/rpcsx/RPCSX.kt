@@ -140,6 +140,27 @@ class RPCSX {
     fun runGraphicsPerformanceTest(numDraws: Int): Float = 0f
     fun runMemoryPerformanceTest(): Float = 0f
     fun runCPUPerformanceTest(): Float = 0f
+    
+    // Dynamic Resolution Scaling (DRS) Engine
+    external fun drsInitialize(
+        nativeWidth: Int, nativeHeight: Int,
+        mode: Int, targetFps: Int,
+        minScale: Float, maxScale: Float
+    ): Boolean
+    external fun drsShutdown()
+    external fun drsIsActive(): Boolean
+    external fun drsSetMode(mode: Int)
+    external fun drsGetMode(): Int
+    external fun drsSetTargetFPS(fps: Int)
+    external fun drsGetTargetFPS(): Int
+    external fun drsSetMinScale(scale: Float)
+    external fun drsSetMaxScale(scale: Float)
+    external fun drsUpdate(frameTimeMs: Float): Float
+    external fun drsGetCurrentScale(): Float
+    external fun drsGetStatsJson(): String
+    external fun drsResetStats()
+    external fun drsSetFSRUpscaling(enabled: Boolean)
+    external fun drsIsFSRUpscalingEnabled(): Boolean
 
 
     companion object {

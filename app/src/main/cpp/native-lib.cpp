@@ -32,6 +32,7 @@
 #include "signal_handler.h"
 #include "ppu_interceptor.h"
 #include "plt_hook.h"
+#include "drs_engine.h"
 
 #define LOG_TAG "RPCSX-Native"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -1167,6 +1168,173 @@ Java_net_rpcsx_RPCSX_getSupportedGamesForPatches(JNIEnv *env, jobject) {
     ])";
     
     return wrap(env, json);
+}
+
+// =============================================================================
+// Dynamic Resolution Scaling (DRS) Engine JNI Methods
+// =============================================================================
+
+/**
+ * Initialize DRS Engine
+ */
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_drsInitialize(JNIEnv *env, jobject,
+                                    jint native_width, jint native_height,
+                                    jint mode, jint target_fps,
+                                    jfloat min_scale, jfloat max_scale) {
+    LOGI("Initializing DRS Engine: %dx%d, mode=%d, target=%d FPS",
+         native_width, native_height, mode, target_fps);
+    
+    rpcsx::drs::DRSConfig config;
+    config.mode = static_cast<rpcsx::drs::DRSMode>(mode);
+    config.target_fps = target_fps;
+    config.min_scale = min_scale;
+    config.max_scale = max_scale;
+    
+    return rpcsx::drs::InitializeDRS(native_width, native_height, config) 
+           ? JNI_TRUE : JNI_FALSE;
+}
+
+/**
+ * Shutdown DRS Engine
+ */
+extern "C" JNIEXPORT void JNICALL
+Java_net_rpcsx_RPCSX_drsShutdown(JNIEnv *env, jobject) {
+    rpcsx::drs::ShutdownDRS();
+}
+
+/**
+ * Check if DRS is active
+ */
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_drsIsActive(JNIEnv *env, jobject) {
+    return rpcsx::drs::IsDRSActive() ? JNI_TRUE : JNI_FALSE;
+}
+
+/**
+ * Set DRS mode (0=Disabled, 1=Performance, 2=Balanced, 3=Quality)
+ */
+extern "C" JNIEXPORT void JNICALL
+Java_net_rpcsx_RPCSX_drsSetMode(JNIEnv *env, jobject, jint mode) {
+    rpcsx::drs::SetDRSMode(static_cast<rpcsx::drs::DRSMode>(mode));
+}
+
+/**
+ * Get current DRS mode
+ */
+extern "C" JNIEXPORT jint JNICALL
+Java_net_rpcsx_RPCSX_drsGetMode(JNIEnv *env, jobject) {
+    return static_cast<jint>(rpcsx::drs::GetDRSMode());
+}
+
+/**
+ * Set target FPS
+ */
+extern "C" JNIEXPORT void JNICALL
+Java_net_rpcsx_RPCSX_drsSetTargetFPS(JNIEnv *env, jobject, jint fps) {
+    rpcsx::drs::SetTargetFPS(fps);
+}
+
+/**
+ * Get target FPS
+ */
+extern "C" JNIEXPORT jint JNICALL
+Java_net_rpcsx_RPCSX_drsGetTargetFPS(JNIEnv *env, jobject) {
+    return rpcsx::drs::GetTargetFPS();
+}
+
+/**
+ * Set minimum resolution scale (0.25-1.0)
+ */
+extern "C" JNIEXPORT void JNICALL
+Java_net_rpcsx_RPCSX_drsSetMinScale(JNIEnv *env, jobject, jfloat scale) {
+    rpcsx::drs::SetMinScale(scale);
+}
+
+/**
+ * Set maximum resolution scale (0.25-1.0)
+ */
+extern "C" JNIEXPORT void JNICALL
+Java_net_rpcsx_RPCSX_drsSetMaxScale(JNIEnv *env, jobject, jfloat scale) {
+    rpcsx::drs::SetMaxScale(scale);
+}
+
+/**
+ * Update DRS (call each frame with frame time in ms)
+ * Returns recommended resolution scale
+ */
+extern "C" JNIEXPORT jfloat JNICALL
+Java_net_rpcsx_RPCSX_drsUpdate(JNIEnv *env, jobject, jfloat frame_time_ms) {
+    return rpcsx::drs::UpdateDRS(frame_time_ms);
+}
+
+/**
+ * Get current resolution scale
+ */
+extern "C" JNIEXPORT jfloat JNICALL
+Java_net_rpcsx_RPCSX_drsGetCurrentScale(JNIEnv *env, jobject) {
+    return rpcsx::drs::GetCurrentScale();
+}
+
+/**
+ * Get DRS statistics as JSON string
+ */
+extern "C" JNIEXPORT jstring JNICALL
+Java_net_rpcsx_RPCSX_drsGetStatsJson(JNIEnv *env, jobject) {
+    rpcsx::drs::DRSStats stats;
+    rpcsx::drs::GetDRSStats(&stats);
+    
+    char buffer[512];
+    snprintf(buffer, sizeof(buffer),
+        "{"
+        "\"active\": %s,"
+        "\"current_scale\": %.2f,"
+        "\"current_fps\": %.1f,"
+        "\"average_fps\": %.1f,"
+        "\"render_width\": %u,"
+        "\"render_height\": %u,"
+        "\"output_width\": %u,"
+        "\"output_height\": %u,"
+        "\"scale_changes\": %llu,"
+        "\"is_scaling_down\": %s"
+        "}",
+        rpcsx::drs::IsDRSActive() ? "true" : "false",
+        stats.current_scale,
+        stats.current_fps,
+        stats.average_fps,
+        stats.render_width,
+        stats.render_height,
+        stats.output_width,
+        stats.output_height,
+        (unsigned long long)stats.scale_changes,
+        stats.is_scaling_down ? "true" : "false"
+    );
+    
+    return wrap(env, buffer);
+}
+
+/**
+ * Reset DRS statistics
+ */
+extern "C" JNIEXPORT void JNICALL
+Java_net_rpcsx_RPCSX_drsResetStats(JNIEnv *env, jobject) {
+    rpcsx::drs::ResetDRSStats();
+}
+
+/**
+ * Enable/disable FSR upscaling integration
+ */
+extern "C" JNIEXPORT void JNICALL
+Java_net_rpcsx_RPCSX_drsSetFSRUpscaling(JNIEnv *env, jobject, jboolean enabled) {
+    rpcsx::drs::SetFSRUpscaling(enabled == JNI_TRUE);
+}
+
+/**
+ * Check if FSR upscaling is enabled
+ */
+extern "C" JNIEXPORT jboolean JNICALL
+Java_net_rpcsx_RPCSX_drsIsFSRUpscalingEnabled(JNIEnv *env, jobject) {
+    return rpcsx::drs::IsFSRUpscalingEnabled() ? JNI_TRUE : JNI_FALSE;
 }
 
 

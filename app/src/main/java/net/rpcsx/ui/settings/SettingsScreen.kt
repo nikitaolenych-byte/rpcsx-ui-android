@@ -741,6 +741,114 @@ fun AdvancedSettingsScreen(
                 // No manual toggle is shown here to avoid user confusion or unsafe toggles.
             }
             
+            // Dynamic Resolution Scaling (DRS) section - show in GPU or Video section
+            if (path.contains("Video") || path.contains("GPU") || path.contains("Graphics") || path.isEmpty()) {
+                item(key = "drs_header") {
+                    PreferenceHeader(text = "Dynamic Resolution Scaling (DRS)")
+                }
+                
+                // DRS Mode selector
+                item(key = "drs_mode_setting") {
+                    var drsMode by remember { 
+                        mutableStateOf(GeneralSettings["drs_mode"] as? Int ?: 0) 
+                    }
+                    val drsModes = listOf("Disabled", "Performance", "Balanced", "Quality")
+                    
+                    SingleSelectionDialog(
+                        currentValue = drsModes.getOrElse(drsMode) { "Disabled" },
+                        values = drsModes,
+                        icon = null,
+                        title = "DRS Mode",
+                        onValueChange = { value ->
+                            val newMode = drsModes.indexOf(value)
+                            drsMode = newMode
+                            GeneralSettings.setValue("drs_mode", newMode)
+                            try {
+                                RPCSX.instance.drsSetMode(newMode)
+                            } catch (e: Throwable) {
+                                android.util.Log.w("DRS", "Failed to set DRS mode: ${e.message}")
+                            }
+                        },
+                        onLongClick = {}
+                    )
+                }
+                
+                // Target FPS selector
+                item(key = "drs_target_fps_setting") {
+                    var targetFps by remember { 
+                        mutableStateOf(GeneralSettings["drs_target_fps"] as? Int ?: 30) 
+                    }
+                    val fpsOptions = listOf("30", "60", "120")
+                    
+                    SingleSelectionDialog(
+                        currentValue = targetFps.toString(),
+                        values = fpsOptions,
+                        icon = null,
+                        title = "DRS Target FPS",
+                        onValueChange = { value ->
+                            val fps = value.toIntOrNull() ?: 30
+                            targetFps = fps
+                            GeneralSettings.setValue("drs_target_fps", fps)
+                            try {
+                                RPCSX.instance.drsSetTargetFPS(fps)
+                            } catch (e: Throwable) {
+                                android.util.Log.w("DRS", "Failed to set target FPS: ${e.message}")
+                            }
+                        },
+                        onLongClick = {}
+                    )
+                }
+                
+                // Min Scale slider
+                item(key = "drs_min_scale_setting") {
+                    var minScale by remember { 
+                        mutableStateOf((GeneralSettings["drs_min_scale"] as? Float ?: 0.5f) * 100f) 
+                    }
+                    
+                    SliderPreference(
+                        title = "DRS Minimum Scale",
+                        value = minScale,
+                        valueRange = 25f..100f,
+                        steps = 14,
+                        icon = null,
+                        onValueChange = { value ->
+                            minScale = value
+                            val scale = value / 100f
+                            GeneralSettings.setValue("drs_min_scale", scale)
+                            try {
+                                RPCSX.instance.drsSetMinScale(scale)
+                            } catch (e: Throwable) {
+                                android.util.Log.w("DRS", "Failed to set min scale: ${e.message}")
+                            }
+                        },
+                        valueFormatter = { "${it.toInt()}%" }
+                    )
+                }
+                
+                // FSR Upscaling toggle
+                item(key = "drs_fsr_upscaling_setting") {
+                    var fsrEnabled by remember { 
+                        mutableStateOf(GeneralSettings["drs_fsr_upscaling"] as? Boolean ?: true) 
+                    }
+                    
+                    SwitchPreference(
+                        checked = fsrEnabled,
+                        title = "FSR Upscaling",
+                        leadingIcon = null,
+                        onClick = { value ->
+                            fsrEnabled = value
+                            GeneralSettings.setValue("drs_fsr_upscaling", value)
+                            try {
+                                RPCSX.instance.drsSetFSRUpscaling(value)
+                            } catch (e: Throwable) {
+                                android.util.Log.w("DRS", "Failed to set FSR upscaling: ${e.message}")
+                            }
+                        },
+                        onLongClick = {}
+                    )
+                }
+            }
+            
             val filteredKeys =
                 settings.keys().asSequence().filter { it.contains(searchQuery, ignoreCase = true) }
                     .toList()
