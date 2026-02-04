@@ -547,45 +547,47 @@ fun AdvancedSettingsScreen(
     }
 
     // When native library loads, apply saved preferences to native (best-effort)
+    // Use Dispatchers.IO to avoid blocking UI thread during JNI calls
     LaunchedEffect(RPCSX.activeLibrary.value) {
-        try {
-            // Apply saved LLVM CPU preference to native if present
-            val savedLlvm = GeneralSettings["llvm_cpu_core"] as? String
-            if (!savedLlvm.isNullOrBlank() && RPCSX.activeLibrary.value != null) {
-                val token = displayToCpuToken(savedLlvm)
-                val candidates = listOf(
-                    "\"$token\"",
-                    "'${token}'",
-                    "\"${savedLlvm.trim()}\"",
-                    "'${savedLlvm.trim()}'",
-                    token,
-                    savedLlvm.trim()
-                )
-                var applied = false
-                for (c in candidates) {
-                    try {
-                        if (safeSettingsSet("Core@@LLVM CPU Core", c)) {
-                            applied = true
-                            android.util.Log.i("Settings", "Applied saved LLVM CPU to native: $c")
-                            break
-                        }
-                    } catch (_: Throwable) { }
-                }
-                if (!applied) android.util.Log.w("Settings", "Could not apply saved LLVM CPU to native: $savedLlvm")
-            }
-
-            // Apply saved SVE2 flag automatically (no visible toggle)
-            val savedSve2 = GeneralSettings["enable_sve2"] as? Boolean ?: false
+        if (RPCSX.activeLibrary.value == null) return@LaunchedEffect
+        withContext(Dispatchers.IO) {
             try {
-                if (RPCSX.activeLibrary.value != null) {
+                // Apply saved LLVM CPU preference to native if present
+                val savedLlvm = GeneralSettings["llvm_cpu_core"] as? String
+                if (!savedLlvm.isNullOrBlank()) {
+                    val token = displayToCpuToken(savedLlvm)
+                    val candidates = listOf(
+                        "\"$token\"",
+                        "'${token}'",
+                        "\"${savedLlvm.trim()}\"",
+                        "'${savedLlvm.trim()}'",
+                        token,
+                        savedLlvm.trim()
+                    )
+                    var applied = false
+                    for (c in candidates) {
+                        try {
+                            if (safeSettingsSet("Core@@LLVM CPU Core", c)) {
+                                applied = true
+                                android.util.Log.i("Settings", "Applied saved LLVM CPU to native: $c")
+                                break
+                            }
+                        } catch (_: Throwable) { }
+                    }
+                    if (!applied) android.util.Log.w("Settings", "Could not apply saved LLVM CPU to native: $savedLlvm")
+                }
+
+                // Apply saved SVE2 flag automatically (no visible toggle)
+                val savedSve2 = GeneralSettings["enable_sve2"] as? Boolean ?: false
+                try {
                     safeSettingsSet("Core@@NCE Enable SVE2", if (savedSve2) "true" else "false")
                     android.util.Log.i("Settings", "Applied saved SVE2=${savedSve2} to native")
+                } catch (e: Throwable) {
+                    android.util.Log.w("Settings", "Failed to apply SVE2 to native: ${e.message}")
                 }
             } catch (e: Throwable) {
-                android.util.Log.w("Settings", "Failed to apply SVE2 to native: ${e.message}")
+                android.util.Log.w("Settings", "Error applying saved native prefs: ${e.message}")
             }
-        } catch (e: Throwable) {
-            android.util.Log.w("Settings", "Error applying saved native prefs: ${e.message}")
         }
     }
 
@@ -860,20 +862,7 @@ fun AdvancedSettingsScreen(
                                 variants.clear()
                                 variants.addAll(updatedVariants)
                                 
-                                // Add NCE option to PPU Decoder if not present
-                                if (isPpuDecoder && !variants.contains("NCE")) {
-                                    variants.add(0, "NCE") // Add at top of list
-                                }
-                                
-                                // Add LLVM Turbo option to PPU and SPU Decoder
-                                if (isPpuDecoder && !variants.contains("LLVM Turbo")) {
-                                    // Insert after NCE, before LLVM 19
-                                    val nceIndex = variants.indexOf("NCE")
-                                    variants.add(if (nceIndex >= 0) nceIndex + 1 else 0, "LLVM Turbo")
-                                }
-                                if (isSpuDecoder && !variants.contains("LLVM Turbo")) {
-                                    variants.add(0, "LLVM Turbo") // Add at top
-                                }
+                                // NCE and LLVM Turbo removed - use standard decoders only
 
                                 // Add LLVM 20.3 option (binds to new LLVM backend) to original enums
                                 if (isPpuDecoder && !variants.contains("LLVM 20.3")) {
@@ -882,9 +871,8 @@ fun AdvancedSettingsScreen(
                                     variants.add(if (llvm19Index >= 0) llvm19Index else variants.size, "LLVM 20.3")
                                 }
                                 if (isSpuDecoder && !variants.contains("LLVM 20.3")) {
-                                    // Place after Turbo for SPU
-                                    val turboIndex = variants.indexOf("LLVM Turbo")
-                                    variants.add(if (turboIndex >= 0) turboIndex + 1 else 0, "LLVM 20.3")
+                                    // Add at beginning for SPU
+                                    variants.add(0, "LLVM 20.3")
                                 }
 
                                 // Add Modified LLVM option (LLVM-HCJIT-PS3VEC with ARM SVE2/SME)
@@ -898,27 +886,17 @@ fun AdvancedSettingsScreen(
                                     variants.add(if (llvm203Index >= 0) llvm203Index + 1 else variants.size, "Modified LLVM")
                                 }
                                 
-                                // Reactive state for turbo flags - updates UI immediately
-                                var ppuTurboEnabled by remember { mutableStateOf(GeneralSettings["ppu_llvm_turbo"] as? Boolean ?: false) }
-                                var spuTurboEnabled by remember { mutableStateOf(GeneralSettings["spu_llvm_turbo"] as? Boolean ?: false) }
-
                                 // Persisted requested LLVM versions (user intent) so the UI can show
                                 // `LLVM 20.3` even when native stores legacy token names.
                                 val savedPpuRequested = GeneralSettings["ppu_requested_llvm_version"] as? String
                                 val savedSpuRequested = GeneralSettings["spu_requested_llvm_version"] as? String
                                 
-                                // Check if NCE mode is active (use cached value for performance)
-                                val savedNceMode = net.rpcsx.utils.GeneralSettings.nceMode
-                                
                                 // Compute display value based on current state
                                 val displayValue = when {
-                                    isPpuDecoder && savedNceMode == 3 -> "NCE"
-                                    isPpuDecoder && ppuTurboEnabled && itemValue == "LLVM Recompiler (Legacy)" -> "LLVM Turbo"
                                     isPpuDecoder && itemValue == "LLVM Recompiler (Legacy)" -> "LLVM 19"
                                     isPpuDecoder && (itemValue.contains("20.3") || savedPpuRequested == "20.3") -> "LLVM 20.3"
                                     isPpuDecoder && (itemValue.contains("Modified") || savedPpuRequested == "Modified") -> "Modified LLVM"
                                     isPpuDecoder && itemValue == "Interpreter (Legacy)" -> "Interpreter"
-                                    isSpuDecoder && spuTurboEnabled && itemValue.contains("LLVM", ignoreCase = true) -> "LLVM Turbo"
                                     isSpuDecoder && (itemValue.contains("20.3") || savedSpuRequested == "20.3") -> "LLVM 20.3"
                                     isSpuDecoder && (itemValue.contains("Modified") || savedSpuRequested == "Modified") -> "Modified LLVM"
                                     else -> itemValue
@@ -1014,70 +992,12 @@ fun AdvancedSettingsScreen(
                                                 } catch (e: Throwable) { }
                                                 return@SingleSelectionDialog
                                             }
-                                            // Special handling for LLVM Turbo - PPU
-                                            if (isPpuDecoder && value == "LLVM Turbo") {
-                                                safeSettingsSet(itemPath, "\"LLVM Recompiler (Legacy)\"")
-                                                applyPpuLLVMTurbo()
-                                                GeneralSettings.setValue("ppu_llvm_turbo", true)
-                                                ppuTurboEnabled = true  // Update UI immediately
-                                                itemObject.put("value", "LLVM Recompiler (Legacy)")
-                                                itemValue = "LLVM Recompiler (Legacy)"
-                                                return@SingleSelectionDialog
-                                            }
-                                            
-                                            // Special handling for LLVM Turbo - SPU
-                                            if (isSpuDecoder && value == "LLVM Turbo") {
-                                                // Find the LLVM option in original variants
-                                                val llvmOption = variants.find { it.contains("LLVM", ignoreCase = true) && it != "LLVM Turbo" } ?: "ASMJIT Recompiler"
-                                                val internalLlvm = when (llvmOption) {
-                                                    "LLVM 19" -> "LLVM Recompiler (Legacy)"
-                                                    else -> llvmOption
-                                                }
-                                                safeSettingsSet(itemPath, "\"$internalLlvm\"")
-                                                applySpuLLVMTurbo()
-                                                GeneralSettings.setValue("spu_llvm_turbo", true)
-                                                spuTurboEnabled = true  // Update UI immediately
-                                                itemObject.put("value", internalLlvm)
-                                                itemValue = internalLlvm
-                                                return@SingleSelectionDialog
-                                            }
-                                            
-                                            // Special handling for NCE - activates NCE Native!
-                                            if (isPpuDecoder && value == "NCE") {
-                                                // IMPORTANT: Must use LLVM 19 to compile PPU modules!
-                                                // Interpreter skips PPU compilation entirely.
-                                                safeSettingsSet(itemPath, "\"LLVM Recompiler (Legacy)\"")
-                                                // NCE mode - native function not available, save settings only
-                                                // safeSetNCEMode(3)
-                                                // Save NCE mode (use cached setter for performance)
-                                                net.rpcsx.utils.GeneralSettings.nceMode = 3
-                                                itemObject.put("value", "LLVM Recompiler (Legacy)")
-                                                itemValue = "LLVM Recompiler (Legacy)"
-                                                
-                                                // Log NCE Native activation
-                                                android.util.Log.i("RPCSX-NCE", "╔════════════════════════════════════════╗")
-                                                android.util.Log.i("RPCSX-NCE", "║   NCE Native Activated!                ║")
-                                                android.util.Log.i("RPCSX-NCE", "║   Your phone IS now PlayStation 3!    ║")
-                                                android.util.Log.i("RPCSX-NCE", "║   Using LLVM 19 Backend                ║")
-                                                android.util.Log.i("RPCSX-NCE", "╚════════════════════════════════════════╝")
-                                                return@SingleSelectionDialog
-                                            }
                                             
                                             // Map display names back to internal values
                                             val internalValue = when (value) {
                                                 "LLVM 19" -> "LLVM Recompiler (Legacy)"
                                                 "Interpreter" -> "Interpreter (Legacy)"
                                                 else -> value
-                                            }
-                                            
-                                            // When switching to non-Turbo mode, disable Turbo flag and update UI
-                                            if (isPpuDecoder && value != "LLVM Turbo") {
-                                                GeneralSettings.setValue("ppu_llvm_turbo", false)
-                                                ppuTurboEnabled = false  // Update UI immediately
-                                            }
-                                            if (isSpuDecoder && value != "LLVM Turbo") {
-                                                GeneralSettings.setValue("spu_llvm_turbo", false)
-                                                spuTurboEnabled = false  // Update UI immediately
                                             }
                                             
                                             if (!safeSettingsSet(
@@ -2126,27 +2046,35 @@ fun SpecialSettingsScreen(
             }
             
             item(key = "firmware_spoof_version") {
-                var version by remember { mutableStateOf("4.90") }
-                
-                LaunchedEffect(Unit) {
-                    try {
-                        version = RPCSX.instance.firmwareSpoofGetVersion()
-                    } catch (e: Throwable) {
-                        android.util.Log.w("FirmwareSpoof", "Failed to get version: ${e.message}")
-                    }
+                var version by remember { 
+                    mutableStateOf(GeneralSettings["firmware_spoof_version"] as? String ?: "4.92") 
                 }
+                val firmwareVersions = listOf(
+                    "4.92", "4.91", "4.90", "4.89", "4.88", "4.87", "4.86", "4.85", "4.84", "4.83", "4.82", "4.81",
+                    "4.80", "4.75", "4.70", "4.65", "4.60", "4.55", "4.50", "4.46", "4.45", "4.41",
+                    "4.40", "4.31", "4.30", "4.25", "4.21", "4.20", "4.11", "4.10", "4.00",
+                    "3.55", "3.50", "3.41", "3.40", "3.21", "3.15", "3.10", "3.01", "3.00"
+                )
                 
-                RegularPreference(
+                SingleSelectionDialog(
+                    currentValue = version,
+                    values = firmwareVersions,
+                    icon = null,
                     title = "Firmware Version Spoof",
-                    leadingIcon = null,
-                    trailingContent = {
-                        Text(
-                            text = version,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
+                    onValueChange = { value ->
+                        version = value
+                        GeneralSettings.setValue("firmware_spoof_version", value)
+                        try {
+                            // Parse version string like "4.90" into major (4) and minor (90)
+                            val parts = value.split(".")
+                            val major = parts.getOrNull(0)?.toIntOrNull() ?: 4
+                            val minor = parts.getOrNull(1)?.toIntOrNull() ?: 90
+                            RPCSX.instance.firmwareSpoofSetVersion(major, minor)
+                        } catch (e: Throwable) {
+                            android.util.Log.w("FirmwareSpoof", "Failed to set version: ${e.message}")
+                        }
                     },
-                    onClick = {}
+                    onLongClick = {}
                 )
             }
             

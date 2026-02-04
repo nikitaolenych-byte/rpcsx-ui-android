@@ -70,7 +70,9 @@ import androidx.core.content.edit
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import java.net.URLDecoder
@@ -191,16 +193,21 @@ fun AppNavHost() {
         )
     }
     // When native library becomes available apply saved LLVM CPU token
+    // Use IO dispatcher to avoid blocking UI
     LaunchedEffect(rpcsxLibrary) {
         if (rpcsxLibrary != null) {
-            try {
-                net.rpcsx.utils.applySavedLlvmCpu()
-            } catch (e: Throwable) { }
+            withContext(Dispatchers.IO) {
+                try {
+                    net.rpcsx.utils.applySavedLlvmCpu()
+                } catch (e: Throwable) { }
+            }
         }
     }
     val refreshSettings: () -> Unit = {
-        val s = net.rpcsx.utils.safeNativeCall { RPCSX.instance.settingsGet("") }
-        settings.value = if (s != null) JSONObject(s) else JSONObject()
+        scope.launch(Dispatchers.IO) {
+            val s = net.rpcsx.utils.safeNativeCall { RPCSX.instance.settingsGet("") }
+            settings.value = if (s != null) JSONObject(s) else JSONObject()
+        }
     }
 
     NavHost(

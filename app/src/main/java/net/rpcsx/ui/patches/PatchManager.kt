@@ -162,20 +162,20 @@ object PatchManager {
                 
                 onProgress(10, "Connecting to RPCS3 patch server...")
                 
-                // Try multiple sources with fallback (CDN first - most reliable, no rate limiting)
+                // Try multiple sources with fallback (Wiki first - most reliable)
                 val patchContent = try {
-                    Log.i(TAG, "Trying jsdelivr CDN...")
-                    downloadUrl(RPCS3_PATCH_CDN_URL)
+                    Log.i(TAG, "Trying RPCS3 Wiki...")
+                    downloadUrl(RPCS3_WIKI_PATCHES)
                 } catch (e: Exception) {
-                    Log.w(TAG, "CDN failed: ${e.message}, trying GitHub raw...")
+                    Log.w(TAG, "Wiki failed: ${e.message}, trying API...")
                     onProgress(15, "Trying alternative source...")
                     try {
-                        downloadUrl(RPCS3_PATCH_RAW_URL)
+                        downloadUrl(RPCS3_PATCH_URL)
                     } catch (e2: Exception) {
-                        Log.w(TAG, "GitHub raw failed: ${e2.message}, trying wiki...")
-                        onProgress(20, "Trying wiki source...")
+                        Log.w(TAG, "API failed: ${e2.message}, trying GitHub CDN...")
+                        onProgress(20, "Trying CDN source...")
                         try {
-                            downloadUrl(RPCS3_WIKI_PATCHES)
+                            downloadUrl(RPCS3_PATCH_CDN_URL)
                         } catch (e3: Exception) {
                             Log.e(TAG, "All sources failed. Last error: ${e3.message}")
                             return@withContext Result.failure(Exception("Could not download patches from any source. Error: ${e.message}"))
