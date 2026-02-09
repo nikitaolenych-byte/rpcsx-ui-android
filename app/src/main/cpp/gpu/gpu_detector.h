@@ -98,6 +98,10 @@ struct GPUFeatures {
     bool mali_afbc = false;              // ARM Frame Buffer Compression
     bool powervr_pvrtc = false;          // PowerVR Texture Compression
     bool nvidia_cuda_interop = false;    // NVIDIA CUDA
+    
+    // Capability flags
+    bool compute_capable = false;        // Compute shader capable
+    bool ray_tracing = false;            // Ray tracing support
 };
 
 // ============================================================================
@@ -133,6 +137,7 @@ struct GPUInfo {
     std::string soc_name;           // "Snapdragon 8s Gen 3", "Dimensity 9200", etc.
     std::string board_platform;     // ro.board.platform value
     std::string hardware;           // ro.hardware value
+    std::string api_version;        // Vulkan API version string
     
     // Validation
     bool is_valid() const { return vendor != GPUVendor::UNKNOWN; }

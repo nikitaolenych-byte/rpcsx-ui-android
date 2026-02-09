@@ -210,6 +210,9 @@ private:
     void ApplyMaliOptimizations(const agvsol::OptimizationProfile& profile);
     void ApplyPowerVROptimizations(const agvsol::OptimizationProfile& profile);
     
+    // Update memory hints from AGVSOL profile
+    void UpdateMemoryHints();
+    
     // Memory type selection
     uint32_t FindOptimalMemoryType(uint32_t type_filter, VkMemoryPropertyFlags properties);
     

@@ -157,6 +157,7 @@ struct StubConfig {
     bool log_stubbed = false;
     bool log_all_calls = false;
     bool crash_on_critical = false;
+    bool auto_stub_missing = true;
     StubBehavior default_behavior = StubBehavior::RETURN_SUCCESS;
     int32_t default_error_code = ps3_error::CELL_ENOSYS;
     std::string log_file;

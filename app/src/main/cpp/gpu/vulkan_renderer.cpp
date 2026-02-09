@@ -10,6 +10,8 @@
 #include <algorithm>
 #include <cstring>
 #include <numeric>
+#include <set>
+#include <vulkan/vulkan_android.h>
 
 #define LOG_TAG "RPCSX-VulkanRenderer"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -376,19 +378,17 @@ bool VulkanRenderer::InitializeAGVSOL() {
     LOGI("Initializing AGVSOL integration");
     
     // Initialize GPU detector
-    auto& detector = gpu::GPUDetector::Instance();
-    if (!detector.IsInitialized()) {
-        detector.Initialize();
+    if (!gpu::IsGPUDetectorInitialized()) {
+        gpu::InitializeGPUDetector(m_instance, m_physical_device);
     }
     
     // Initialize AGVSOL manager
-    auto& agvsol = gpu::AGVSOLManager::Instance();
-    if (!agvsol.IsInitialized()) {
-        agvsol.Initialize();
+    if (!agvsol::IsAGVSOLInitialized()) {
+        agvsol::InitializeAGVSOL("/data/data/com.rpcsx/cache");
     }
     
     // Apply profile based on detected GPU
-    const auto& gpu_info = detector.GetGPUInfo();
+    const auto& gpu_info = gpu::GetCachedGPUInfo();
     std::string profile_name;
     
     switch (gpu_info.vendor) {
@@ -406,7 +406,7 @@ bool VulkanRenderer::InitializeAGVSOL() {
             break;
     }
     
-    if (agvsol.ApplyProfile(profile_name)) {
+    if (agvsol::LoadProfileForVendor(gpu_info.vendor)) {
         m_current_profile = profile_name;
         m_frame_stats.agvsol_active = true;
         m_frame_stats.active_profile = profile_name;
@@ -414,9 +414,9 @@ bool VulkanRenderer::InitializeAGVSOL() {
     }
     
     // Initialize Vulkan-AGVSOL integration
-    auto& vulkan_agvsol = gpu::VulkanAGVSOLIntegration::Instance();
+    auto& vulkan_agvsol = vulkan::VulkanAGVSOLIntegration::Instance();
     if (vulkan_agvsol.Initialize(m_instance, m_physical_device, m_device)) {
-        vulkan_agvsol.ApplyProfile();
+        vulkan_agvsol.ApplyProfile(agvsol::GetActiveProfile());
         LOGI("Vulkan-AGVSOL integration initialized");
     }
     
@@ -542,19 +542,64 @@ bool VulkanRenderer::CreateSwapchain() {
 
 bool VulkanRenderer::CreateRenderPasses() {
     // Use AGVSOL integration for optimized render pass
-    auto& vulkan_agvsol = gpu::VulkanAGVSOLIntegration::Instance();
+    auto& vulkan_agvsol = vulkan::VulkanAGVSOLIntegration::Instance();
+    
+    // Build standard VkRenderPassCreateInfo
+    VkAttachmentDescription attachments[2] = {};
+    
+    // Color attachment
+    attachments[0].format = m_swapchain_format;
+    attachments[0].samples = static_cast<VkSampleCountFlagBits>(m_config.msaa_samples);
+    attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachments[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attachments[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachments[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachments[0].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    attachments[0].finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    
+    // Depth attachment
+    attachments[1].format = VK_FORMAT_D24_UNORM_S8_UINT;
+    attachments[1].samples = static_cast<VkSampleCountFlagBits>(m_config.msaa_samples);
+    attachments[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachments[1].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachments[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachments[1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachments[1].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    attachments[1].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    
+    VkAttachmentReference color_ref = {};
+    color_ref.attachment = 0;
+    color_ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    
+    VkAttachmentReference depth_ref = {};
+    depth_ref.attachment = 1;
+    depth_ref.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    
+    VkSubpassDescription subpass = {};
+    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass.colorAttachmentCount = 1;
+    subpass.pColorAttachments = &color_ref;
+    subpass.pDepthStencilAttachment = &depth_ref;
+    
+    VkSubpassDependency dependency = {};
+    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependency.dstSubpass = 0;
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependency.srcAccessMask = 0;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    
+    VkRenderPassCreateInfo create_info = {};
+    create_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    create_info.attachmentCount = 2;
+    create_info.pAttachments = attachments;
+    create_info.subpassCount = 1;
+    create_info.pSubpasses = &subpass;
+    create_info.dependencyCount = 1;
+    create_info.pDependencies = &dependency;
     
     if (m_agvsol_enabled && vulkan_agvsol.IsInitialized()) {
-        gpu::OptimizedRenderPassInfo render_pass_info;
-        render_pass_info.color_format = m_swapchain_format;
-        render_pass_info.depth_format = VK_FORMAT_D24_UNORM_S8_UINT;
-        render_pass_info.sample_count = static_cast<VkSampleCountFlagBits>(m_config.msaa_samples);
-        render_pass_info.color_load_op = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        render_pass_info.color_store_op = VK_ATTACHMENT_STORE_OP_STORE;
-        render_pass_info.depth_load_op = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        render_pass_info.depth_store_op = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        
-        m_main_render_pass = vulkan_agvsol.CreateOptimizedRenderPass(render_pass_info);
+        m_main_render_pass = vulkan_agvsol.CreateOptimizedRenderPass(create_info);
         
         if (m_main_render_pass != VK_NULL_HANDLE) {
             LOGI("Created AGVSOL-optimized render pass");
@@ -573,33 +618,33 @@ bool VulkanRenderer::CreateRenderPasses() {
     color_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     color_attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
     
-    VkAttachmentReference color_ref = {};
-    color_ref.attachment = 0;
-    color_ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    VkAttachmentReference fallback_color_ref = {};
+    fallback_color_ref.attachment = 0;
+    fallback_color_ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     
-    VkSubpassDescription subpass = {};
-    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    subpass.colorAttachmentCount = 1;
-    subpass.pColorAttachments = &color_ref;
+    VkSubpassDescription fallback_subpass = {};
+    fallback_subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    fallback_subpass.colorAttachmentCount = 1;
+    fallback_subpass.pColorAttachments = &fallback_color_ref;
     
-    VkSubpassDependency dependency = {};
-    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-    dependency.dstSubpass = 0;
-    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependency.srcAccessMask = 0;
-    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    VkSubpassDependency fallback_dependency = {};
+    fallback_dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    fallback_dependency.dstSubpass = 0;
+    fallback_dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    fallback_dependency.srcAccessMask = 0;
+    fallback_dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    fallback_dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
     
-    VkRenderPassCreateInfo create_info = {};
-    create_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    create_info.attachmentCount = 1;
-    create_info.pAttachments = &color_attachment;
-    create_info.subpassCount = 1;
-    create_info.pSubpasses = &subpass;
-    create_info.dependencyCount = 1;
-    create_info.pDependencies = &dependency;
+    VkRenderPassCreateInfo fallback_create_info = {};
+    fallback_create_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    fallback_create_info.attachmentCount = 1;
+    fallback_create_info.pAttachments = &color_attachment;
+    fallback_create_info.subpassCount = 1;
+    fallback_create_info.pSubpasses = &fallback_subpass;
+    fallback_create_info.dependencyCount = 1;
+    fallback_create_info.pDependencies = &fallback_dependency;
     
-    VK_CHECK(vkCreateRenderPass(m_device, &create_info, nullptr, &m_main_render_pass));
+    VK_CHECK(vkCreateRenderPass(m_device, &fallback_create_info, nullptr, &m_main_render_pass));
     
     LOGI("Created standard render pass");
     return true;
@@ -711,7 +756,7 @@ bool VulkanRenderer::BeginFrame() {
     
     // Update AGVSOL frame tracking
     if (m_agvsol_enabled) {
-        gpu::VulkanAGVSOLIntegration::Instance().BeginFrame();
+        vulkan::VulkanAGVSOLIntegration::Instance().BeginFrame();
     }
     
     m_frame_started = true;
@@ -748,7 +793,7 @@ void VulkanRenderer::EndFrame() {
     
     // Update AGVSOL frame tracking
     if (m_agvsol_enabled) {
-        gpu::VulkanAGVSOLIntegration::Instance().EndFrame();
+        vulkan::VulkanAGVSOLIntegration::Instance().EndFrame();
     }
     
     // Dynamic quality adjustment
@@ -975,10 +1020,10 @@ RenderTarget VulkanRenderer::CreateRenderTarget(uint32_t width, uint32_t height,
     target.samples = samples;
     
     // Use AGVSOL-optimized image creation if available
-    auto& vulkan_agvsol = gpu::VulkanAGVSOLIntegration::Instance();
+    auto& vulkan_agvsol = vulkan::VulkanAGVSOLIntegration::Instance();
     
     if (m_agvsol_enabled && vulkan_agvsol.IsInitialized()) {
-        gpu::MemoryOptimizationHints hints = vulkan_agvsol.GetMemoryHints();
+        vulkan::MemoryOptimizationHints hints = vulkan_agvsol.GetMemoryHints();
         
         // AGVSOL optimized image creation
         VkImageCreateInfo image_info = {};
@@ -996,8 +1041,8 @@ RenderTarget VulkanRenderer::CreateRenderTarget(uint32_t width, uint32_t height,
         image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
         image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         
-        target.image = vulkan_agvsol.CreateOptimizedImage(image_info);
-        target.is_compressed = hints.enable_ubwc || hints.enable_afbc;
+        target.image = vulkan_agvsol.CreateOptimizedImage(image_info, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        target.is_compressed = hints.use_ubwc || hints.use_afbc_textures;
     } else {
         // Standard image creation
         VkImageCreateInfo image_info = {};
@@ -1139,16 +1184,13 @@ void VulkanRenderer::AdjustQualityForPerformance() {
     }
     
     // Update AGVSOL with new settings
-    if (m_agvsol_enabled) {
-        auto& agvsol = gpu::AGVSOLManager::Instance();
-        auto settings = agvsol.GetCurrentSettings();
-        settings.max_resolution_scale = m_current_resolution_scale;
-        
+    if (m_agvsol_enabled && agvsol::IsAGVSOLInitialized()) {
+        const auto& profile = agvsol::GetActiveProfile();
         // Also adjust complexity based on FPS
         if (avg_frame_time > target_frame_time) {
-            gpu::VulkanAGVSOLIntegration::Instance().OptimizeForScene(0.8f);  // Lower quality
+            vulkan::VulkanAGVSOLIntegration::Instance().OptimizeForScene(m_frame_stats.triangles, m_frame_stats.draw_calls);
         } else {
-            gpu::VulkanAGVSOLIntegration::Instance().OptimizeForScene(1.0f);  // Normal quality
+            vulkan::VulkanAGVSOLIntegration::Instance().OptimizeForScene(m_frame_stats.triangles, m_frame_stats.draw_calls);
         }
     }
 }
@@ -1158,14 +1200,13 @@ void VulkanRenderer::AdjustQualityForPerformance() {
 // =============================================================================
 
 void VulkanRenderer::SetAGVSOLProfile(const std::string& profile_name) {
-    auto& agvsol = gpu::AGVSOLManager::Instance();
-    if (agvsol.ApplyProfile(profile_name)) {
+    if (agvsol::LoadProfileFromFile(profile_name)) {
         m_current_profile = profile_name;
         m_frame_stats.active_profile = profile_name;
         LOGI("Applied AGVSOL profile: %s", profile_name.c_str());
         
         // Also update Vulkan integration
-        gpu::VulkanAGVSOLIntegration::Instance().ApplyProfile();
+        vulkan::VulkanAGVSOLIntegration::Instance().ApplyProfile(agvsol::GetActiveProfile());
     }
 }
 

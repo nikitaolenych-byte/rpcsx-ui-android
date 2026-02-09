@@ -238,8 +238,8 @@ void VulkanAGVSOLIntegration::InitializePowerVRExtensions() {
 void VulkanAGVSOLIntegration::UpdateMemoryHints() {
     const auto& profile = agvsol::GetActiveProfile();
     
-    m_memory_hints.max_vertex_buffer_size = profile.memory.max_vertex_buffers_mb * 1024 * 1024;
-    m_memory_hints.max_index_buffer_size = profile.memory.max_index_buffers_mb * 1024 * 1024;
+    m_memory_hints.max_vertex_buffer_size = profile.memory.vertex_buffer_size_mb * 1024 * 1024;
+    m_memory_hints.max_index_buffer_size = profile.memory.index_buffer_size_mb * 1024 * 1024;
     m_memory_hints.texture_cache_size = profile.memory.texture_cache_size_mb * 1024 * 1024;
     
     // Apply vendor-specific overrides
@@ -278,10 +278,21 @@ bool VulkanAGVSOLIntegration::ApplyProfile(const agvsol::OptimizationProfile& pr
     // Update memory hints
     UpdateMemoryHints();
     
+    // Convert AAMode enum to string
+    const char* aa_mode_str = "unknown";
+    switch (profile.render.aa_mode) {
+        case agvsol::RenderSettings::AAMode::NONE: aa_mode_str = "none"; break;
+        case agvsol::RenderSettings::AAMode::FXAA: aa_mode_str = "fxaa"; break;
+        case agvsol::RenderSettings::AAMode::SMAA: aa_mode_str = "smaa"; break;
+        case agvsol::RenderSettings::AAMode::TAA: aa_mode_str = "taa"; break;
+        case agvsol::RenderSettings::AAMode::MSAA_2X: aa_mode_str = "msaa2x"; break;
+        case agvsol::RenderSettings::AAMode::MSAA_4X: aa_mode_str = "msaa4x"; break;
+    }
+    
     LOGI("Profile applied: Resolution=%.0f%%, FPS=%d, AA=%s",
          profile.render.resolution_scale * 100.0f,
          profile.render.target_fps,
-         profile.render.aa_mode.c_str());
+         aa_mode_str);
     
     return true;
 }

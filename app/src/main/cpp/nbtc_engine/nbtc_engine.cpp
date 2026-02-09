@@ -100,7 +100,6 @@ bool AnalyzeAndCache(const std::string& game_path) {
         LOGI("NBTC: interpreter not initialized, skipping TFLite inference");
     }
 #endif
-#endif
     try {
         std::string marker = game_path + ".nbtc.cache";
         std::ofstream f(marker, std::ios::binary);

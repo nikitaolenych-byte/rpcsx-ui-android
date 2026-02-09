@@ -40,12 +40,11 @@ bool ShaderCompiler::Initialize() {
     LOGI("Initializing shader compiler");
     
     // Set default target from GPU detector
-    auto& detector = gpu::GPUDetector::Instance();
-    if (detector.IsInitialized()) {
-        m_target_gpu = detector.GetGPUInfo();
+    if (gpu::IsGPUDetectorInitialized()) {
+        m_target_gpu = gpu::GetGPUInfo();
         LOGI("Target GPU: %s (%s)", 
-             m_target_gpu.renderer.c_str(),
-             gpu::GPUVendorToString(m_target_gpu.vendor).c_str());
+             m_target_gpu.model.c_str(),
+             gpu::GetVendorName(m_target_gpu.vendor));
     }
     
     // Set up default optimization flags based on vendor
@@ -94,19 +93,19 @@ void ShaderCompiler::SetTargetGPU(gpu::GPUVendor vendor, gpu::GPUTier tier) {
     m_target_gpu.vendor = vendor;
     m_target_gpu.tier = tier;
     LOGI("Target GPU set to: %s, tier %d", 
-         gpu::GPUVendorToString(vendor).c_str(), static_cast<int>(tier));
+         gpu::GetVendorName(vendor), static_cast<int>(tier));
 }
 
 void ShaderCompiler::SetTargetGPU(const gpu::GPUInfo& gpu_info) {
     m_target_gpu = gpu_info;
-    LOGI("Target GPU set to: %s", gpu_info.renderer.c_str());
+    LOGI("Target GPU set to: %s", gpu_info.model.c_str());
 }
 
-CompiledShader ShaderCompiler::CompileGLSL(const ShaderSource& source, 
+GPUCompiledShader ShaderCompiler::CompileGLSL(const ShaderSource& source, 
                                             const ShaderOptimizationFlags& flags) {
     auto start = std::chrono::high_resolution_clock::now();
     
-    CompiledShader result;
+    GPUCompiledShader result;
     result.stage = source.stage;
     result.entry_point = "main";
     result.target_vendor = m_target_gpu.vendor;
@@ -206,7 +205,7 @@ CompiledShader ShaderCompiler::CompileGLSL(const ShaderSource& source,
     return result;
 }
 
-CompiledShader ShaderCompiler::CompileGLSL(const std::string& code, ShaderStage stage,
+GPUCompiledShader ShaderCompiler::CompileGLSL(const std::string& code, ShaderStage stage,
                                             const ShaderOptimizationFlags& flags) {
     ShaderSource source;
     source.code = code;
@@ -215,9 +214,9 @@ CompiledShader ShaderCompiler::CompileGLSL(const std::string& code, ShaderStage 
     return CompileGLSL(source, flags);
 }
 
-CompiledShader ShaderCompiler::LoadSPIRV(const std::vector<uint32_t>& spirv_code, 
+GPUCompiledShader ShaderCompiler::LoadSPIRV(const std::vector<uint32_t>& spirv_code, 
                                           ShaderStage stage) {
-    CompiledShader result;
+    GPUCompiledShader result;
     result.spirv_code = spirv_code;
     result.stage = stage;
     result.entry_point = "main";
@@ -233,8 +232,8 @@ CompiledShader ShaderCompiler::LoadSPIRV(const std::vector<uint32_t>& spirv_code
     return result;
 }
 
-CompiledShader ShaderCompiler::LoadSPIRV(const std::string& filepath, ShaderStage stage) {
-    CompiledShader result;
+GPUCompiledShader ShaderCompiler::LoadSPIRV(const std::string& filepath, ShaderStage stage) {
+    GPUCompiledShader result;
     result.stage = stage;
     
     std::ifstream file(filepath, std::ios::binary | std::ios::ate);
@@ -276,11 +275,11 @@ CompiledShader ShaderCompiler::LoadSPIRV(const std::string& filepath, ShaderStag
     return result;
 }
 
-CompiledShader ShaderCompiler::OptimizeSPIRV(const CompiledShader& shader,
+GPUCompiledShader ShaderCompiler::OptimizeSPIRV(const GPUCompiledShader& shader,
                                               const ShaderOptimizationFlags& flags) {
     auto start = std::chrono::high_resolution_clock::now();
     
-    CompiledShader result = shader;
+    GPUCompiledShader result = shader;
     
     // Apply vendor-specific optimizations
     switch (m_target_gpu.vendor) {
@@ -316,7 +315,7 @@ CompiledShader ShaderCompiler::OptimizeSPIRV(const CompiledShader& shader,
 }
 
 VkShaderModule ShaderCompiler::CreateShaderModule(VkDevice device, 
-                                                   const CompiledShader& shader) {
+                                                   const GPUCompiledShader& shader) {
     if (!shader.is_valid || shader.spirv_code.empty()) {
         LOGE("Cannot create shader module from invalid shader");
         return VK_NULL_HANDLE;
@@ -408,17 +407,16 @@ std::string ShaderCompiler::PreprocessGLSL(const ShaderSource& source) {
     }
     
     // Add AGVSOL settings as defines
-    auto& agvsol = gpu::AGVSOLManager::Instance();
-    if (agvsol.IsInitialized()) {
-        const auto& settings = agvsol.GetCurrentSettings();
-        result << "#define RPCSX_MAX_RESOLUTION " << settings.max_resolution_scale << "\n";
-        result << "#define RPCSX_TEXTURE_QUALITY " << settings.texture_quality << "\n";
-        result << "#define RPCSX_AA_MODE " << settings.anti_aliasing_mode << "\n";
+    if (agvsol::IsAGVSOLInitialized()) {
+        const auto& profile = agvsol::GetActiveProfile();
+        result << "#define RPCSX_MAX_RESOLUTION " << static_cast<int>(profile.render.resolution_scale * 100) << "\n";
+        result << "#define RPCSX_TEXTURE_QUALITY " << static_cast<int>(profile.render.texture_quality) << "\n";
+        result << "#define RPCSX_AA_MODE " << static_cast<int>(profile.render.aa_mode) << "\n";
         
-        if (settings.use_half_precision) {
+        if (profile.shader.use_half_precision) {
             result << "#define RPCSX_USE_HALF_PRECISION 1\n";
         }
-        if (settings.enable_shader_cache) {
+        if (profile.shader.enable_shader_cache) {
             result << "#define RPCSX_SHADER_CACHE 1\n";
         }
     }
@@ -470,7 +468,7 @@ bool ShaderCompiler::ValidateSPIRV(const std::vector<uint32_t>& spirv_code,
     return true;
 }
 
-bool ShaderCompiler::SaveToCache(const CompiledShader& shader, const std::string& cache_key) {
+bool ShaderCompiler::SaveToCache(const GPUCompiledShader& shader, const std::string& cache_key) {
     m_shader_cache[cache_key] = shader;
     
     // TODO: Persist to file
@@ -478,12 +476,12 @@ bool ShaderCompiler::SaveToCache(const CompiledShader& shader, const std::string
     return true;
 }
 
-CompiledShader ShaderCompiler::LoadFromCache(const std::string& cache_key) {
+GPUCompiledShader ShaderCompiler::LoadFromCache(const std::string& cache_key) {
     auto it = m_shader_cache.find(cache_key);
     if (it != m_shader_cache.end()) {
         return it->second;
     }
-    return CompiledShader{};
+    return GPUCompiledShader{};
 }
 
 void ShaderCompiler::ClearCache() {
@@ -676,7 +674,7 @@ void ShaderVariantManager::RegisterVariant(const std::string& shader_name,
     m_variants[shader_name].push_back(info);
     
     LOGI("Registered shader variant: %s for %s", 
-         shader_name.c_str(), gpu::GPUVendorToString(vendor).c_str());
+         shader_name.c_str(), gpu::GetVendorName(vendor));
 }
 
 std::string ShaderVariantManager::GetBestVariant(const std::string& shader_name) {
@@ -685,8 +683,8 @@ std::string ShaderVariantManager::GetBestVariant(const std::string& shader_name)
         return "";
     }
     
-    auto& detector = gpu::GPUDetector::Instance();
-    gpu::GPUVendor current_vendor = detector.GetGPUInfo().vendor;
+    gpu::GPUInfo gpu_info = gpu::GetCachedGPUInfo();
+    gpu::GPUVendor current_vendor = gpu_info.vendor;
     
     // First, try to find exact vendor match
     for (const auto& variant : it->second) {
@@ -711,7 +709,7 @@ std::string ShaderVariantManager::GetBestVariant(const std::string& shader_name)
 }
 
 bool ShaderVariantManager::LoadVariantsForGPU(gpu::GPUVendor vendor) {
-    LOGI("Loading shader variants for %s", gpu::GPUVendorToString(vendor).c_str());
+    LOGI("Loading shader variants for %s", gpu::GetVendorName(vendor));
     
     auto& compiler = ShaderCompiler::Instance();
     
@@ -733,7 +731,7 @@ bool ShaderVariantManager::LoadVariantsForGPU(gpu::GPUVendor vendor) {
     return true;
 }
 
-const CompiledShader* ShaderVariantManager::GetCompiledShader(const std::string& shader_name) {
+const GPUCompiledShader* ShaderVariantManager::GetCompiledShader(const std::string& shader_name) {
     auto it = m_active_shaders.find(shader_name);
     if (it != m_active_shaders.end()) {
         return &it->second;

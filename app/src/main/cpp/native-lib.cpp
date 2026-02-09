@@ -652,6 +652,9 @@ Java_net_rpcsx_RPCSX_initializeARMv9Optimizations(JNIEnv *env, jobject,
   return success ? JNI_TRUE : JNI_FALSE;
 }
 
+// Forward declaration for rpcsx_set_jvm from cutscene_bridge.cpp
+extern "C" void rpcsx_set_jvm(JavaVM* vm);
+
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* /* reserved */) {
   JNIEnv* env = nullptr;
   if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
@@ -661,7 +664,6 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* /* reserved */) {
   rpcsx::crash::InstallSignalHandlers();
 
   // Inform cutscene bridge (and other modules) about JavaVM
-  extern void rpcsx_set_jvm(JavaVM* vm);
   rpcsx_set_jvm(vm);
 
   return JNI_VERSION_1_6;

@@ -72,7 +72,7 @@ struct ShaderOptimizationFlags {
 // Compiled Shader
 // =============================================================================
 
-struct CompiledShader {
+struct GPUCompiledShader {
     std::vector<uint32_t> spirv_code;
     ShaderStage stage = ShaderStage::VERTEX;
     std::string entry_point = "main";
@@ -152,22 +152,22 @@ public:
     void SetTargetGPU(const gpu::GPUInfo& gpu_info);
     
     // Compilation
-    CompiledShader CompileGLSL(const ShaderSource& source, 
+    GPUCompiledShader CompileGLSL(const ShaderSource& source, 
                                 const ShaderOptimizationFlags& flags = {});
     
-    CompiledShader CompileGLSL(const std::string& code, ShaderStage stage,
+    GPUCompiledShader CompileGLSL(const std::string& code, ShaderStage stage,
                                 const ShaderOptimizationFlags& flags = {});
     
     // Load pre-compiled SPIR-V
-    CompiledShader LoadSPIRV(const std::vector<uint32_t>& spirv_code, ShaderStage stage);
-    CompiledShader LoadSPIRV(const std::string& filepath, ShaderStage stage);
+    GPUCompiledShader LoadSPIRV(const std::vector<uint32_t>& spirv_code, ShaderStage stage);
+    GPUCompiledShader LoadSPIRV(const std::string& filepath, ShaderStage stage);
     
     // Optimize existing SPIR-V
-    CompiledShader OptimizeSPIRV(const CompiledShader& shader,
+    GPUCompiledShader OptimizeSPIRV(const GPUCompiledShader& shader,
                                   const ShaderOptimizationFlags& flags = {});
     
     // Create Vulkan shader module
-    VkShaderModule CreateShaderModule(VkDevice device, const CompiledShader& shader);
+    VkShaderModule CreateShaderModule(VkDevice device, const GPUCompiledShader& shader);
     
     // Get vendor-specific shader variant
     std::string GetVendorShaderPath(const std::string& base_path, 
@@ -183,8 +183,8 @@ public:
     bool ValidateSPIRV(const std::vector<uint32_t>& spirv_code, std::string& error_out);
     
     // Cache management
-    bool SaveToCache(const CompiledShader& shader, const std::string& cache_key);
-    CompiledShader LoadFromCache(const std::string& cache_key);
+    bool SaveToCache(const GPUCompiledShader& shader, const std::string& cache_key);
+    GPUCompiledShader LoadFromCache(const std::string& cache_key);
     void ClearCache();
     
     // Statistics
@@ -226,7 +226,7 @@ private:
     
     // Cache
     std::string m_cache_path;
-    std::unordered_map<std::string, CompiledShader> m_shader_cache;
+    std::unordered_map<std::string, GPUCompiledShader> m_shader_cache;
     
     Stats m_stats;
 };
@@ -251,7 +251,7 @@ public:
     bool LoadVariantsForGPU(gpu::GPUVendor vendor);
     
     // Get compiled shader
-    const CompiledShader* GetCompiledShader(const std::string& shader_name);
+    const GPUCompiledShader* GetCompiledShader(const std::string& shader_name);
 
 private:
     ShaderVariantManager() = default;
@@ -260,11 +260,11 @@ private:
         std::string shader_name;
         gpu::GPUVendor vendor;
         std::string shader_path;
-        CompiledShader compiled;
+        GPUCompiledShader compiled;
     };
     
     std::unordered_map<std::string, std::vector<VariantInfo>> m_variants;
-    std::unordered_map<std::string, CompiledShader> m_active_shaders;
+    std::unordered_map<std::string, GPUCompiledShader> m_active_shaders;
 };
 
 // =============================================================================
