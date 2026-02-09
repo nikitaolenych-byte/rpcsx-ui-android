@@ -47,6 +47,7 @@
 #include "gpu/vulkan_agvsol_integration.h"
 #include "gpu/shader_compiler.h"
 #include "gpu/vulkan_renderer.h"
+#include "nce_core/llvm_optimized_ppu_spu.h"
 
 #define LOG_TAG "RPCSX-Native"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -508,6 +509,22 @@ Java_net_rpcsx_RPCSX_initializeARMv9Optimizations(JNIEnv *env, jobject,
     success = false;
   }
 
+  // 4.0.1. Ініціалізація LLVM Optimized PPU JIT (критично для продуктивності!)
+  LOGI("Initializing LLVM Optimized PPU (PowerPC64 -> ARM64 NEON)...");
+  if (ppu_llvm_opt_init() != 0) {
+    LOGW("LLVM PPU JIT initialization failed - falling back to interpreter");
+  } else {
+    LOGI("LLVM PPU JIT enabled - maximum performance mode");
+  }
+
+  // 4.0.2. Ініціалізація LLVM Optimized SPU JIT
+  LOGI("Initializing LLVM Optimized SPU (Cell SPU -> ARM64 NEON)...");
+  if (spu_llvm_opt_init() != 0) {
+    LOGW("LLVM SPU JIT initialization failed - falling back to interpreter");
+  } else {
+    LOGI("LLVM SPU JIT enabled - vectorized NEON execution");
+  }
+
   // 4.1. Ініціалізація SVE2/NEON оптимізацій (не критично)
   LOGI("Initializing SVE2/NEON optimizations...");
   if (!rpcsx::sve2::InitializeSVE2()) {
@@ -656,6 +673,11 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* /* reserved */) {
 extern "C" JNIEXPORT void JNICALL
 Java_net_rpcsx_RPCSX_shutdownARMv9Optimizations(JNIEnv *env, jobject) {
   LOGI("Shutting down ARMv9 optimizations...");
+  
+  // Shutdown LLVM JIT engines first
+  LOGI("Shutting down LLVM PPU/SPU JIT...");
+  ppu_llvm_opt_shutdown();
+  spu_llvm_opt_shutdown();
   
   // Shutdown PS3 compatibility modules
   rpcsx::saves::ShutdownSaveConverter();
