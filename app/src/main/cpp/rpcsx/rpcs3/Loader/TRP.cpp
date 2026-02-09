@@ -2,7 +2,7 @@
 #include "Emu/VFS.h"
 #include "TRP.h"
 #include "Crypto/sha1.h"
-#include "util/StrUtil.h"
+#include "Utilities/StrUtil.h"
 
 LOG_CHANNEL(trp_log, "Trophy");
 

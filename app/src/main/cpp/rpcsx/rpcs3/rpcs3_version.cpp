@@ -17,18 +17,18 @@ namespace rpcs3
 
 	std::pair<std::string, std::string> get_commit_and_hash()
 	{
-		const auto commit_and_hash = fmt::split(RPCS3_GIT_VERSION, {"-"});
+		auto commit_and_hash = fmt::split(RPCS3_GIT_VERSION, {"-"});
 		if (commit_and_hash.size() != 2)
 			return std::make_pair("0", "00000000");
 
-		return std::make_pair(commit_and_hash[0], commit_and_hash[1]);
+		return std::make_pair(std::move(commit_and_hash[0]), std::move(commit_and_hash[1]));
 	}
 
 	// TODO: Make this accessible from cmake and keep in sync with MACOSX_BUNDLE_BUNDLE_VERSION.
 	// Currently accessible by Windows and Linux build scripts, see implementations when doing MACOSX
 	const utils::version& get_version()
 	{
-		static constexpr utils::version version{0, 0, 36, utils::version_type::alpha, 1, RPCS3_GIT_VERSION};
+		static constexpr utils::version version{ 0, 0, 39, utils::version_type::alpha, 1, RPCS3_GIT_VERSION };
 		return version;
 	}
 
@@ -61,7 +61,7 @@ namespace rpcs3
 
 	bool is_release_build()
 	{
-		static constexpr bool is_release_build = std::string_view(RPCS3_GIT_FULL_BRANCH) == "RPCSX/rpcsx/master"sv;
+		static constexpr bool is_release_build = std::string_view(RPCS3_GIT_FULL_BRANCH) == "RPCS3/rpcs3/master"sv;
 		return is_release_build;
 	}
 
@@ -70,4 +70,4 @@ namespace rpcs3
 		static constexpr bool is_local_build = std::string_view(RPCS3_GIT_FULL_BRANCH) == "local_build"sv;
 		return is_local_build;
 	}
-} // namespace rpcs3
+}

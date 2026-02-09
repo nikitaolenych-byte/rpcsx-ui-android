@@ -7,12 +7,14 @@
 #include "sha1.h"
 #include "sha256.h"
 #include "key_vault.h"
+#include <charconv>
+#include <cstdlib>
 #include <cstring>
 #include <cstdio>
 #include <ctime>
-#include "util/StrFmt.h"
-#include "util/StrUtil.h"
-#include "util/File.h"
+#include "Utilities/StrFmt.h"
+#include "Utilities/StrUtil.h"
+#include "Utilities/File.h"
 
 #include <memory>
 #include <string>
@@ -22,51 +24,26 @@
 // Auxiliary functions (endian swap, xor).
 
 // Hex string conversion auxiliary functions.
-u64 hex_to_u64(const char* hex_str)
+void hex_to_bytes(unsigned char* data, std::string_view hex_str, unsigned int str_length)
 {
-	auto length = std::strlen(hex_str);
-	u64 tmp = 0;
-	u64 result = 0;
-	char c;
-
-	while (length--)
-	{
-		c = *hex_str++;
-		if ((c >= '0') && (c <= '9'))
-			tmp = c - '0';
-		else if ((c >= 'a') && (c <= 'f'))
-			tmp = c - 'a' + 10;
-		else if ((c >= 'A') && (c <= 'F'))
-			tmp = c - 'A' + 10;
-		else
-			tmp = 0;
-		result |= (tmp << (length * 4));
-	}
-
-	return result;
-}
-
-void hex_to_bytes(unsigned char* data, const char* hex_str, unsigned int str_length)
-{
-	const auto strn_length = (str_length > 0) ? str_length : std::strlen(hex_str);
-	auto data_length = strn_length / 2;
-	char tmp_buf[3] = {0, 0, 0};
+	const auto strn_length = (str_length > 0) ? str_length : hex_str.size();
 
 	// Don't convert if the string length is odd.
 	if ((strn_length % 2) == 0)
 	{
-		while (data_length--)
+		for (size_t i = 0; i < strn_length; i += 2)
 		{
-			tmp_buf[0] = *hex_str++;
-			tmp_buf[1] = *hex_str++;
-
-			*data++ = static_cast<u8>(hex_to_u64(tmp_buf) & 0xFF);
+			const auto [ptr, err] = std::from_chars(hex_str.data() + i, hex_str.data() + i + 2, *data++, 16);
+			if (err != std::errc())
+			{
+				fmt::throw_exception("Failed to read hex string: %s", std::make_error_code(err).message());
+			}
 		}
 	}
 }
 
 // Crypto functions (AES128-CBC, AES128-ECB, SHA1-HMAC and AES-CMAC).
-void aescbc128_decrypt(unsigned char* key, unsigned char* iv, unsigned char* in, unsigned char* out, usz len)
+void aescbc128_decrypt(unsigned char *key, unsigned char *iv, unsigned char *in, unsigned char *out, usz len)
 {
 	aes_context ctx;
 	aes_setkey_dec(&ctx, key, 128);
@@ -76,7 +53,7 @@ void aescbc128_decrypt(unsigned char* key, unsigned char* iv, unsigned char* in,
 	memset(iv, 0, 0x10);
 }
 
-void aescbc128_encrypt(unsigned char* key, unsigned char* iv, unsigned char* in, unsigned char* out, usz len)
+void aescbc128_encrypt(unsigned char *key, unsigned char *iv, unsigned char *in, unsigned char *out, usz len)
 {
 	aes_context ctx;
 	aes_setkey_enc(&ctx, key, 128);
@@ -86,14 +63,14 @@ void aescbc128_encrypt(unsigned char* key, unsigned char* iv, unsigned char* in,
 	memset(iv, 0, 0x10);
 }
 
-void aesecb128_encrypt(unsigned char* key, unsigned char* in, unsigned char* out)
+void aesecb128_encrypt(unsigned char *key, unsigned char *in, unsigned char *out)
 {
 	aes_context ctx;
 	aes_setkey_enc(&ctx, key, 128);
 	aes_crypt_ecb(&ctx, AES_ENCRYPT, in, out);
 }
 
-bool hmac_hash_compare(unsigned char* key, int key_len, unsigned char* in, usz in_len, unsigned char* hash, usz hash_len)
+bool hmac_hash_compare(unsigned char *key, int key_len, unsigned char *in, usz in_len, unsigned char *hash, usz hash_len)
 {
 	const std::unique_ptr<u8[]> out(new u8[key_len]);
 
@@ -102,12 +79,12 @@ bool hmac_hash_compare(unsigned char* key, int key_len, unsigned char* in, usz i
 	return std::memcmp(out.get(), hash, hash_len) == 0;
 }
 
-void hmac_hash_forge(unsigned char* key, int key_len, unsigned char* in, usz in_len, unsigned char* hash)
+void hmac_hash_forge(unsigned char *key, int key_len, unsigned char *in, usz in_len, unsigned char *hash)
 {
 	sha1_hmac(key, key_len, in, in_len, hash);
 }
 
-bool cmac_hash_compare(unsigned char* key, int key_len, unsigned char* in, usz in_len, unsigned char* hash, usz hash_len)
+bool cmac_hash_compare(unsigned char *key, int key_len, unsigned char *in, usz in_len, unsigned char *hash, usz hash_len)
 {
 	const std::unique_ptr<u8[]> out(new u8[key_len]);
 
@@ -118,7 +95,7 @@ bool cmac_hash_compare(unsigned char* key, int key_len, unsigned char* in, usz i
 	return std::memcmp(out.get(), hash, hash_len) == 0;
 }
 
-void cmac_hash_forge(unsigned char* key, int /*key_len*/, unsigned char* in, usz in_len, unsigned char* hash)
+void cmac_hash_forge(unsigned char *key, int /*key_len*/, unsigned char *in, usz in_len, unsigned char *hash)
 {
 	aes_context ctx;
 	aes_setkey_enc(&ctx, key, 128);
@@ -152,19 +129,20 @@ std::string sha256_get_hash(const char* data, usz size, bool lower_case)
 
 	for (usz index = 0; index < 32; index++)
 	{
-		const auto pal = lower_case ? "0123456789abcdef" : "0123456789ABCDEF";
-		res_hash_string[index * 2] = pal[res_hash[index] >> 4];
+		const auto pal                   = lower_case ? "0123456789abcdef" : "0123456789ABCDEF";
+		res_hash_string[index * 2]       = pal[res_hash[index] >> 4];
 		res_hash_string[(index * 2) + 1] = pal[res_hash[index] & 15];
 	}
 
 	return res_hash_string;
 }
 
-void mbedtls_zeroize(void* v, size_t n)
+void mbedtls_zeroize(void *v, size_t n)
 {
-	static void* (*const volatile unop_memset)(void*, int, size_t) = &memset;
+	static void *(*const volatile unop_memset)(void *, int, size_t) = &memset;
 	(void)unop_memset(v, 0, n);
 }
+
 
 // SC passphrase crypto
 
@@ -180,7 +158,7 @@ std::array<u8, PASSPHRASE_KEY_LEN> sc_combine_laid_paid(s64 laid, s64 paid)
 {
 	const std::string paid_laid = fmt::format("%016llx%016llx", laid, paid);
 	std::array<u8, PASSPHRASE_KEY_LEN> out{};
-	hex_to_bytes(out.data(), paid_laid.c_str(), PASSPHRASE_KEY_LEN * 2);
+	hex_to_bytes(out.data(), paid_laid, PASSPHRASE_KEY_LEN * 2);
 	return out;
 }
 
@@ -228,7 +206,7 @@ const u8* vtrm_portability_type_mapper(int type)
 	// No idea what this type stands for
 	switch (type)
 	{
-	// case 0: return key_for_type_1;
+	//case 0: return key_for_type_1;
 	case 1: return SC_ISO_SERIES_KEY_2;
 	case 2: return SC_ISO_SERIES_KEY_1;
 	case 3: return SC_KEY_FOR_MASTER_2;

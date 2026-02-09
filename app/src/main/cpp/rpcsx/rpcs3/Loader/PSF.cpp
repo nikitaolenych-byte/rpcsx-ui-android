@@ -1,8 +1,7 @@
 #include "stdafx.h"
 #include "PSF.h"
 
-#include "rx/align.hpp"
-#include "rx/asm.hpp"
+#include "util/asm.hpp"
 #include <span>
 
 LOG_CHANNEL(psf_log, "PSF");
@@ -11,33 +10,33 @@ template <>
 void fmt_class_string<psf::format>::format(std::string& out, u64 arg)
 {
 	format_enum(out, arg, [](auto fmt)
+	{
+		switch (fmt)
 		{
-			switch (fmt)
-			{
-				STR_CASE(psf::format::array);
-				STR_CASE(psf::format::string);
-				STR_CASE(psf::format::integer);
-			}
+		STR_CASE(psf::format::array);
+		STR_CASE(psf::format::string);
+		STR_CASE(psf::format::integer);
+		}
 
-			return unknown;
-		});
+		return unknown;
+	});
 }
 
 template <>
 void fmt_class_string<psf::error>::format(std::string& out, u64 arg)
 {
 	format_enum(out, arg, [](auto fmt)
+	{
+		switch (fmt)
 		{
-			switch (fmt)
-			{
-			case psf::error::ok: return "OK";
-			case psf::error::stream: return "File doesn't exist";
-			case psf::error::not_psf: return "File is not of PSF format";
-			case psf::error::corrupt: return "PSF is truncated or corrupted";
-			}
+		case psf::error::ok: return "OK";
+		case psf::error::stream: return "File doesn't exist";
+		case psf::error::not_psf: return "File is not of PSF format";
+		case psf::error::corrupt: return "PSF is truncated or corrupted";
+		}
 
-			return unknown;
-		});
+		return unknown;
+	});
 }
 
 template <>
@@ -101,8 +100,11 @@ namespace psf
 		le_t<u32> data_off;
 	};
 
+
 	entry::entry(format type, u32 max_size, std::string_view value, bool allow_truncate) noexcept
-		: m_type(type), m_max_size(max_size), m_value_string(value)
+		: m_type(type)
+		, m_max_size(max_size)
+		, m_value_string(value)
 	{
 		ensure(type == format::string || type == format::array);
 		ensure(max_size > (type == format::string ? 1u : 0u));
@@ -114,7 +116,9 @@ namespace psf
 	}
 
 	entry::entry(u32 value) noexcept
-		: m_type(format::integer), m_max_size(sizeof(u32)), m_value_integer(value)
+		: m_type(format::integer)
+		, m_max_size(sizeof(u32))
+		, m_value_integer(value)
 	{
 	}
 
@@ -130,14 +134,14 @@ namespace psf
 		return m_value_integer;
 	}
 
-	entry& entry::operator=(std::string_view value)
+	entry& entry::operator =(std::string_view value)
 	{
 		ensure(m_type == format::string || m_type == format::array);
 		m_value_string = value;
 		return *this;
 	}
 
-	entry& entry::operator=(u32 value)
+	entry& entry::operator =(u32 value)
 	{
 		ensure(m_type == format::integer);
 		m_value_integer = value;
@@ -179,15 +183,15 @@ namespace psf
 	{
 		load_result_t result{};
 
-#define PSF_CHECK(cond, err)                                                                               \
-	if (!static_cast<bool>(cond))                                                                          \
-	{                                                                                                      \
-		if (err != error::stream)                                                                          \
-			psf_log.error("Error loading PSF '%s': %s%s", filename, err, std::source_location::current()); \
-		result.sfo.clear();                                                                                \
-		result.errc = err;                                                                                 \
-		return result;                                                                                     \
-	}
+#define PSF_CHECK(cond, err) \
+		if (!static_cast<bool>(cond)) \
+		{ \
+			if (err != error::stream) \
+				psf_log.error("Error loading PSF '%s': %s%s", filename, err, std::source_location::current()); \
+			result.sfo.clear(); \
+			result.errc = err; \
+			return result; \
+		}
 
 		PSF_CHECK(stream, error::stream);
 
@@ -249,7 +253,10 @@ namespace psf
 				if (indices[i].param_fmt == format::string)
 				{
 					// Find null terminator
-					value.resize(std::strlen(value.c_str()));
+					if (usz nts = value.find_first_of('\0'); nts != umax)
+					{
+						value.resize(nts);
+					}
 				}
 
 				result.sfo.emplace(std::piecewise_construct,
@@ -285,8 +292,7 @@ namespace psf
 	{
 		fs::file stream = fs::make_stream<std::vector<u8>>(std::move(init));
 
-		std::vector<def_table_t> indices;
-		indices.reserve(psf.size());
+		std::vector<def_table_t> indices; indices.reserve(psf.size());
 
 		// Generate indices and calculate key table length
 		usz key_offset = 0, data_offset = 0;
@@ -308,7 +314,7 @@ namespace psf
 		}
 
 		// Align next section (data) offset
-		key_offset = rx::alignUp(key_offset, 4);
+		key_offset = utils::align(key_offset, 4);
 
 		// Generate header
 		header_t header{};
@@ -429,4 +435,4 @@ namespace psf
 
 		return psf_ok;
 	}
-} // namespace psf
+}

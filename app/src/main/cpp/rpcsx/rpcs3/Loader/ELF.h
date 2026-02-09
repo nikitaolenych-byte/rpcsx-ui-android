@@ -1,9 +1,8 @@
 #pragma once
 
 #include "util/types.hpp"
-#include "util/File.h"
-#include "rx/EnumBitSet.hpp"
-#include "util/endian.hpp"
+#include "../../Utilities/File.h"
+#include "../../Utilities/bit_set.h"
 
 #include <span>
 
@@ -56,10 +55,10 @@ enum class sh_flag : u32
 	shf_alloc,
 	shf_execinstr,
 
-	bitset_last = shf_execinstr,
+	__bitset_enum_max
 };
 
-constexpr bool is_memorizable_section(sec_type type, rx::EnumBitSet<sh_flag> flags)
+constexpr bool is_memorizable_section(sec_type type, bs_t<sh_flag> flags)
 {
 	switch (type)
 	{
@@ -84,13 +83,13 @@ constexpr bool is_memorizable_section(sec_type type, rx::EnumBitSet<sh_flag> fla
 	}
 }
 
-template <typename T>
+template<typename T>
 using elf_be = be_t<T>;
 
-template <typename T>
+template<typename T>
 using elf_le = le_t<T>;
 
-template <template <typename T> class en_t, typename sz_t>
+template<template<typename T> class en_t, typename sz_t>
 struct elf_ehdr
 {
 	nse_t<u32> e_magic;
@@ -115,13 +114,13 @@ struct elf_ehdr
 	en_t<u16> e_shstrndx;
 };
 
-template <template <typename T> class en_t, typename sz_t>
+template<template<typename T> class en_t, typename sz_t>
 struct elf_phdr
 {
 	static_assert(!sizeof(sz_t), "Invalid elf size type (must be u32 or u64)");
 };
 
-template <template <typename T> class en_t>
+template<template<typename T> class en_t>
 struct elf_phdr<en_t, u64>
 {
 	en_t<u32> p_type;
@@ -134,7 +133,7 @@ struct elf_phdr<en_t, u64>
 	en_t<u64> p_align;
 };
 
-template <template <typename T> class en_t>
+template<template<typename T> class en_t>
 struct elf_phdr<en_t, u32>
 {
 	en_t<u32> p_type;
@@ -147,7 +146,7 @@ struct elf_phdr<en_t, u32>
 	en_t<u32> p_align;
 };
 
-template <template <typename T> class en_t, typename sz_t>
+template<template<typename T> class en_t, typename sz_t>
 struct elf_prog final : elf_phdr<en_t, sz_t>
 {
 	std::vector<uchar> bin{};
@@ -170,7 +169,7 @@ struct elf_prog final : elf_phdr<en_t, sz_t>
 	}
 };
 
-template <template <typename T> class en_t, typename sz_t>
+template<template<typename T> class en_t, typename sz_t>
 struct elf_shdr
 {
 	en_t<u32> sh_name;
@@ -184,13 +183,13 @@ struct elf_shdr
 	en_t<sz_t> sh_addralign;
 	en_t<sz_t> sh_entsize;
 
-	rx::EnumBitSet<sh_flag> sh_flags() const
+	bs_t<sh_flag> sh_flags() const
 	{
-		return std::bit_cast<rx::EnumBitSet<sh_flag>>(static_cast<u32>(+_sh_flags));
+		return std::bit_cast<bs_t<sh_flag>>(static_cast<u32>(+_sh_flags));
 	}
 };
 
-template <template <typename T> class en_t, typename sz_t>
+template<template<typename T> class en_t, typename sz_t>
 struct elf_shdata final : elf_shdr<en_t, sz_t>
 {
 	std::vector<uchar> bin{};
@@ -218,7 +217,7 @@ enum class elf_opt : u32
 	no_sections, // Don't load shdrs
 	no_data,     // Load phdrs without data
 
-	bitset_last = no_data,
+	__bitset_enum_max
 };
 
 // ELF loading error
@@ -244,7 +243,7 @@ enum class elf_error
 // ELF object with specified parameters.
 // en_t: endianness (elf_le or elf_be)
 // sz_t: size (u32 for ELF32, u64 for ELF64)
-template <template <typename T> class en_t, typename sz_t, elf_machine Machine, elf_os OS, elf_type Type>
+template<template<typename T> class en_t, typename sz_t, elf_machine Machine, elf_os OS, elf_type Type>
 class elf_object
 {
 	elf_error m_error = elf_error::stream; // Set initial error to "file not found" error
@@ -266,12 +265,12 @@ public:
 public:
 	elf_object() = default;
 
-	elf_object(const fs::file& stream, u64 offset = 0, rx::EnumBitSet<elf_opt> opts = {})
+	elf_object(const fs::file& stream, u64 offset = 0, bs_t<elf_opt> opts = {})
 	{
 		open(stream, offset, opts);
 	}
 
-	elf_error open(const fs::file& stream, u64 offset = 0, rx::EnumBitSet<elf_opt> opts = {})
+	elf_error open(const fs::file& stream, u64 offset = 0, bs_t<elf_opt> opts = {})
 	{
 		highest_offset = 0;
 
@@ -280,7 +279,6 @@ public:
 			return set_error(elf_error::stream);
 
 		// Read ELF header
-		highest_offset = sizeof(header);
 		if (sizeof(header) != stream.read_at(offset, &header, sizeof(header)))
 			return set_error(elf_error::stream_header);
 
@@ -317,6 +315,8 @@ public:
 
 		if (header.e_shnum && header.e_shentsize != u16{sizeof(shdr_t)})
 			return set_error(elf_error::header_version);
+
+		highest_offset = sizeof(header);
 
 		// Load program headers
 		std::vector<phdr_t> _phdrs;
@@ -528,6 +528,7 @@ public:
 			clear();
 
 		m_error = error;
+		highest_offset = 0;
 		return *this;
 	}
 
@@ -544,8 +545,8 @@ public:
 };
 
 using ppu_exec_object = elf_object<elf_be, u64, elf_machine::ppc64, elf_os::none, elf_type::exec>;
-using ppu_prx_object = elf_object<elf_be, u64, elf_machine::ppc64, elf_os::lv2, elf_type::prx>;
-using ppu_rel_object = elf_object<elf_be, u64, elf_machine::ppc64, elf_os::lv2, elf_type::rel>;
+using ppu_prx_object  = elf_object<elf_be, u64, elf_machine::ppc64, elf_os::lv2, elf_type::prx>;
+using ppu_rel_object  = elf_object<elf_be, u64, elf_machine::ppc64, elf_os::lv2, elf_type::rel>;
 using spu_exec_object = elf_object<elf_be, u32, elf_machine::spu, elf_os::none, elf_type::exec>;
-using spu_rel_object = elf_object<elf_be, u32, elf_machine::spu, elf_os::none, elf_type::rel>;
+using spu_rel_object  = elf_object<elf_be, u32, elf_machine::spu, elf_os::none, elf_type::rel>;
 using arm_exec_object = elf_object<elf_le, u32, elf_machine::arm, elf_os::none, elf_type::none>;
