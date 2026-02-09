@@ -89,7 +89,33 @@ class MainActivity : ComponentActivity() {
                     GeneralSettings.sync()
                 }
 
-                RPCSX.openLibrary(rpcsxLibrary)
+                // Check if library file exists before trying to load
+                val libraryFile = File(rpcsxLibrary)
+                if (!libraryFile.exists()) {
+                    Log.e("RPCSX", "Library file does not exist: $rpcsxLibrary")
+                    // If file doesn't exist and we have previous library, rollback
+                    if (rpcsxPrevLibrary != null && File(rpcsxPrevLibrary).exists()) {
+                        GeneralSettings["rpcsx_library"] = rpcsxPrevLibrary
+                        GeneralSettings["rpcsx_installed_arch"] = GeneralSettings["rpcsx_prev_installed_arch"]
+                        GeneralSettings["rpcsx_prev_installed_arch"] = null
+                        GeneralSettings["rpcsx_prev_library"] = null
+                        GeneralSettings.sync()
+                        rpcsxLibrary = rpcsxPrevLibrary
+                    }
+                }
+
+                if (RPCSX.openLibrary(rpcsxLibrary)) {
+                    // Library loaded successfully - mark update as successful
+                    if (GeneralSettings["rpcsx_update_status"] == false) {
+                        GeneralSettings["rpcsx_update_status"] = true
+                        GeneralSettings["rpcsx_prev_library"] = null
+                        GeneralSettings["rpcsx_prev_installed_arch"] = null
+                        GeneralSettings.sync()
+                        Log.i("RPCSX", "Library update successful: $rpcsxLibrary")
+                    }
+                } else {
+                    Log.e("RPCSX", "Failed to open library: $rpcsxLibrary")
+                }
             }
 
             val nativeLibraryDir =

@@ -177,6 +177,10 @@ object RpcsxUpdater {
 
         GeneralSettings["rpcsx_prev_library"] = prevLibrary
         GeneralSettings["rpcsx_prev_installed_arch"] = prevArch
+        
+        // Sync settings to disk BEFORE showing dialog to ensure changes are persisted
+        GeneralSettings.sync()
+        
         AlertDialogQueue.showDialog(
             title = context.getString(R.string.rpcsx_update_available),
             message = context.getString(R.string.restart_ui_to_apply_change),
