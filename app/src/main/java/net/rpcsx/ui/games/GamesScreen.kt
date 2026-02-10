@@ -697,13 +697,38 @@ fun GamesScreen(navigateTo: (String) -> Unit = {}) {
             })
     }
 
+    // Check if library file exists but failed to load
+    val existingLibraryPath = GeneralSettings["rpcsx_library"] as? String
+    val existingLibraryFile = existingLibraryPath?.let { File(it) }
+    val libraryExistsButNotLoaded = existingLibraryFile?.exists() == true && rpcsxLibrary == null
+
     if (rpcsxLibrary == null && rpcsxUpdateVersion == null && !rpcsxUpdate && activeDialogs.isEmpty()) {
-        AlertDialog(
-            onDismissRequest = { },
-            title = { Text(stringResource(R.string.missing_rpcsx_lib)) },
-            text = { Text(stringResource(R.string.downloading_latest_rpcsx)) },
-            confirmButton = {}
-        )
+        if (libraryExistsButNotLoaded) {
+            // Library file exists but failed to load - show error, not download prompt
+            AlertDialog(
+                onDismissRequest = { },
+                title = { Text(stringResource(R.string.failed_to_load_library)) },
+                text = { Text(stringResource(R.string.library_load_error_restart)) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        // Clear library and let user download fresh copy
+                        GeneralSettings["rpcsx_library"] = null
+                        GeneralSettings["rpcsx_update_status"] = null
+                        GeneralSettings.sync()
+                    }) {
+                        Text(stringResource(R.string.clear_and_redownload))
+                    }
+                }
+            )
+        } else {
+            // No library at all - show download in progress message
+            AlertDialog(
+                onDismissRequest = { },
+                title = { Text(stringResource(R.string.missing_rpcsx_lib)) },
+                text = { Text(stringResource(R.string.downloading_latest_rpcsx)) },
+                confirmButton = {}
+            )
+        }
     }
 
     if (rpcsxUpdateVersion != null && activeDialogs.isEmpty()) {

@@ -42,6 +42,9 @@
     <string name="missing_firmware">Missing Firmware</string>
     <string name="missing_key">Missing Key</string>
     <string name="missing_rpcsx_lib">Missing RPCSX Library</string>
+    <string name="failed_to_load_library">Failed to Load Library</string>
+    <string name="library_load_error_restart">The RPCSX library file exists but could not be loaded. This may be due to incompatible architecture or corrupted download. You can clear and re-download the library.</string>
+    <string name="clear_and_redownload">Clear &amp; Re-download</string>
     <string name="retry">Retry</string>
     <string name="rpcsx_update_available">RPCSX Update Available</string>
     <string name="ui_update_available">UI Update Available</string>

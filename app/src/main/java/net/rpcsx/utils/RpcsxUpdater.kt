@@ -60,6 +60,11 @@ object RpcsxUpdater {
         val url = DevRpcsxChannel // TODO: update once RPCSX has release with android support
 
         val arch = getArch()
+        
+        // Check if we already have a library downloaded (even if not loaded yet)
+        val existingLibrary = GeneralSettings["rpcsx_library"] as? String
+        val existingLibraryExists = existingLibrary != null && File(existingLibrary).exists()
+        
         when (val fetchResult = GitHub.fetchLatestRelease(url)) {
             is GitHub.FetchResult.Success<*> -> {
                 val release = fetchResult.content as GitHub.Release
@@ -69,7 +74,17 @@ object RpcsxUpdater {
                     return null
                 }
 
-                if (RPCSX.activeLibrary.value == null) {
+                // If library file exists on disk, don't prompt for download again
+                // (even if activeLibrary is null due to load failure)
+                if (existingLibraryExists) {
+                    Log.i("RPCSX-Updater", "Library already exists at $existingLibrary, checking version")
+                    val existingVersion = getFileVersion(File(existingLibrary))
+                    if (existingVersion == releaseVersion || releaseVersion == GeneralSettings["rpcsx_bad_version"]) {
+                        return null // Already have this version
+                    }
+                }
+
+                if (RPCSX.activeLibrary.value == null && !existingLibraryExists) {
                     return releaseVersion
                 }
 
@@ -167,6 +182,7 @@ object RpcsxUpdater {
         GeneralSettings["rpcsx_library"] = updateFile.toString()
         GeneralSettings["rpcsx_update_status"] = null
         GeneralSettings["rpcsx_installed_arch"] = getFileArch(updateFile)
+        GeneralSettings["rpcsx_load_attempts"] = 0  // Reset load attempts for new update
 
         Log.e("RPCSX-UI", "registered update file ${GeneralSettings["rpcsx_library"]}")
 
