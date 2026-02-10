@@ -69,8 +69,10 @@ class MainActivity : ComponentActivity() {
             val rpcsxPrevLibrary = GeneralSettings["rpcsx_prev_library"] as? String
 
             if (rpcsxLibrary != null) {
+                var skipLoading = false
+
                 if (rpcsxUpdateStatus == false && rpcsxPrevLibrary != null) {
-                    // Check how many times we've tried to load this library
+                    // Update failed, have previous version to rollback to
                     val loadAttempts = (GeneralSettings["rpcsx_load_attempts"] as? Int) ?: 0
                     
                     if (loadAttempts >= 2) {
@@ -78,9 +80,9 @@ class MainActivity : ComponentActivity() {
                         Log.e("RPCSX", "Multiple load failures for $rpcsxLibrary, marking as bad version")
                         GeneralSettings["rpcsx_bad_version"] = RpcsxUpdater.getFileVersion(File(rpcsxLibrary))
                         GeneralSettings["rpcsx_load_attempts"] = 0
-                        // Keep the file but don't rollback - let user decide
                         GeneralSettings["rpcsx_update_status"] = true
                         GeneralSettings.sync()
+                        skipLoading = true
                         
                         AlertDialogQueue.showDialog(
                             getString(R.string.failed_to_update_rpcsx),
@@ -104,45 +106,71 @@ class MainActivity : ComponentActivity() {
                             getString(R.string.failed_to_load_new_version)
                         )
                     }
+                } else if (rpcsxUpdateStatus == false && rpcsxPrevLibrary == null) {
+                    // First install that previously crashed/failed (no previous version to rollback to)
+                    val loadAttempts = (GeneralSettings["rpcsx_load_attempts"] as? Int) ?: 0
+                    Log.w("RPCSX", "First install, status=false, prevLib=null, attempts=$loadAttempts")
+                    
+                    if (loadAttempts >= 2) {
+                        // Multiple crashes/failures with no fallback - give up on this version
+                        Log.e("RPCSX", "Library failed to load after $loadAttempts attempts (first install, no rollback)")
+                        GeneralSettings["rpcsx_bad_version"] = RpcsxUpdater.getFileVersion(File(rpcsxLibrary))
+                        GeneralSettings["rpcsx_load_attempts"] = 0
+                        GeneralSettings["rpcsx_update_status"] = true
+                        GeneralSettings["rpcsx_library"] = null
+                        GeneralSettings.sync()
+                        skipLoading = true
+                        
+                        AlertDialogQueue.showDialog(
+                            getString(R.string.failed_to_update_rpcsx),
+                            "Library failed to load after multiple attempts. This version may not be compatible with your device."
+                        )
+                    } else {
+                        // Increment attempts BEFORE openLibrary (in case of crash)
+                        GeneralSettings["rpcsx_load_attempts"] = loadAttempts + 1
+                        GeneralSettings.sync()
+                    }
                 } else if (rpcsxUpdateStatus == null) {
-                    // Fresh install - set status to false initially and increment attempt counter
+                    // Fresh install/update - first attempt after installUpdate()
                     val loadAttempts = (GeneralSettings["rpcsx_load_attempts"] as? Int) ?: 0
                     GeneralSettings["rpcsx_update_status"] = false
                     GeneralSettings["rpcsx_load_attempts"] = loadAttempts + 1
                     GeneralSettings.sync()
                 }
 
-                // Check if library file exists before trying to load
-                val libraryFile = File(rpcsxLibrary)
-                if (!libraryFile.exists()) {
-                    Log.e("RPCSX", "Library file does not exist: $rpcsxLibrary")
-                    // If file doesn't exist and we have previous library, rollback
-                    if (rpcsxPrevLibrary != null && File(rpcsxPrevLibrary).exists()) {
-                        GeneralSettings["rpcsx_library"] = rpcsxPrevLibrary
-                        GeneralSettings["rpcsx_installed_arch"] = GeneralSettings["rpcsx_prev_installed_arch"]
-                        GeneralSettings["rpcsx_prev_installed_arch"] = null
-                        GeneralSettings["rpcsx_prev_library"] = null
-                        GeneralSettings.sync()
-                        rpcsxLibrary = rpcsxPrevLibrary
+                if (!skipLoading) {
+                    // Check if library file exists before trying to load
+                    val libraryFile = File(rpcsxLibrary!!)
+                    if (!libraryFile.exists()) {
+                        Log.e("RPCSX", "Library file does not exist: $rpcsxLibrary")
+                        // If file doesn't exist and we have previous library, rollback
+                        if (rpcsxPrevLibrary != null && File(rpcsxPrevLibrary).exists()) {
+                            GeneralSettings["rpcsx_library"] = rpcsxPrevLibrary
+                            GeneralSettings["rpcsx_installed_arch"] = GeneralSettings["rpcsx_prev_installed_arch"]
+                            GeneralSettings["rpcsx_prev_installed_arch"] = null
+                            GeneralSettings["rpcsx_prev_library"] = null
+                            GeneralSettings.sync()
+                            rpcsxLibrary = rpcsxPrevLibrary
+                        }
                     }
-                }
 
-                if (RPCSX.openLibrary(rpcsxLibrary)) {
-                    // Library loaded successfully - mark update as successful
-                    if (GeneralSettings["rpcsx_update_status"] == false) {
-                        GeneralSettings["rpcsx_update_status"] = true
-                        GeneralSettings["rpcsx_prev_library"] = null
-                        GeneralSettings["rpcsx_prev_installed_arch"] = null
-                        GeneralSettings["rpcsx_load_attempts"] = 0
-                        GeneralSettings.sync()
-                        Log.i("RPCSX", "Library update successful: $rpcsxLibrary")
-                    }
-                } else {
-                    Log.e("RPCSX", "Failed to open library: $rpcsxLibrary")
-                    // Don't leave update_status as null - set to false so we can handle it next time
-                    if (GeneralSettings["rpcsx_update_status"] == null) {
-                        GeneralSettings["rpcsx_update_status"] = false
-                        GeneralSettings.sync()
+                    if (RPCSX.openLibrary(rpcsxLibrary!!)) {
+                        // Library loaded successfully - mark update as successful
+                        if (GeneralSettings["rpcsx_update_status"] == false) {
+                            GeneralSettings["rpcsx_update_status"] = true
+                            GeneralSettings["rpcsx_prev_library"] = null
+                            GeneralSettings["rpcsx_prev_installed_arch"] = null
+                            GeneralSettings["rpcsx_load_attempts"] = 0
+                            GeneralSettings.sync()
+                            Log.i("RPCSX", "Library update successful: $rpcsxLibrary")
+                        }
+                    } else {
+                        Log.e("RPCSX", "Failed to open library: $rpcsxLibrary")
+                        // Don't leave update_status as null - set to false so we can handle it next time
+                        if (GeneralSettings["rpcsx_update_status"] == null) {
+                            GeneralSettings["rpcsx_update_status"] = false
+                            GeneralSettings.sync()
+                        }
                     }
                 }
             }

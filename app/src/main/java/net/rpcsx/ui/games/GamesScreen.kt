@@ -731,16 +731,20 @@ fun GamesScreen(navigateTo: (String) -> Unit = {}) {
                 },
                 dismissButton = {
                     TextButton(onClick = {
-                        // Clear library and let user download fresh copy
+                        // Clear library and mark version as bad so it won't auto-download
+                        val badVersion = existingLibraryPath?.let { RpcsxUpdater.getFileVersion(File(it)) }
                         if (existingLibraryPath != null) {
                             File(existingLibraryPath).delete()
                         }
                         GeneralSettings["rpcsx_library"] = null
                         GeneralSettings["rpcsx_update_status"] = null
                         GeneralSettings["rpcsx_load_attempts"] = 0
+                        if (badVersion != null) {
+                            GeneralSettings["rpcsx_bad_version"] = badVersion
+                        }
                         GeneralSettings.sync()
-                        // Trigger re-check for updates
-                        coroutineScope.launch { checkForUpdates() }
+                        // Show manual install option instead of auto-downloading same version
+                        rpcsxInstallLibraryFailed = true
                     }) {
                         Text(stringResource(R.string.clear_and_redownload))
                     }
