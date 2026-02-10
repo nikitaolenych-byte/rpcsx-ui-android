@@ -633,7 +633,12 @@ fun GamesScreen(navigateTo: (String) -> Unit = {}) {
         uiUpdateVersion = UiUpdater.checkForUpdate(context)
 
         if (rpcsxUpdateVersion == null && rpcsxLibrary == null) {
-            rpcsxInstallLibraryFailed = true
+            // Only mark as failed if there's no library file at all
+            val existingLib = GeneralSettings["rpcsx_library"] as? String
+            val fileExists = existingLib != null && File(existingLib).exists()
+            if (!fileExists) {
+                rpcsxInstallLibraryFailed = true
+            }
         }
     }
 
@@ -711,10 +716,31 @@ fun GamesScreen(navigateTo: (String) -> Unit = {}) {
                 text = { Text(stringResource(R.string.library_load_error_restart)) },
                 confirmButton = {
                     TextButton(onClick = {
+                        // Try to reload the library one more time
+                        if (existingLibraryPath != null) {
+                            if (RPCSX.openLibrary(existingLibraryPath)) {
+                                // Success! Mark update status
+                                GeneralSettings["rpcsx_update_status"] = true
+                                GeneralSettings["rpcsx_load_attempts"] = 0
+                                GeneralSettings.sync()
+                            }
+                        }
+                    }) {
+                        Text(stringResource(R.string.retry))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
                         // Clear library and let user download fresh copy
+                        if (existingLibraryPath != null) {
+                            File(existingLibraryPath).delete()
+                        }
                         GeneralSettings["rpcsx_library"] = null
                         GeneralSettings["rpcsx_update_status"] = null
+                        GeneralSettings["rpcsx_load_attempts"] = 0
                         GeneralSettings.sync()
+                        // Trigger re-check for updates
+                        coroutineScope.launch { checkForUpdates() }
                     }) {
                         Text(stringResource(R.string.clear_and_redownload))
                     }

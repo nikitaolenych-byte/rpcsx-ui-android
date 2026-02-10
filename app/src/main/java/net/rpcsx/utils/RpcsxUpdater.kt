@@ -79,8 +79,15 @@ object RpcsxUpdater {
                 if (existingLibraryExists) {
                     Log.i("RPCSX-Updater", "Library already exists at $existingLibrary, checking version")
                     val existingVersion = getFileVersion(File(existingLibrary))
+                    Log.i("RPCSX-Updater", "existingVersion=$existingVersion, releaseVersion=$releaseVersion, badVersion=${GeneralSettings["rpcsx_bad_version"]}")
                     if (existingVersion == releaseVersion || releaseVersion == GeneralSettings["rpcsx_bad_version"]) {
                         return null // Already have this version
+                    }
+                    // If activeLibrary is null (load failed) but file exists,
+                    // don't re-download - the problem is loading, not downloading
+                    if (RPCSX.activeLibrary.value == null) {
+                        Log.w("RPCSX-Updater", "Library exists but failed to load. Not prompting re-download.")
+                        return null
                     }
                 }
 
