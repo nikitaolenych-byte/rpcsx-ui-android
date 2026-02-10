@@ -764,26 +764,35 @@ fun GamesScreen(navigateTo: (String) -> Unit = {}) {
 
                 if (file != null) {
                     if (rpcsxLibrary == null) {
-                        // First install - try loading directly without restart
-                        Log.i("RPCSX-UI", "First install: trying direct load of ${file.absolutePath}")
+                        // First install: save path, try direct load, no restart needed
+                        Log.i("RPCSX-UI", "First install: ${file.absolutePath}")
                         GeneralSettings["rpcsx_library"] = file.toString()
                         GeneralSettings["rpcsx_installed_arch"] = RpcsxUpdater.getFileArch(file)
+                        // Mark as settled - no pending update logic needed
                         GeneralSettings["rpcsx_update_status"] = true
                         GeneralSettings["rpcsx_load_attempts"] = 0
+                        // No prev_library for first install (nothing to roll back to)
+                        GeneralSettings["rpcsx_prev_library"] = null
+                        GeneralSettings["rpcsx_prev_installed_arch"] = null
                         GeneralSettings.sync()
 
-                        if (!RPCSX.openLibrary(file.toString())) {
-                            Log.w("RPCSX-UI", "Direct load failed, will try on next app start")
-                            // Set status to null so MainActivity will try on restart
-                            GeneralSettings["rpcsx_update_status"] = null
-                            GeneralSettings.sync()
-                            // Still show restart dialog as fallback
-                            RpcsxUpdater.installUpdate(context, file)
+                        if (RPCSX.openLibrary(file.toString())) {
+                            Log.i("RPCSX-UI", "Library loaded directly without restart")
                         } else {
-                            Log.i("RPCSX-UI", "Library loaded successfully without restart!")
+                            // Direct load failed - just restart the app
+                            // Settings are already saved, no installUpdate needed
+                            Log.w("RPCSX-UI", "Direct load failed, restarting app")
+                            val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+                            if (intent != null) {
+                                intent.flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                context.startActivity(intent)
+                                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                    kotlin.system.exitProcess(0)
+                                }, 300)
+                            }
                         }
                     } else {
-                        // Update - old library already loaded, need restart
+                        // Update: old library already in memory, need restart
                         RpcsxUpdater.installUpdate(context, file)
                     }
                 } else if (rpcsxLibrary == null) {

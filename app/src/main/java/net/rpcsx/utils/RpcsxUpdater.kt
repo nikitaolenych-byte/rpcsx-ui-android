@@ -189,17 +189,19 @@ object RpcsxUpdater {
         GeneralSettings["rpcsx_library"] = updateFile.toString()
         GeneralSettings["rpcsx_update_status"] = null
         GeneralSettings["rpcsx_installed_arch"] = getFileArch(updateFile)
-        GeneralSettings["rpcsx_load_attempts"] = 0  // Reset load attempts for new update
+        GeneralSettings["rpcsx_load_attempts"] = 0
 
-        Log.e("RPCSX-UI", "registered update file ${GeneralSettings["rpcsx_library"]}")
+        Log.i("RPCSX-UI", "Registered update file ${GeneralSettings["rpcsx_library"]}")
 
-        // Do not auto-restart immediately after registering an update. Prompt the user
-        // to restart so the app can cleanly shutdown and reload the native library.
-        // Auto-restarting here has caused crashes on some devices when the new native
-        // library is not yet fully ready. Let the user confirm restart like aps3e.
-
-        GeneralSettings["rpcsx_prev_library"] = prevLibrary
-        GeneralSettings["rpcsx_prev_installed_arch"] = prevArch
+        // Guard: never set prev_library to the same path as new library (self-reference causes loop)
+        if (prevLibrary != null && prevLibrary != updateFile.toString()) {
+            GeneralSettings["rpcsx_prev_library"] = prevLibrary
+            GeneralSettings["rpcsx_prev_installed_arch"] = prevArch
+        } else {
+            Log.w("RPCSX-UI", "Skipping prev_library: same as new or null (prev=$prevLibrary)")
+            GeneralSettings["rpcsx_prev_library"] = null
+            GeneralSettings["rpcsx_prev_installed_arch"] = null
+        }
         
         // Sync settings to disk BEFORE showing dialog to ensure changes are persisted
         GeneralSettings.sync()
