@@ -83,11 +83,8 @@ class MainActivity : ComponentActivity() {
                         GeneralSettings["rpcsx_update_status"] = true
                         GeneralSettings.sync()
                         skipLoading = true
-                        
-                        AlertDialogQueue.showDialog(
-                            getString(R.string.failed_to_update_rpcsx),
-                            "Library failed to load after multiple attempts. Please check if your device supports this version."
-                        )
+                        // Don't show dialog - just log, let GamesScreen handle it
+                        Log.w("RPCSX", "Marked as bad version, UI will handle re-download")
                     } else {
                         // First or second failure - rollback to previous
                         GeneralSettings["rpcsx_library"] = rpcsxPrevLibrary
@@ -100,11 +97,7 @@ class MainActivity : ComponentActivity() {
 
                         File(rpcsxLibrary).delete()
                         rpcsxLibrary = rpcsxPrevLibrary
-
-                        AlertDialogQueue.showDialog(
-                            getString(R.string.failed_to_update_rpcsx),
-                            getString(R.string.failed_to_load_new_version)
-                        )
+                        Log.w("RPCSX", "Rolled back to previous library: $rpcsxPrevLibrary")
                     }
                 } else if (rpcsxUpdateStatus == false && rpcsxPrevLibrary == null) {
                     // First install that previously crashed/failed (no previous version to rollback to)
@@ -120,11 +113,8 @@ class MainActivity : ComponentActivity() {
                         GeneralSettings["rpcsx_library"] = null
                         GeneralSettings.sync()
                         skipLoading = true
-                        
-                        AlertDialogQueue.showDialog(
-                            getString(R.string.failed_to_update_rpcsx),
-                            "Library failed to load after multiple attempts. This version may not be compatible with your device."
-                        )
+                        // Don't show dialog - just log, let GamesScreen handle download
+                        Log.w("RPCSX", "First install failed multiple times, cleared library")
                     } else {
                         // Increment attempts BEFORE openLibrary (in case of crash)
                         GeneralSettings["rpcsx_load_attempts"] = loadAttempts + 1

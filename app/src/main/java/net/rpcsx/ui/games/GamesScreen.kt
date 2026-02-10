@@ -2,6 +2,7 @@ package net.rpcsx.ui.games
 
 import android.content.Intent
 import android.net.Uri
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -709,44 +710,32 @@ fun GamesScreen(navigateTo: (String) -> Unit = {}) {
 
     if (rpcsxLibrary == null && rpcsxUpdateVersion == null && !rpcsxUpdate && activeDialogs.isEmpty()) {
         if (libraryExistsButNotLoaded) {
-            // Library file exists but failed to load - show error, not download prompt
+            // Library file exists but failed to load - try to load silently, no scary dialogs
+            LaunchedEffect(existingLibraryPath) {
+                if (existingLibraryPath != null) {
+                    Log.i("RPCSX-UI", "Library exists but not loaded, attempting auto-load...")
+                    if (RPCSX.openLibrary(existingLibraryPath)) {
+                        GeneralSettings["rpcsx_update_status"] = true
+                        GeneralSettings["rpcsx_load_attempts"] = 0
+                        GeneralSettings.sync()
+                        Log.i("RPCSX-UI", "Auto-load succeeded!")
+                    } else {
+                        Log.w("RPCSX-UI", "Auto-load failed, library may need restart")
+                    }
+                }
+            }
+            // Show simple non-blocking loading message
             AlertDialog(
                 onDismissRequest = { },
-                title = { Text(stringResource(R.string.failed_to_load_library)) },
-                text = { Text(stringResource(R.string.library_load_error_restart)) },
+                title = { Text(stringResource(R.string.missing_rpcsx_lib)) },
+                text = { Text("Loading library...") },
                 confirmButton = {
                     TextButton(onClick = {
-                        // Try to reload the library one more time
                         if (existingLibraryPath != null) {
-                            if (RPCSX.openLibrary(existingLibraryPath)) {
-                                // Success! Mark update status
-                                GeneralSettings["rpcsx_update_status"] = true
-                                GeneralSettings["rpcsx_load_attempts"] = 0
-                                GeneralSettings.sync()
-                            }
+                            RPCSX.openLibrary(existingLibraryPath)
                         }
                     }) {
                         Text(stringResource(R.string.retry))
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = {
-                        // Clear library and mark version as bad so it won't auto-download
-                        val badVersion = existingLibraryPath?.let { RpcsxUpdater.getFileVersion(File(it)) }
-                        if (existingLibraryPath != null) {
-                            File(existingLibraryPath).delete()
-                        }
-                        GeneralSettings["rpcsx_library"] = null
-                        GeneralSettings["rpcsx_update_status"] = null
-                        GeneralSettings["rpcsx_load_attempts"] = 0
-                        if (badVersion != null) {
-                            GeneralSettings["rpcsx_bad_version"] = badVersion
-                        }
-                        GeneralSettings.sync()
-                        // Show manual install option instead of auto-downloading same version
-                        rpcsxInstallLibraryFailed = true
-                    }) {
-                        Text(stringResource(R.string.clear_and_redownload))
                     }
                 }
             )
@@ -774,7 +763,29 @@ fun GamesScreen(navigateTo: (String) -> Unit = {}) {
                 }
 
                 if (file != null) {
-                    RpcsxUpdater.installUpdate(context, file)
+                    if (rpcsxLibrary == null) {
+                        // First install - try loading directly without restart
+                        Log.i("RPCSX-UI", "First install: trying direct load of ${file.absolutePath}")
+                        GeneralSettings["rpcsx_library"] = file.toString()
+                        GeneralSettings["rpcsx_installed_arch"] = RpcsxUpdater.getFileArch(file)
+                        GeneralSettings["rpcsx_update_status"] = true
+                        GeneralSettings["rpcsx_load_attempts"] = 0
+                        GeneralSettings.sync()
+
+                        if (!RPCSX.openLibrary(file.toString())) {
+                            Log.w("RPCSX-UI", "Direct load failed, will try on next app start")
+                            // Set status to null so MainActivity will try on restart
+                            GeneralSettings["rpcsx_update_status"] = null
+                            GeneralSettings.sync()
+                            // Still show restart dialog as fallback
+                            RpcsxUpdater.installUpdate(context, file)
+                        } else {
+                            Log.i("RPCSX-UI", "Library loaded successfully without restart!")
+                        }
+                    } else {
+                        // Update - old library already loaded, need restart
+                        RpcsxUpdater.installUpdate(context, file)
+                    }
                 } else if (rpcsxLibrary == null) {
                     rpcsxInstallLibraryFailed = true
                 }
