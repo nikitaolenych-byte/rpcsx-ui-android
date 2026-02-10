@@ -178,9 +178,13 @@ static jstring wrap(JNIEnv *env, const char *string) {
 // Track librpcsx path for PPU interceptor
 static std::string g_librpcsx_path;
 
+// Store last dlopen error so Kotlin can retrieve it
+static std::string g_last_open_library_error;
+
 extern "C" JNIEXPORT jboolean JNICALL
 Java_net_rpcsx_RPCSX_openLibrary(JNIEnv *env, jobject, jstring path) {
   std::string pathStr = unwrap(env, path);
+  g_last_open_library_error.clear();
   
   if (auto library = RPCSXLibrary::Open(pathStr.c_str())) {
     rpcsxLib = std::move(*library);
@@ -199,7 +203,20 @@ Java_net_rpcsx_RPCSX_openLibrary(JNIEnv *env, jobject, jstring path) {
     return true;
   }
 
+  // Store the dlopen error for retrieval from Kotlin
+  const char* err = ::dlerror();
+  if (err) {
+    g_last_open_library_error = err;
+  } else {
+    g_last_open_library_error = "Unknown dlopen error";
+  }
+  LOGE("openLibrary failed for %s: %s", pathStr.c_str(), g_last_open_library_error.c_str());
   return false;
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_net_rpcsx_RPCSX_getLastOpenLibraryError(JNIEnv *env, jobject) {
+  return wrap(env, g_last_open_library_error);
 }
 
 extern "C" JNIEXPORT jstring JNICALL

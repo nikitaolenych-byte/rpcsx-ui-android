@@ -710,9 +710,14 @@ fun GamesScreen(navigateTo: (String) -> Unit = {}) {
 
     if (rpcsxLibrary == null && rpcsxUpdateVersion == null && !rpcsxUpdate && activeDialogs.isEmpty()) {
         if (libraryExistsButNotLoaded) {
-            // Library file exists but failed to load - try to load silently, no scary dialogs
+            // Library file exists but failed to load - try once, then show error
+            var autoLoadAttempted by remember { mutableStateOf(false) }
+            var autoLoadFailed by remember { mutableStateOf(false) }
+            val openError by remember { RPCSX.lastOpenError }
+
             LaunchedEffect(existingLibraryPath) {
-                if (existingLibraryPath != null) {
+                if (existingLibraryPath != null && !autoLoadAttempted) {
+                    autoLoadAttempted = true
                     Log.i("RPCSX-UI", "Library exists but not loaded, attempting auto-load...")
                     if (RPCSX.openLibrary(existingLibraryPath)) {
                         GeneralSettings["rpcsx_update_status"] = true
@@ -720,27 +725,82 @@ fun GamesScreen(navigateTo: (String) -> Unit = {}) {
                         GeneralSettings.sync()
                         Log.i("RPCSX-UI", "Auto-load succeeded!")
                     } else {
-                        Log.w("RPCSX-UI", "Auto-load failed, library may need restart")
+                        autoLoadFailed = true
+                        Log.w("RPCSX-UI", "Auto-load failed: ${RPCSX.lastOpenError.value}")
                     }
                 }
             }
-            // Show simple non-blocking loading message
+
             AlertDialog(
                 onDismissRequest = { },
                 title = { Text(stringResource(R.string.missing_rpcsx_lib)) },
-                text = { Text("Loading library...") },
-                confirmButton = {
-                    TextButton(onClick = {
-                        if (existingLibraryPath != null) {
-                            RPCSX.openLibrary(existingLibraryPath)
+                text = {
+                    Column {
+                        if (autoLoadFailed) {
+                            Text("Library failed to load (dlopen error).")
+                            if (!openError.isNullOrEmpty()) {
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    openError ?: "",
+                                    style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                                    color = androidx.compose.material3.MaterialTheme.colorScheme.error
+                                )
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            Text("The downloaded library may be incompatible with this device.")
+                        } else {
+                            Text("Loading library...")
                         }
-                    }) {
-                        Text(stringResource(R.string.retry))
                     }
-                }
+                },
+                confirmButton = {
+                    if (autoLoadFailed) {
+                        TextButton(onClick = {
+                            // Clear library and re-download
+                            if (existingLibraryPath != null) {
+                                try { File(existingLibraryPath).delete() } catch (_: Throwable) {}
+                            }
+                            GeneralSettings["rpcsx_library"] = null
+                            GeneralSettings["rpcsx_update_status"] = true
+                            GeneralSettings["rpcsx_load_attempts"] = 0
+                            GeneralSettings["rpcsx_bad_version"] = null
+                            GeneralSettings.sync()
+                            // Restart app to trigger fresh download
+                            val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+                            if (intent != null) {
+                                intent.flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                context.startActivity(intent)
+                                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                    kotlin.system.exitProcess(0)
+                                }, 300)
+                            }
+                        }) {
+                            Text("Clear & Re-download")
+                        }
+                    } else {
+                        TextButton(onClick = {
+                            if (existingLibraryPath != null) {
+                                RPCSX.openLibrary(existingLibraryPath)
+                            }
+                        }) {
+                            Text(stringResource(R.string.retry))
+                        }
+                    }
+                },
+                dismissButton = if (autoLoadFailed) {
+                    {
+                        TextButton(onClick = {
+                            // Retry loading
+                            autoLoadFailed = false
+                            autoLoadAttempted = false
+                        }) {
+                            Text(stringResource(R.string.retry))
+                        }
+                    }
+                } else null
             )
-        } else {
-            // No library at all - show download in progress message
+        } else if (!rpcsxInstallLibraryFailed) {
+            // No library at all - checkForUpdates is still running, show progress
             AlertDialog(
                 onDismissRequest = { },
                 title = { Text(stringResource(R.string.missing_rpcsx_lib)) },

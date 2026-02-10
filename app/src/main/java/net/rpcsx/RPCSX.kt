@@ -256,6 +256,7 @@ class RPCSX {
     external fun agvsolSetResolutionScale(scale: Float)
     external fun agvsolGetVendorFlag(key: String, defaultVal: Boolean): Boolean
     external fun agvsolGetStats(): String
+    external fun getLastOpenLibraryError(): String
 
 
     companion object {
@@ -268,6 +269,7 @@ class RPCSX {
         var activeGame = mutableStateOf<String?>(null)
         var state = mutableStateOf(EmulatorState.Stopped)
         var activeLibrary = mutableStateOf<String?>(null)
+        var lastOpenError = mutableStateOf<String?>(null)
         
         /**
          * Ініціалізація ARMv9 оптимізацій для Snapdragon 8s Gen 3
@@ -338,11 +340,21 @@ class RPCSX {
         fun openLibrary(path: String): Boolean {
             return try {
                 if (!instance.openLibrary(path)) {
+                    // Retrieve native dlopen error
+                    try {
+                        val nativeError = instance.getLastOpenLibraryError()
+                        if (nativeError.isNotEmpty()) {
+                            lastOpenError.value = nativeError
+                            android.util.Log.e("RPCSX", "dlopen error: $nativeError")
+                        }
+                    } catch (_: Throwable) {}
                     return false
                 }
+                lastOpenError.value = null
                 activeLibrary.value = path
                 true
             } catch (e: Throwable) {
+                lastOpenError.value = e.message
                 android.util.Log.e("RPCSX", "Failed to open library: ${e.message}", e)
                 false
             }
