@@ -1191,9 +1191,9 @@ fun AdvancedSettingsScreen(
                     RegularPreference(
                         title = stringResource(R.string.install_custom_rpcsx_lib),
                         leadingIcon = null,
-                        onClick = { 
+                        onClick = {
                             // Use improved APK installer with fallback methods
-                            installRpcsxLauncher.launch("*/*") 
+                            installRpcsxLauncher.launch("*/*")
                         }
                     )
                 }
