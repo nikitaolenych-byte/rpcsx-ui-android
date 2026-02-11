@@ -339,8 +339,24 @@ class RPCSX {
 
         fun openLibrary(path: String): Boolean {
             return try {
-                if (!instance.openLibrary(path)) {
-                    // Retrieve native dlopen error
+                var opened = false
+                try {
+                    opened = instance.openLibrary(path)
+                } catch (e: UnsatisfiedLinkError) {
+                    // Native library may not have been loaded yet — try to load and retry once
+                    android.util.Log.w("RPCSX", "UnsatisfiedLinkError on openLibrary, attempting System.loadLibrary('rpcsx-android') and retry: ${e.message}")
+                    try {
+                        System.loadLibrary("rpcsx-android")
+                        opened = instance.openLibrary(path)
+                    } catch (e2: Throwable) {
+                        android.util.Log.e("RPCSX", "Retry openLibrary failed: ${e2.message}", e2)
+                        lastOpenError.value = e2.message
+                        opened = false
+                    }
+                }
+
+                if (!opened) {
+                    // Retrieve native dlopen error if available
                     try {
                         val nativeError = instance.getLastOpenLibraryError()
                         if (nativeError.isNotEmpty()) {
@@ -350,6 +366,7 @@ class RPCSX {
                     } catch (_: Throwable) {}
                     return false
                 }
+
                 lastOpenError.value = null
                 activeLibrary.value = path
                 true
