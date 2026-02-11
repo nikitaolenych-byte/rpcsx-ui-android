@@ -719,11 +719,43 @@ fun GamesScreen(navigateTo: (String) -> Unit = {}) {
             var autoLoadFailed by remember { mutableStateOf(false) }
             val openError by remember { RPCSX.lastOpenError }
 
+            // Helper: try open library from given path or common candidate locations
+            fun tryOpenLibraryCandidates(pathStr: String?): Boolean {
+                if (pathStr == null) return false
+                try {
+                    val f = File(pathStr)
+                    if (f.exists()) {
+                        if (RPCSX.openLibrary(f.absolutePath)) return true
+                    }
+
+                    val candidates = listOf(
+                        File(context.filesDir, pathStr),
+                        File(context.filesDir, "librpcsx-android.so"),
+                        File(context.filesDir, "lib/$pathStr"),
+                        File(context.filesDir, "lib/librpcsx-android.so"),
+                        File(context.cacheDir, pathStr)
+                    )
+
+                    for (c in candidates) {
+                        if (c.exists()) {
+                            if (RPCSX.openLibrary(c.absolutePath)) return true
+                        }
+                    }
+
+                    // Last-resort: ensure packaged lib is loaded and retry
+                    try {
+                        System.loadLibrary("rpcsx-android")
+                        if (RPCSX.openLibrary(pathStr)) return true
+                    } catch (_: Throwable) {}
+                } catch (_: Throwable) {}
+                return false
+            }
+
             LaunchedEffect(existingLibraryPath) {
                 if (existingLibraryPath != null && !autoLoadAttempted) {
                     autoLoadAttempted = true
                     Log.i("RPCSX-UI", "Library exists but not loaded, attempting auto-load...")
-                    if (RPCSX.openLibrary(existingLibraryPath)) {
+                    if (tryOpenLibraryCandidates(existingLibraryPath)) {
                         GeneralSettings["rpcsx_update_status"] = true
                         GeneralSettings["rpcsx_load_attempts"] = 0
                         GeneralSettings.sync()
@@ -793,13 +825,13 @@ fun GamesScreen(navigateTo: (String) -> Unit = {}) {
                             }
                         }
                     } else {
-                        TextButton(onClick = {
-                            if (existingLibraryPath != null) {
-                                RPCSX.openLibrary(existingLibraryPath)
+                            TextButton(onClick = {
+                                if (existingLibraryPath != null) {
+                                    tryOpenLibraryCandidates(existingLibraryPath)
+                                }
+                            }) {
+                                Text(stringResource(R.string.retry))
                             }
-                        }) {
-                            Text(stringResource(R.string.retry))
-                        }
                     }
                 },
                 dismissButton = if (autoLoadFailed) {
