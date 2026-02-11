@@ -54,6 +54,12 @@
 #define LOGW(...) __android_log_print(ANDROID_LOG_WARN, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
+// Store last dlopen error so Kotlin can retrieve it
+static std::string g_last_open_library_error;
+
+// Track librpcsx path for PPU interceptor
+static std::string g_librpcsx_path;
+
 struct RPCSXApi {
   bool (*overlayPadData)(int digital1, int digital2, int leftStickX,
                          int leftStickY, int rightStickX, int rightStickY);
@@ -108,11 +114,21 @@ struct RPCSXLibrary : RPCSXApi {
   }
 
   static std::optional<RPCSXLibrary> Open(const char *path) {
+    // Check file existence first for clearer diagnostics
+    if (access(path, F_OK) != 0) {
+      const char *acerr = strerror(errno);
+      g_last_open_library_error = std::string("File not found: ") + path + " (" + acerr + ")";
+      __android_log_print(ANDROID_LOG_ERROR, "RPCSX-UI", "%s", g_last_open_library_error.c_str());
+      // fallthrough to allow dlopen to attempt searching system paths
+    }
+
     void *handle = ::dlopen(path, RTLD_LOCAL | RTLD_NOW);
     if (handle == nullptr) {
+      const char *dlerr = ::dlerror();
+      g_last_open_library_error = dlerr ? std::string(dlerr) : std::string("Unknown dlopen error");
       __android_log_print(ANDROID_LOG_ERROR, "RPCSX-UI",
                           "Failed to open RPCSX library at %s, error %s", path,
-                          ::dlerror());
+                          g_last_open_library_error.c_str());
       return {};
     }
 
@@ -175,17 +191,13 @@ static jstring wrap(JNIEnv *env, const char *string) {
   return env->NewStringUTF(string);
 }
 
-// Track librpcsx path for PPU interceptor
-static std::string g_librpcsx_path;
-
-// Store last dlopen error so Kotlin can retrieve it
-static std::string g_last_open_library_error;
+// (moved declarations above)
 
 extern "C" JNIEXPORT jboolean JNICALL
 Java_net_rpcsx_RPCSX_openLibrary(JNIEnv *env, jobject, jstring path) {
   std::string pathStr = unwrap(env, path);
   g_last_open_library_error.clear();
-  
+
   if (auto library = RPCSXLibrary::Open(pathStr.c_str())) {
     rpcsxLib = std::move(*library);
     g_librpcsx_path = pathStr;
@@ -203,11 +215,7 @@ Java_net_rpcsx_RPCSX_openLibrary(JNIEnv *env, jobject, jstring path) {
     return true;
   }
 
-  // Store the dlopen error for retrieval from Kotlin
-  const char* err = ::dlerror();
-  if (err) {
-    g_last_open_library_error = err;
-  } else {
+  if (g_last_open_library_error.empty()) {
     g_last_open_library_error = "Unknown dlopen error";
   }
   LOGE("openLibrary failed for %s: %s", pathStr.c_str(), g_last_open_library_error.c_str());

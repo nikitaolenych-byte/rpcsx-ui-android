@@ -54,6 +54,9 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import android.widget.Toast
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -611,6 +614,7 @@ fun GameItem(game: Game, navigateTo: (String) -> Unit) {
 @Composable
 fun GamesScreen(navigateTo: (String) -> Unit = {}) {
     val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
     val games = remember { GameRepository.list() }
     val isRefreshing by remember { GameRepository.isRefreshing }
     val state = rememberPullToRefreshState()
@@ -755,27 +759,38 @@ fun GamesScreen(navigateTo: (String) -> Unit = {}) {
                 },
                 confirmButton = {
                     if (autoLoadFailed) {
-                        TextButton(onClick = {
-                            // Clear library and re-download
-                            if (existingLibraryPath != null) {
-                                try { File(existingLibraryPath).delete() } catch (_: Throwable) {}
+                        androidx.compose.foundation.layout.Row {
+                            TextButton(onClick = {
+                                // Copy native open error to clipboard
+                                val text = openError ?: ""
+                                clipboardManager.setText(AnnotatedString(text))
+                                Toast.makeText(context, "Logs copied to clipboard", Toast.LENGTH_SHORT).show()
+                            }) {
+                                Text("Copy logs")
                             }
-                            GeneralSettings["rpcsx_library"] = null
-                            GeneralSettings["rpcsx_update_status"] = true
-                            GeneralSettings["rpcsx_load_attempts"] = 0
-                            GeneralSettings["rpcsx_bad_version"] = null
-                            GeneralSettings.sync()
-                            // Restart app to trigger fresh download
-                            val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
-                            if (intent != null) {
-                                intent.flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
-                                context.startActivity(intent)
-                                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                                    kotlin.system.exitProcess(0)
-                                }, 300)
+
+                            TextButton(onClick = {
+                                // Clear library and re-download
+                                if (existingLibraryPath != null) {
+                                    try { File(existingLibraryPath).delete() } catch (_: Throwable) {}
+                                }
+                                GeneralSettings["rpcsx_library"] = null
+                                GeneralSettings["rpcsx_update_status"] = true
+                                GeneralSettings["rpcsx_load_attempts"] = 0
+                                GeneralSettings["rpcsx_bad_version"] = null
+                                GeneralSettings.sync()
+                                // Restart app to trigger fresh download
+                                val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+                                if (intent != null) {
+                                    intent.flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                    context.startActivity(intent)
+                                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                        kotlin.system.exitProcess(0)
+                                    }, 300)
+                                }
+                            }) {
+                                Text("Clear & Re-download")
                             }
-                        }) {
-                            Text("Clear & Re-download")
                         }
                     } else {
                         TextButton(onClick = {
