@@ -13,6 +13,9 @@
 #include <utility>
 #include <chrono>
 #include <cmath>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <elf.h>
 
 #if defined(__aarch64__)
 #include "libadrenotools/adrenotools/driver.h"
@@ -125,7 +128,101 @@ struct RPCSXLibrary : RPCSXApi {
     void *handle = ::dlopen(path, RTLD_LOCAL | RTLD_NOW);
     if (handle == nullptr) {
       const char *dlerr = ::dlerror();
-      g_last_open_library_error = dlerr ? std::string(dlerr) : std::string("Unknown dlopen error");
+      std::string err = dlerr ? std::string(dlerr) : std::string("Unknown dlopen error");
+
+      // If file exists, attempt to list DT_NEEDED entries for better diagnostics
+      if (access(path, F_OK) == 0) {
+        // try to parse ELF dynamic section for DT_NEEDED
+        int fd = open(path, O_RDONLY);
+        if (fd >= 0) {
+          off_t size = lseek(fd, 0, SEEK_END);
+          if (size > 0) {
+            void *map = mmap(nullptr, (size_t)size, PROT_READ, MAP_PRIVATE, fd, 0);
+            if (map != MAP_FAILED) {
+              unsigned char *data = reinterpret_cast<unsigned char *>(map);
+              // Check ELF class
+              if (data[EI_CLASS] == ELFCLASS64) {
+                Elf64_Ehdr *eh = reinterpret_cast<Elf64_Ehdr *>(data);
+                Elf64_Phdr *ph = reinterpret_cast<Elf64_Phdr *>(data + eh->e_phoff);
+                Elf64_Dyn *dyn = nullptr;
+                const char *strtab = nullptr;
+                size_t phnum = eh->e_phnum;
+                for (size_t i = 0; i < phnum; ++i) {
+                  if (ph[i].p_type == PT_DYNAMIC) {
+                    dyn = reinterpret_cast<Elf64_Dyn *>(data + ph[i].p_offset);
+                    break;
+                  }
+                }
+                if (dyn) {
+                  // find DT_STRTAB
+                  for (Elf64_Dyn *d = dyn; d->d_tag != DT_NULL; ++d) {
+                    if (d->d_tag == DT_STRTAB) {
+                      strtab = reinterpret_cast<const char *>(data + d->d_un.d_ptr);
+                      break;
+                    }
+                  }
+                  if (strtab) {
+                    std::vector<std::string> needed;
+                    for (Elf64_Dyn *d = dyn; d->d_tag != DT_NULL; ++d) {
+                      if (d->d_tag == DT_NEEDED) {
+                        const char *name = strtab + d->d_un.d_val;
+                        if (name) needed.emplace_back(name);
+                      }
+                    }
+                    if (!needed.empty()) {
+                      err += std::string("; NEEDED: ");
+                      for (size_t i = 0; i < needed.size(); ++i) {
+                        if (i) err += ", ";
+                        err += needed[i];
+                      }
+                    }
+                  }
+                }
+              } else if (data[EI_CLASS] == ELFCLASS32) {
+                Elf32_Ehdr *eh = reinterpret_cast<Elf32_Ehdr *>(data);
+                Elf32_Phdr *ph = reinterpret_cast<Elf32_Phdr *>(data + eh->e_phoff);
+                Elf32_Dyn *dyn = nullptr;
+                const char *strtab = nullptr;
+                size_t phnum = eh->e_phnum;
+                for (size_t i = 0; i < phnum; ++i) {
+                  if (ph[i].p_type == PT_DYNAMIC) {
+                    dyn = reinterpret_cast<Elf32_Dyn *>(data + ph[i].p_offset);
+                    break;
+                  }
+                }
+                if (dyn) {
+                  for (Elf32_Dyn *d = dyn; d->d_tag != DT_NULL; ++d) {
+                    if (d->d_tag == DT_STRTAB) {
+                      strtab = reinterpret_cast<const char *>(data + d->d_un.d_ptr);
+                      break;
+                    }
+                  }
+                  if (strtab) {
+                    std::vector<std::string> needed;
+                    for (Elf32_Dyn *d = dyn; d->d_tag != DT_NULL; ++d) {
+                      if (d->d_tag == DT_NEEDED) {
+                        const char *name = strtab + d->d_un.d_val;
+                        if (name) needed.emplace_back(name);
+                      }
+                    }
+                    if (!needed.empty()) {
+                      err += std::string("; NEEDED: ");
+                      for (size_t i = 0; i < needed.size(); ++i) {
+                        if (i) err += ", ";
+                        err += needed[i];
+                      }
+                    }
+                  }
+                }
+              }
+              munmap(map, (size_t)size);
+            }
+          }
+          close(fd);
+        }
+      }
+
+      g_last_open_library_error = err;
       __android_log_print(ANDROID_LOG_ERROR, "RPCSX-UI",
                           "Failed to open RPCSX library at %s, error %s", path,
                           g_last_open_library_error.c_str());
