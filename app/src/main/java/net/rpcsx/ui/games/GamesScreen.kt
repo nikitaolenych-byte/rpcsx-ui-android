@@ -723,6 +723,19 @@ fun GamesScreen(navigateTo: (String) -> Unit = {}) {
             fun tryOpenLibraryCandidates(pathStr: String?): Boolean {
                 if (pathStr == null) return false
                 try {
+                    // Ensure packaged native library (from APK) is loaded into linker namespace
+                    try {
+                        val nativeLibDir = context.applicationInfo.nativeLibraryDir
+                        val packaged = File(nativeLibDir, "librpcsx-android.so")
+                        if (packaged.exists()) {
+                            try {
+                                System.load(packaged.absolutePath)
+                            } catch (_: Throwable) {
+                                // ignore - may already be loaded or fail if not present for this ABI
+                            }
+                        }
+                    } catch (_: Throwable) {}
+
                     val f = File(pathStr)
                     if (f.exists()) {
                         if (RPCSX.openLibrary(f.absolutePath)) return true

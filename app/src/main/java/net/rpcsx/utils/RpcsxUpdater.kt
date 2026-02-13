@@ -186,12 +186,21 @@ object RpcsxUpdater {
 
         val prevLibrary = GeneralSettings["rpcsx_library"] as? String
         val prevArch = GeneralSettings["rpcsx_installed_arch"] as? String
-        GeneralSettings["rpcsx_library"] = updateFile.toString()
+        // Also create a stable copy with canonical name so native dlopen by name can find it
+        try {
+            val stable = File(context.filesDir, "librpcsx-android.so")
+            if (stable.exists()) stable.delete()
+            updateFile.copyTo(stable, overwrite = true)
+            GeneralSettings["rpcsx_library"] = stable.toString()
+        } catch (e: Throwable) {
+            // Fallback to using the original file path if copy fails
+            GeneralSettings["rpcsx_library"] = updateFile.toString()
+        }
         GeneralSettings["rpcsx_update_status"] = null
         GeneralSettings["rpcsx_installed_arch"] = getFileArch(updateFile)
         GeneralSettings["rpcsx_load_attempts"] = 0
 
-        Log.i("RPCSX-UI", "Registered update file ${GeneralSettings["rpcsx_library"]}")
+        Log.i("RPCSX-Updater", "Registered update file ${GeneralSettings["rpcsx_library"]}")
 
         // Guard: never set prev_library to the same path as new library (self-reference causes loop)
         if (prevLibrary != null && prevLibrary != updateFile.toString()) {
