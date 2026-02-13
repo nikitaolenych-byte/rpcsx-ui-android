@@ -19,6 +19,7 @@
     <uses-feature android:name="android.hardware.usb.accessory" />
 
     <application
+        android:name=".MyApp"
         android:allowBackup="true"
         android:allowNativeHeapPointerTagging="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
