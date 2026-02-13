@@ -344,14 +344,40 @@ class RPCSX {
                     opened = instance.openLibrary(path)
                 } catch (e: UnsatisfiedLinkError) {
                     // Native library may not have been loaded yet — try to load and retry once
-                    android.util.Log.w("RPCSX", "UnsatisfiedLinkError on openLibrary, attempting System.loadLibrary('rpcsx-android') and retry: ${e.message}")
+                    android.util.Log.w("RPCSX", "UnsatisfiedLinkError on openLibrary, attempting System.loadLibrary('rpcsx-android') and System.load(path) and retry: ${e.message}")
+                    var retried = false
                     try {
                         System.loadLibrary("rpcsx-android")
+                        retried = true
                         opened = instance.openLibrary(path)
                     } catch (e2: Throwable) {
-                        android.util.Log.e("RPCSX", "Retry openLibrary failed: ${e2.message}", e2)
-                        lastOpenError.value = e2.message
-                        opened = false
+                        android.util.Log.w("RPCSX", "System.loadLibrary failed: ${e2.message}")
+                    }
+
+                    if (!retried) {
+                        try {
+                            val f = java.io.File(path)
+                            if (f.exists()) {
+                                System.load(f.absolutePath)
+                                opened = instance.openLibrary(path)
+                            } else {
+                                // try known setting path
+                                try {
+                                    val stored = net.rpcsx.utils.GeneralSettings["rpcsx_library"] as? String
+                                    if (stored != null) {
+                                        val sf = java.io.File(stored)
+                                        if (sf.exists()) {
+                                            System.load(sf.absolutePath)
+                                            opened = instance.openLibrary(stored)
+                                        }
+                                    }
+                                } catch (_: Throwable) {}
+                            }
+                        } catch (e3: Throwable) {
+                            android.util.Log.e("RPCSX", "Retry openLibrary with System.load(path) failed: ${e3.message}", e3)
+                            lastOpenError.value = e3.message
+                            opened = false
+                        }
                     }
                 }
 

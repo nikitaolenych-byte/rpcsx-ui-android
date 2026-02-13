@@ -191,6 +191,7 @@ object RpcsxUpdater {
             val stable = File(context.filesDir, "librpcsx-android.so")
             if (stable.exists()) stable.delete()
             updateFile.copyTo(stable, overwrite = true)
+            try { stable.setExecutable(true, false) } catch (_: Throwable) {}
             GeneralSettings["rpcsx_library"] = stable.toString()
         } catch (e: Throwable) {
             // Fallback to using the original file path if copy fails
