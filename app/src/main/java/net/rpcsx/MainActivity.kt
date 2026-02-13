@@ -112,6 +112,41 @@ class MainActivity : ComponentActivity() {
 
                 // Try to load the library
                 if (rpcsxLibrary != null && File(rpcsxLibrary).exists()) {
+                    // Ensure native library is loaded into the VM before calling instance methods
+                    try {
+                        // Try packaged native library first
+                        val nativeLibDir = packageManager.getApplicationInfo(packageName, 0).nativeLibraryDir
+                        val packaged = File(nativeLibDir, "librpcsx-android.so")
+                        if (packaged.exists()) {
+                            try {
+                                System.load(packaged.absolutePath)
+                                Log.i("RPCSX", "Loaded packaged librpcsx-android.so from $packaged")
+                            } catch (e: Throwable) {
+                                Log.w("RPCSX", "System.load(packaged) failed: ${e.message}")
+                            }
+                        }
+
+                        // Try stable copy in filesDir (created by updater)
+                        val stable = File(filesDir, "librpcsx-android.so")
+                        if (stable.exists()) {
+                            try {
+                                System.load(stable.absolutePath)
+                                Log.i("RPCSX", "Loaded stable librpcsx-android.so from $stable")
+                            } catch (e: Throwable) {
+                                Log.w("RPCSX", "System.load(stable) failed: ${e.message}")
+                            }
+                        }
+
+                        // Last resort: try System.loadLibrary by name
+                        try {
+                            System.loadLibrary("rpcsx-android")
+                            Log.i("RPCSX", "System.loadLibrary('rpcsx-android') succeeded")
+                        } catch (e: Throwable) {
+                            Log.w("RPCSX", "System.loadLibrary('rpcsx-android') failed: ${e.message}")
+                        }
+                    } catch (e: Throwable) {
+                        Log.w("RPCSX", "Preload checks failed: ${e.message}")
+                    }
                     if (RPCSX.openLibrary(rpcsxLibrary)) {
                         // Success - clear all pending state
                         GeneralSettings["rpcsx_update_status"] = true
