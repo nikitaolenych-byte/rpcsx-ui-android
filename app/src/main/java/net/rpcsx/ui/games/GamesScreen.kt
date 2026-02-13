@@ -806,10 +806,37 @@ fun GamesScreen(navigateTo: (String) -> Unit = {}) {
                     if (autoLoadFailed) {
                         androidx.compose.foundation.layout.Row {
                             TextButton(onClick = {
-                                // Copy native open error to clipboard
-                                val text = openError ?: ""
-                                clipboardManager.setText(AnnotatedString(text))
-                                Toast.makeText(context, "Logs copied to clipboard", Toast.LENGTH_SHORT).show()
+                                // Build detailed report and copy to clipboard, also save to filesDir
+                                try {
+                                    val sb = StringBuilder()
+                                    sb.append("rpcsx_library=${GeneralSettings["rpcsx_library"]}\n")
+                                    sb.append("rpcsx_installed_arch=${GeneralSettings["rpcsx_installed_arch"]}\n")
+                                    sb.append("rpcsx_load_attempts=${GeneralSettings["rpcsx_load_attempts"]}\n")
+                                    sb.append("lastOpenError=${openError ?: RPCSX.lastOpenError.value ?: ""}\n")
+                                    try {
+                                        val nativeErr = RPCSX.instance.getLastOpenLibraryError()
+                                        sb.append("native_getLastOpenLibraryError=$nativeErr\n")
+                                    } catch (_: Throwable) {}
+                                    sb.append("package=${context.packageName}\n")
+                                    try {
+                                        val abi = android.os.Build.SUPPORTED_ABIS.joinToString(",")
+                                        sb.append("device_supported_abis=$abi\n")
+                                    } catch (_: Throwable) {}
+
+                                    val report = sb.toString()
+                                    clipboardManager.setText(AnnotatedString(report))
+
+                                    // Save to file for adb pull
+                                    try {
+                                        val outFile = java.io.File(context.filesDir, "rpcsx_error_report.txt")
+                                        outFile.writeText(report)
+                                    } catch (_: Throwable) {}
+
+                                    Toast.makeText(context, "Logs copied and saved to filesDir", Toast.LENGTH_SHORT).show()
+                                } catch (e: Throwable) {
+                                    try { clipboardManager.setText(AnnotatedString(openError ?: "")) } catch (_: Throwable) {}
+                                    Toast.makeText(context, "Failed to collect logs: ${e.message}", Toast.LENGTH_SHORT).show()
+                                }
                             }) {
                                 Text("Copy logs")
                             }
