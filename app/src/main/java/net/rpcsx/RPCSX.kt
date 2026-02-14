@@ -375,32 +375,33 @@ class RPCSX {
                     }
                 } catch (_: Throwable) {}
 
-                // Now call into native implementation; catch UnsatisfiedLinkError and report
-                return try {
-                    val opened = instance.openLibrary(path)
-                    if (!opened) {
-                        try {
-                            val nativeError = instance.getLastOpenLibraryError()
-                            if (!nativeError.isNullOrEmpty()) {
-                                lastOpenError.value = nativeError
-                                android.util.Log.e("RPCSX", "dlopen error: $nativeError")
-                            }
-                        } catch (_: Throwable) {}
-                        false
-                    } else {
-                        lastOpenError.value = null
-                        activeLibrary.value = path
-                        true
-                    }
+                var opened = false
+                try {
+                    opened = instance.openLibrary(path)
                 } catch (e: UnsatisfiedLinkError) {
                     android.util.Log.e("RPCSX", "UnsatisfiedLinkError after preloads: ${e.message}")
                     lastOpenError.value = e.message
-                    false
+                    opened = false
                 }
+
+                if (!opened) {
+                    try {
+                        val nativeError = instance.getLastOpenLibraryError()
+                        if (!nativeError.isNullOrEmpty()) {
+                            lastOpenError.value = nativeError
+                            android.util.Log.e("RPCSX", "dlopen error: $nativeError")
+                        }
+                    } catch (_: Throwable) {}
+                    return false
+                }
+
+                lastOpenError.value = null
+                activeLibrary.value = path
+                return true
             } catch (e: Throwable) {
                 lastOpenError.value = e.message
                 android.util.Log.e("RPCSX", "Failed to open library: ${e.message}", e)
-                false
+                return false
             }
         }
 
