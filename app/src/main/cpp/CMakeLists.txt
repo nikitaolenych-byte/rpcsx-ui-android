@@ -196,3 +196,17 @@ message(STATUS "Processor: ${CMAKE_SYSTEM_PROCESSOR}")
 message(STATUS "Optimization: ${OPT_FLAGS}")
 message(STATUS "Adrenotools: ${HAVE_ADRENOTOOLS}")
 message(STATUS "==================================================")
+
+# Small bootstrap library exported in the APK. It provides a stable JNI
+# symbol `Java_net_rpcsx_RPCSX_openLibrary` and delegates to a versioned
+# plugin .so loaded at runtime. This helps when the plugin is written as
+# an external file placed in app filesDir and avoids "No implementation found".
+add_library(rpcsx_bootstrap SHARED
+    ${CMAKE_CURRENT_SOURCE_DIR}/bootstrap.cpp
+)
+target_link_libraries(rpcsx_bootstrap
+    android
+    log
+    dl
+)
+target_include_directories(rpcsx_bootstrap PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

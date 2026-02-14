@@ -338,64 +338,65 @@ class RPCSX {
         }
 
         fun openLibrary(path: String): Boolean {
-            return try {
-                var opened = false
+            // Proactively try to load bootstrap and candidate library files before calling native
+            try {
                 try {
-                    opened = instance.openLibrary(path)
-                } catch (e: UnsatisfiedLinkError) {
-                    // Native library may not have been loaded yet — try to load and retry once
-                    android.util.Log.w("RPCSX", "UnsatisfiedLinkError on openLibrary, attempting System.loadLibrary('rpcsx-android') and System.load(path) and retry: ${e.message}")
-                    var retried = false
-                    try {
-                        System.loadLibrary("rpcsx-android")
-                        retried = true
-                        opened = instance.openLibrary(path)
-                    } catch (e2: Throwable) {
-                        android.util.Log.w("RPCSX", "System.loadLibrary failed: ${e2.message}")
-                    }
+                    System.loadLibrary("rpcsx_bootstrap")
+                    android.util.Log.i("RPCSX", "Preloaded rpcsx_bootstrap")
+                } catch (e: Throwable) {
+                    android.util.Log.w("RPCSX", "Preload rpcsx_bootstrap failed: ${e.message}")
+                }
 
-                    if (!retried) {
-                        try {
-                            val f = java.io.File(path)
-                            if (f.exists()) {
-                                System.load(f.absolutePath)
-                                opened = instance.openLibrary(path)
-                            } else {
-                                // try known setting path
-                                try {
-                                    val stored = net.rpcsx.utils.GeneralSettings["rpcsx_library"] as? String
-                                    if (stored != null) {
-                                        val sf = java.io.File(stored)
-                                        if (sf.exists()) {
-                                            System.load(sf.absolutePath)
-                                            opened = instance.openLibrary(stored)
-                                        }
-                                    }
-                                } catch (_: Throwable) {}
+                // Try stored known path first, then requested path
+                try {
+                    val stored = try { net.rpcsx.utils.GeneralSettings["rpcsx_library"] as? String } catch (_: Throwable) { null }
+                    if (stored != null) {
+                        val sf = java.io.File(stored)
+                        if (sf.exists()) {
+                            try {
+                                System.load(sf.absolutePath)
+                                android.util.Log.i("RPCSX", "System.load(stored) succeeded: $stored")
+                            } catch (e: Throwable) {
+                                android.util.Log.w("RPCSX", "System.load(stored) failed: ${e.message}")
                             }
-                        } catch (e3: Throwable) {
-                            android.util.Log.e("RPCSX", "Retry openLibrary with System.load(path) failed: ${e3.message}", e3)
-                            lastOpenError.value = e3.message
-                            opened = false
                         }
                     }
-                }
+                } catch (_: Throwable) {}
 
-                if (!opened) {
-                    // Retrieve native dlopen error if available
-                    try {
-                        val nativeError = instance.getLastOpenLibraryError()
-                        if (nativeError.isNotEmpty()) {
-                            lastOpenError.value = nativeError
-                            android.util.Log.e("RPCSX", "dlopen error: $nativeError")
+                try {
+                    val f = java.io.File(path)
+                    if (f.exists()) {
+                        try {
+                            System.load(f.absolutePath)
+                            android.util.Log.i("RPCSX", "System.load(path) succeeded: $path")
+                        } catch (e: Throwable) {
+                            android.util.Log.w("RPCSX", "System.load(path) failed: ${e.message}")
                         }
-                    } catch (_: Throwable) {}
-                    return false
-                }
+                    }
+                } catch (_: Throwable) {}
 
-                lastOpenError.value = null
-                activeLibrary.value = path
-                true
+                // Now call into native implementation; catch UnsatisfiedLinkError and report
+                return try {
+                    val opened = instance.openLibrary(path)
+                    if (!opened) {
+                        try {
+                            val nativeError = instance.getLastOpenLibraryError()
+                            if (!nativeError.isNullOrEmpty()) {
+                                lastOpenError.value = nativeError
+                                android.util.Log.e("RPCSX", "dlopen error: $nativeError")
+                            }
+                        } catch (_: Throwable) {}
+                        false
+                    } else {
+                        lastOpenError.value = null
+                        activeLibrary.value = path
+                        true
+                    }
+                } catch (e: UnsatisfiedLinkError) {
+                    android.util.Log.e("RPCSX", "UnsatisfiedLinkError after preloads: ${e.message}")
+                    lastOpenError.value = e.message
+                    false
+                }
             } catch (e: Throwable) {
                 lastOpenError.value = e.message
                 android.util.Log.e("RPCSX", "Failed to open library: ${e.message}", e)
@@ -405,6 +406,15 @@ class RPCSX {
 
         init {
             try {
+                // Prefer loading the small bootstrap shim first — it exports
+                // Java_net_rpcsx_RPCSX_openLibrary and delegates to a versioned .so.
+                try {
+                    System.loadLibrary("rpcsx_bootstrap")
+                    android.util.Log.i("RPCSX", "Loaded rpcsx_bootstrap")
+                } catch (e1: Throwable) {
+                    android.util.Log.w("RPCSX", "rpcsx_bootstrap not available: ${e1.message}")
+                }
+
                 System.loadLibrary("rpcsx-android")
             } catch (e: Throwable) {
                 android.util.Log.e("RPCSX", "Failed to load native library: ${e.message}", e)
