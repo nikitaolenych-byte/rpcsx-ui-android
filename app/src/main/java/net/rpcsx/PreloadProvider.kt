@@ -10,6 +10,27 @@ import java.io.File
 class PreloadProvider : ContentProvider() {
     override fun onCreate(): Boolean {
         try {
+            // Ensure GeneralSettings is initialized so we can read stored library path
+            try {
+                net.rpcsx.utils.GeneralSettings.init(context!!.applicationContext)
+            } catch (_: Throwable) {}
+
+            // If an updater saved a canonical library path in GeneralSettings, try loading it now
+            try {
+                val stored = try { net.rpcsx.utils.GeneralSettings["rpcsx_library"] as? String } catch (_: Throwable) { null }
+                if (!stored.isNullOrEmpty()) {
+                    val sf = File(stored)
+                    if (sf.exists()) {
+                        try {
+                            System.load(sf.absolutePath)
+                            Log.i("RPCSX-PreloadProv", "System.load(stored) succeeded: $stored")
+                        } catch (e: Throwable) {
+                            Log.w("RPCSX-PreloadProv", "System.load(stored) failed: ${e.message}")
+                        }
+                    }
+                }
+            } catch (_: Throwable) {}
+
             // Load packaged lib if present
             val nativeLibDir = context?.applicationInfo?.nativeLibraryDir
             if (!nativeLibDir.isNullOrEmpty()) {
