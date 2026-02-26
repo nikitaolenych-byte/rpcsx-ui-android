@@ -73,6 +73,7 @@ import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.compose.runtime.snapshotFlow
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import java.net.URLDecoder
@@ -106,6 +107,7 @@ import net.rpcsx.ui.settings.SettingsScreen
 import net.rpcsx.ui.settings.SpecialSettingsScreen
 import net.rpcsx.ui.user.UsersScreen
 import net.rpcsx.utils.FileUtil
+import net.rpcsx.FirmwareStatus
 import net.rpcsx.utils.GeneralSettings
 import net.rpcsx.utils.RpcsxUpdater
 import org.json.JSONObject
@@ -468,39 +470,8 @@ fun AppNavHost() {
                 },
                 isDeletable = { isValidChannel(it, ReleaseRpcsxChannel, DevRpcsxChannel) },
                 actions = actions@{
-                    if (RpcsxUpdater.getAbi() != "arm64-v8a") {
-                        return@actions
-                    }
-                    var downloadArch by remember { mutableStateOf(RpcsxUpdater.getArch()) }
-                    var expanded by remember { mutableStateOf(false) }
-
-                    TextButton(onClick = { expanded = true }) {
-                        Text(downloadArch)
-                    }
-
-                    DropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false }
-                    ) {
-                        listOf(
-                            "armv8-a",
-                            "armv8.1-a",
-                            "armv8.2-a",
-                            "armv8.4-a",
-                            "armv8.5-a",
-                            "armv9-a",
-                            "armv9.1-a",
-                        ).forEach { arch ->
-                            DropdownMenuItem(
-                                text = { Text(arch) },
-                                onClick = {
-                                    RpcsxUpdater.setArch(arch)
-                                    downloadArch = arch
-                                    expanded = false
-                                }
-                            )
-                        }
-                    }
+                    // Architecture is auto-detected at startup — no manual UI needed
+                }
                 }
             )
         }
@@ -530,6 +501,38 @@ fun GamesDestination(
 
     LaunchedEffect(Unit) {
         UserRepository.load()
+    }
+
+    // Watch firmware status: auto-close drawer & show toast when firmware finishes loading
+    val fwStatus by remember { FirmwareRepository.status }
+    val fwVersion by remember { FirmwareRepository.version }
+    val fwProgressChannel by remember { FirmwareRepository.progressChannel }
+    var wasFirmwareLoading by remember { mutableStateOf(fwProgressChannel != null) }
+
+    LaunchedEffect(fwProgressChannel, fwStatus) {
+        if (wasFirmwareLoading && fwProgressChannel == null) {
+            // Firmware loading just completed (progress went from active -> null)
+            wasFirmwareLoading = false
+
+            // Close drawer if open
+            if (drawerState.isOpen) {
+                drawerState.close()
+            }
+
+            // Show toast if firmware was actually installed
+            if (fwVersion != null) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.firmware) + ": " + fwVersion + " ✓",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        } else if (fwProgressChannel != null) {
+            // Firmware loading started
+            wasFirmwareLoading = true
+        }
     }
 
     val installPkgLauncher = rememberLauncherForActivityResult(

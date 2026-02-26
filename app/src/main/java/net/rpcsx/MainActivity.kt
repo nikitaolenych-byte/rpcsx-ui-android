@@ -30,6 +30,15 @@ class MainActivity : ComponentActivity() {
 
         GeneralSettings.init(this)
 
+        // Auto-detect ARM architecture (ARMv8 vs ARMv9) on first launch
+        try {
+            net.rpcsx.utils.RpcsxUpdater.autoDetectArchIfNeeded()
+            val detected = net.rpcsx.utils.ArmArchDetector.detect()
+            Log.i("RPCSX", "ARM arch: ${detected.arch} (${detected.reason}), ARMv9=${detected.supportsArm9}")
+        } catch (e: Throwable) {
+            Log.w("RPCSX", "ARM arch detection failed: ${e.message}")
+        }
+
         // Initialize CutsceneBridge so native code can request playback
         try {
             CutsceneBridge.init(applicationContext)

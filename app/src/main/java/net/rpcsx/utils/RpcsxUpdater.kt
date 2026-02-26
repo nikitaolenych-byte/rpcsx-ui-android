@@ -48,12 +48,31 @@ object RpcsxUpdater {
     fun getArch(): String {
         return when (getAbi()) {
             "x86_64" -> "x86-64"
-            else -> GeneralSettings["rpcsx_arch"] as? String ?: "armv8-a"
+            else -> {
+                // Always auto-detect — silent system-level detection
+                val detected = ArmArchDetector.getBestArch()
+                val current = GeneralSettings["rpcsx_arch"] as? String
+                if (current != detected) {
+                    Log.i("RPCSX-Updater", "Auto-detected architecture: $detected (was: $current)")
+                    GeneralSettings["rpcsx_arch"] = detected
+                }
+                detected
+            }
         }
     }
 
-    fun setArch(arch: String) {
-        GeneralSettings["rpcsx_arch"] = arch
+    /**
+     * Re-run auto-detection and update the saved arch.
+     * Called at app startup.
+     */
+    fun autoDetectArchIfNeeded() {
+        if (getAbi() == "x86_64") return
+        val current = GeneralSettings["rpcsx_arch"] as? String
+        val detected = ArmArchDetector.getBestArch()
+        if (current != detected) {
+            Log.i("RPCSX-Updater", "Auto-detection updated arch: $current -> $detected")
+            GeneralSettings["rpcsx_arch"] = detected
+        }
     }
 
     suspend fun checkForUpdate(): String? {
