@@ -472,7 +472,6 @@ fun AppNavHost() {
                 actions = actions@{
                     // Architecture is auto-detected at startup — no manual UI needed
                 }
-                }
             )
         }
 
