@@ -30,7 +30,28 @@ class MainActivity : ComponentActivity() {
 
         GeneralSettings.init(this)
 
-        // Auto-detect ARM architecture (ARMv8 vs ARMv9) on first launch
+        // --- Crash-safe library loading detection ---
+        // If "lib_loading_in_progress" is still true, the app crashed during
+        // dlopen() of the native library (e.g. SIGILL from ARMv9 instructions
+        // on a device that doesn't really support them). Java try-catch cannot
+        // catch native crashes, so we use this flag to detect it on next start.
+        try {
+            val wasLoading = (GeneralSettings["lib_loading_in_progress"] as? Boolean) == true
+            val lastLoadArch = GeneralSettings["lib_loading_arch"] as? String
+            if (wasLoading) {
+                Log.e("RPCSX", "CRASH DETECTED: App crashed while loading library (arch=$lastLoadArch)")
+                if (lastLoadArch != null && lastLoadArch.contains("armv9")) {
+                    GeneralSettings["rpcsx_arch_crashed"] = true
+                    Log.e("RPCSX", "Marking ARMv9 as crashed — will fallback to ARMv8")
+                }
+                GeneralSettings["lib_loading_in_progress"] = false
+                GeneralSettings.sync()
+            }
+        } catch (e: Throwable) {
+            Log.w("RPCSX", "Crash detection check failed: ${e.message}")
+        }
+
+        // Auto-detect ARM architecture (ARMv8 vs ARMv9)
         try {
             net.rpcsx.utils.RpcsxUpdater.autoDetectArchIfNeeded()
             val detected = net.rpcsx.utils.ArmArchDetector.detect()
@@ -121,6 +142,14 @@ class MainActivity : ComponentActivity() {
 
                 // Try to load the library
                 if (rpcsxLibrary != null && File(rpcsxLibrary).exists()) {
+                    // Set crash-detection flag BEFORE loading.
+                    // If dlopen() causes SIGILL, the flag stays true and
+                    // on next startup we'll know lib loading crashed.
+                    val loadingArch = GeneralSettings["rpcsx_installed_arch"] as? String ?: "unknown"
+                    GeneralSettings["lib_loading_in_progress"] = true
+                    GeneralSettings["lib_loading_arch"] = loadingArch
+                    GeneralSettings.sync()
+
                     // Ensure native library is loaded into the VM before calling instance methods
                     try {
                         // Try packaged native library first
@@ -157,11 +186,14 @@ class MainActivity : ComponentActivity() {
                         Log.w("RPCSX", "Preload checks failed: ${e.message}")
                     }
                     if (RPCSX.openLibrary(rpcsxLibrary)) {
-                        // Success - clear all pending state
+                        // Success - clear all pending state AND crash flag
                         GeneralSettings["rpcsx_update_status"] = true
                         GeneralSettings["rpcsx_load_attempts"] = 0
                         GeneralSettings["rpcsx_prev_library"] = null
                         GeneralSettings["rpcsx_prev_installed_arch"] = null
+                        GeneralSettings["lib_loading_in_progress"] = false
+                        GeneralSettings["lib_loading_arch"] = null
+                        GeneralSettings["rpcsx_arch_crashed"] = null
                         GeneralSettings.sync()
                         Log.i("RPCSX", "Library loaded: $rpcsxLibrary")
                     } else {

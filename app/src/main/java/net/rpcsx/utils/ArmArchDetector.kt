@@ -1,6 +1,5 @@
 package net.rpcsx.utils
 
-import android.os.Build
 import android.util.Log
 import java.io.File
 
@@ -30,77 +29,34 @@ object ArmArchDetector {
         try {
             val cpuInfo = readCpuInfo()
             val features = parseCpuFeatures(cpuInfo)
-            val cpuParts = parseCpuParts(cpuInfo)
-            val implementers = parseCpuImplementers(cpuInfo)
 
-            // Check for ARMv9 indicators
-            // SVE2 is the defining feature of ARMv9
+            // CONSERVATIVE: Only trust actual CPU feature flags from /proc/cpuinfo.
+            // Do NOT guess based on SoC names or CPU part numbers —
+            // the kernel may not expose SVE2 even on ARMv9 hardware,
+            // and loading an ARMv9 library will cause a native crash (SIGILL)
+            // that cannot be caught by Java try-catch.
+
+            // SVE2 is the defining mandatory feature of ARMv9
             if ("sve2" in features) {
                 val subArch = if ("sme" in features || "sme2" in features) "armv9.2-a"
                 else if ("bf16" in features && "i8mm" in features) "armv9.1-a"
                 else "armv9-a"
                 return DetectionResult(
                     arch = subArch,
-                    reason = "Detected SVE2 feature (ARMv9 mandatory)",
+                    reason = "Detected SVE2 in /proc/cpuinfo",
                     supportsArm9 = true,
                     features = features
                 )
             }
 
-            // Check for SVE (ARMv9 precursor, some ARMv8.6+ also have it)
-            if ("sve" in features) {
-                return DetectionResult(
-                    arch = "armv9-a",
-                    reason = "Detected SVE feature",
-                    supportsArm9 = true,
-                    features = features
-                )
-            }
-
-            // Check known ARMv9 CPU part numbers
-            val armv9Parts = setOf(
-                "d46", // Cortex-A510 (ARMv9)
-                "d47", // Cortex-A710 (ARMv9)
-                "d48", // Cortex-X2 (ARMv9)
-                "d4d", // Cortex-A715 (ARMv9)
-                "d4e", // Cortex-X3 (ARMv9)
-                "d4f", // Neoverse-V2 (ARMv9)
-                "d80", // Cortex-A520 (ARMv9.2)
-                "d81", // Cortex-A720 (ARMv9.2)
-                "d82", // Cortex-X4 (ARMv9.2)
-                "d84", // Neoverse-V3 (ARMv9.2)
-                "d85", // Cortex-X925 (ARMv9.2)
-                "d87", // Cortex-A725 (ARMv9.2)
-                "d89", // Cortex-A520AE (ARMv9.2)
-            )
-
-            for (part in cpuParts) {
-                val normalized = part.lowercase().removePrefix("0x")
-                if (normalized in armv9Parts) {
-                    return DetectionResult(
-                        arch = "armv9-a",
-                        reason = "Detected ARMv9 CPU part: 0x$normalized",
-                        supportsArm9 = true,
-                        features = features
-                    )
-                }
-            }
-
-            // Check known ARMv9 SoC names from Build.HARDWARE / Build.SOC_MODEL
-            if (isKnownArmv9Soc()) {
-                return DetectionResult(
-                    arch = "armv9-a",
-                    reason = "Known ARMv9 SoC: ${getSocInfo()}",
-                    supportsArm9 = true,
-                    features = features
-                )
-            }
+            // SVE alone is NOT enough for ARMv9 — some ARMv8.6+ chips have SVE
+            // but the library may use SVE2 instructions. Stay on ARMv8.
 
             // Determine ARMv8 sub-level based on features
             val archLevel = detectArmv8Level(features)
             return DetectionResult(
                 arch = archLevel,
-                reason = "ARMv8 features detected",
+                reason = "ARMv8 features detected (sve2 not in cpuinfo)",
                 supportsArm9 = false,
                 features = features
             )
@@ -125,6 +81,19 @@ object ArmArchDetector {
      */
     fun getBestArch(): String = detect().arch
 
+    /**
+     * Force ARMv8 detection only (used after ARMv9 library crash).
+     * Returns the best ARMv8 sub-level without considering ARMv9.
+     */
+    fun detectArmv8Only(): String {
+        return try {
+            val features = parseCpuFeatures(readCpuInfo())
+            detectArmv8Level(features)
+        } catch (e: Throwable) {
+            "armv8-a"
+        }
+    }
+
     // ---- private implementation ----
 
     private fun readCpuInfo(): String {
@@ -145,73 +114,6 @@ object ArmArchDetector {
             }
         }
         return features
-    }
-
-    private fun parseCpuParts(cpuInfo: String): Set<String> {
-        val parts = mutableSetOf<String>()
-        for (line in cpuInfo.lines()) {
-            if (line.startsWith("CPU part", ignoreCase = true)) {
-                val value = line.substringAfter(":").trim().lowercase().removePrefix("0x")
-                parts.add(value)
-            }
-        }
-        return parts
-    }
-
-    private fun parseCpuImplementers(cpuInfo: String): Set<String> {
-        val impls = mutableSetOf<String>()
-        for (line in cpuInfo.lines()) {
-            if (line.startsWith("CPU implementer", ignoreCase = true)) {
-                val value = line.substringAfter(":").trim().lowercase()
-                impls.add(value)
-            }
-        }
-        return impls
-    }
-
-    private fun isKnownArmv9Soc(): Boolean {
-        val socModel = try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                Build.SOC_MODEL.lowercase()
-            } else ""
-        } catch (_: Throwable) { "" }
-
-        val hardware = Build.HARDWARE.lowercase()
-        val board = Build.BOARD.lowercase()
-        val combined = "$socModel $hardware $board"
-
-        // Known ARMv9 SoCs (Snapdragon 8 Gen 1+, Dimensity 9000+, Exynos 2200+)
-        val armv9Patterns = listOf(
-            // Qualcomm Snapdragon 8 Gen 1 and newer
-            "sm8450", "sm8475", "sm8550", "sm8650", "sm8750",  // SD 8 Gen 1/1+/2/3/4
-            "sm7550", "sm7675",  // SD 7+ Gen 2, SD 7s Gen 3
-            "taro", "kalama", "pineapple", "sun",  // Qualcomm codenames
-            // MediaTek Dimensity 9000+
-            "mt6983", "mt6985", "mt6989", "mt6990",  // D9000/9200/9300/9400
-            // Samsung Exynos with ARMv9
-            "exynos2200", "exynos2300", "exynos2400", "exynos2500",
-            "s5e9925", "s5e9935", "s5e9945", "s5e9955",
-            // Google Tensor G2+
-            "gs201", "zuma", "zumapro",  // Tensor G2, G3, G4
-        )
-
-        for (pattern in armv9Patterns) {
-            if (combined.contains(pattern)) return true
-        }
-
-        return false
-    }
-
-    private fun getSocInfo(): String {
-        val parts = mutableListOf<String>()
-        parts.add("HW=${Build.HARDWARE}")
-        parts.add("Board=${Build.BOARD}")
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                parts.add("SoC=${Build.SOC_MODEL}")
-            }
-        } catch (_: Throwable) {}
-        return parts.joinToString(", ")
     }
 
     private fun detectArmv8Level(features: Set<String>): String {

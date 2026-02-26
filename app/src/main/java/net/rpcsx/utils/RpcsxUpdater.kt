@@ -49,7 +49,16 @@ object RpcsxUpdater {
         return when (getAbi()) {
             "x86_64" -> "x86-64"
             else -> {
-                // Always auto-detect — silent system-level detection
+                // Check if previous armv9 library crashed the app
+                val crashedOnArm9 = (GeneralSettings["rpcsx_arch_crashed"] as? Boolean) == true
+                if (crashedOnArm9) {
+                    Log.w("RPCSX-Updater", "Previous ARMv9 library crashed, forcing armv8")
+                    val fallback = ArmArchDetector.detectArmv8Only()
+                    GeneralSettings["rpcsx_arch"] = fallback
+                    return fallback
+                }
+
+                // Auto-detect
                 val detected = ArmArchDetector.getBestArch()
                 val current = GeneralSettings["rpcsx_arch"] as? String
                 if (current != detected) {
@@ -63,10 +72,31 @@ object RpcsxUpdater {
 
     /**
      * Re-run auto-detection and update the saved arch.
-     * Called at app startup.
+     * Called at app startup. Respects crash fallback.
      */
     fun autoDetectArchIfNeeded() {
         if (getAbi() == "x86_64") return
+
+        // If app crashed loading armv9 library, force armv8 fallback
+        val crashedOnArm9 = (GeneralSettings["rpcsx_arch_crashed"] as? Boolean) == true
+        if (crashedOnArm9) {
+            val fallback = ArmArchDetector.detectArmv8Only()
+            Log.w("RPCSX-Updater", "ARMv9 crash detected, falling back to: $fallback")
+            GeneralSettings["rpcsx_arch"] = fallback
+            // Delete the crashing armv9 library so it gets re-downloaded as armv8
+            val libPath = GeneralSettings["rpcsx_library"] as? String
+            if (libPath != null && libPath.contains("armv9")) {
+                try {
+                    java.io.File(libPath).delete()
+                    Log.i("RPCSX-Updater", "Deleted crashing armv9 library: $libPath")
+                } catch (_: Throwable) {}
+                GeneralSettings["rpcsx_library"] = null
+                GeneralSettings["rpcsx_update_status"] = true
+            }
+            GeneralSettings.sync()
+            return
+        }
+
         val current = GeneralSettings["rpcsx_arch"] as? String
         val detected = ArmArchDetector.getBestArch()
         if (current != detected) {
